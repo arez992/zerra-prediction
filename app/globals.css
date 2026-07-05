@@ -1,4 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,rgba(212,175,55,.18),transparent 35%),#07111F;color:white}html{scroll-behavior:smooth}.glass{background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px)}.gold-text{background:linear-gradient(90deg,#F8E7A1,#D4AF37,#B78628);-webkit-background-clip:text;background-clip:text;color:transparent}[dir=rtl]{font-family:Arial,sans-serif}
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #050816;
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+}
