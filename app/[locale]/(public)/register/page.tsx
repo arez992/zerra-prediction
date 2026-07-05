@@ -1,41 +1,45 @@
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <main className="mx-auto flex min-h-[80vh] max-w-7xl items-center justify-center px-5">
       <div className="w-full max-w-md rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-8">
 
         <h1 className="text-center text-4xl font-black text-white">
-          Welcome Back
+          Create Account
         </h1>
 
         <p className="mt-3 text-center text-white/60">
-          Login to your ZERRA Prediction account
+          Join ZERRA Prediction today
         </p>
 
         <input
-          type="email"
+          placeholder="Full Name"
+          className="mt-8 w-full rounded-xl border border-white/10 bg-black/20 p-4 text-white"
+        />
+
+        <input
           placeholder="Email"
-          className="mt-8 w-full rounded-xl border border-white/10 bg-black/20 p-4 text-white outline-none"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-black/20 p-4 text-white"
         />
 
         <input
           type="password"
           placeholder="Password"
-          className="mt-4 w-full rounded-xl border border-white/10 bg-black/20 p-4 text-white outline-none"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-black/20 p-4 text-white"
         />
 
         <button className="mt-8 w-full rounded-full bg-[#D4AF37] py-4 font-bold text-black">
-          Login
+          Create Account
         </button>
 
         <p className="mt-6 text-center text-white/60">
-          Don't have an account?
+          Already have an account?
         </p>
 
         <a
-          href="/en/register"
+          href="/en/login"
           className="mt-3 block text-center font-bold text-[#D4AF37]"
         >
-          Create Account
+          Login
         </a>
 
       </div>

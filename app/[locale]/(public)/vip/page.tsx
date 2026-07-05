@@ -1,2 +1,72 @@
-const plans=[['Weekly','9 USDT','7 days access'],['Monthly','19 USDT','Best value'],['Quarterly','49 USDT','Save more'],['Yearly','149 USDT','Founder access']];
-export default function VipPage(){return <main className="mx-auto max-w-7xl px-5 py-14"><p className="text-gold">USDT TRC20</p><h1 className="text-5xl font-black">VIP Membership</h1><div className="mt-10 grid gap-5 md:grid-cols-4">{plans.map(([name,price,desc])=><div className="glass rounded-3xl p-6" key={name}><h2 className="text-2xl font-black">{name}</h2><p className="mt-4 text-4xl font-black gold-text">{price}</p><p className="mt-2 text-white/60">{desc}</p><button className="mt-6 w-full rounded-2xl bg-gold py-3 font-bold text-night">Pay with USDT</button></div>)}</div><div className="mt-10 glass rounded-3xl p-6"><h2 className="text-2xl font-black">Payment Flow</h2><p className="mt-3 text-white/60">User sends USDT TRC20, submits TxID, backend verifies payment, then VIP is activated automatically.</p></div></main>}
+export default function VipPage() {
+  return (
+    <main className="mx-auto max-w-7xl px-5 py-14">
+      <h1 className="text-5xl font-black text-white">
+        Become a VIP Member
+      </h1>
+
+      <p className="mt-4 max-w-2xl text-white/70">
+        Unlock all AI predictions, confidence scores, live predictions,
+        and daily premium picks.
+      </p>
+
+      <div className="mt-10 grid gap-6 md:grid-cols-3">
+
+        <div className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-8">
+          <h2 className="text-2xl font-bold text-[#D4AF37]">
+            Weekly
+          </h2>
+
+          <p className="mt-3 text-4xl font-black text-white">
+            9 USDT
+          </p>
+
+          <p className="mt-4 text-white/70">
+            7 Days Access
+          </p>
+
+          <button className="mt-8 w-full rounded-full bg-[#D4AF37] py-3 font-bold text-black">
+            Buy Now
+          </button>
+        </div>
+
+        <div className="rounded-3xl border border-[#D4AF37] bg-[#D4AF37]/10 p-8">
+          <h2 className="text-2xl font-bold text-[#D4AF37]">
+            Monthly
+          </h2>
+
+          <p className="mt-3 text-4xl font-black text-white">
+            19 USDT
+          </p>
+
+          <p className="mt-4 text-white/70">
+            Best Value
+          </p>
+
+          <button className="mt-8 w-full rounded-full bg-[#D4AF37] py-3 font-bold text-black">
+            Buy Now
+          </button>
+        </div>
+
+        <div className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-8">
+          <h2 className="text-2xl font-bold text-[#D4AF37]">
+            Quarterly
+          </h2>
+
+          <p className="mt-3 text-4xl font-black text-white">
+            49 USDT
+          </p>
+
+          <p className="mt-4 text-white/70">
+            Save 20%
+          </p>
+
+          <button className="mt-8 w-full rounded-full bg-[#D4AF37] py-3 font-bold text-black">
+            Buy Now
+          </button>
+        </div>
+
+      </div>
+    </main>
+  );
+}
