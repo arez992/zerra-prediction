@@ -1,4 +1,6 @@
 import Link from "next/link";
+import PopularSports from "@/components/PopularSports";
+import LivePredictions from "@/components/LivePredictions";
 
 const picks = [
   { sport: "Football", league: "Premier League", match: "Man City vs Arsenal", pick: "Over 1.5 Goals", confidence: "92%" },
@@ -107,29 +109,21 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-12">
-        <h2 className="mb-8 text-3xl font-black">Popular Sports</h2>
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-          {sports.map((sport) => (
-            <div key={sport} className="rounded-2xl border border-white/10 bg-white/[0.05] p-5 font-bold">
-              {sport}
-            </div>
-          ))}
-        </div>
-      </section>
+      <PopularSports />
+<LivePredictions />
 
-      <section className="mx-auto max-w-7xl px-6 py-12">
-        <div className="rounded-3xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-8 md:p-12">
-          <p className="text-[#D4AF37]">VIP Access</p>
-          <h2 className="mt-2 text-4xl font-black">Unlock premium predictions.</h2>
-          <p className="mt-4 max-w-2xl text-white/70">
-            Get full AI analysis, confidence scores, VIP picks, and early access using USDT TRC20.
-          </p>
-          <Link href="/en/vip" className="mt-8 inline-block rounded-full bg-[#D4AF37] px-6 py-3 font-black text-black">
-            Join VIP
-          </Link>
-        </div>
-      </section>
-    </main>
-  );
+<section className="mx-auto max-w-7xl px-6 py-12">
+  <div className="rounded-3xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-8 md:p-12">
+    <p className="text-[#D4AF37]">VIP Access</p>
+    <h2 className="mt-2 text-4xl font-black">Unlock premium predictions.</h2>
+    <p className="mt-4 max-w-2xl text-white/70">
+      Get full AI analysis, confidence scores, VIP picks, and early access using USDT TRC20.
+    </p>
+    <Link href="/en/vip" className="mt-8 inline-block rounded-full bg-[#D4AF37] px-6 py-3 font-black text-black">
+      Join VIP
+    </Link>
+  </div>
+</section>
+</main>
+);
 }
