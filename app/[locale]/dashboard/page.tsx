@@ -1,96 +1,75 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [fixtures, setFixtures] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        router.push("/en/login");
-        return;
+    async function loadFixtures() {
+      try {
+        const res = await fetch("/api/sports/football/fixtures");
+        const data = await res.json();
+
+        if (data.success) {
+          setFixtures(data.fixtures);
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
       }
+    }
 
-      setUser(currentUser);
+    loadFixtures();
+  }, []);
 
-      const userRef = doc(db, "users", currentUser.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        setProfile(userSnap.data());
-      } else {
-        setProfile({
-          membership: "Free",
-          vipStatus: "inactive",
-        });
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  async function logout() {
-    await signOut(auth);
-    router.push("/en/login");
-  }
-
-  if (!user) {
+  if (loading) {
     return (
-      <main className="flex h-screen items-center justify-center text-white">
-        Loading...
-      </main>
+      <div className="p-8 text-center text-xl">
+        Loading today's matches...
+      </div>
     );
   }
 
-  const isVip = profile?.vip === true;
-
   return (
-    <main className="mx-auto max-w-6xl px-6 py-14 text-white">
-      <h1 className="text-5xl font-black">
-        Welcome {user.displayName || "User"} 👋
+    <div className="max-w-6xl mx-auto p-8">
+      <h1 className="text-4xl font-bold mb-8">
+        Today's Football Fixtures
       </h1>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-2">
-        <div className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <p className="text-white/60">Email</p>
-          <h2 className="mt-2 text-2xl font-bold">{user.email}</h2>
-        </div>
+      <div className="grid gap-5">
+        {fixtures.map((match: any) => (
+          <div
+            key={match.fixture.id}
+            className="rounded-xl border p-5 shadow"
+          >
+            <div className="text-gray-500 text-sm">
+              {match.league.name}
+            </div>
 
-        <div className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <p className="text-white/60">Membership</p>
-          <h2 className="mt-2 text-2xl font-bold">
-            {isVip ? profile?.membership || "VIP" : "Free"}
-          </h2>
-        </div>
+            <div className="flex justify-between items-center mt-3">
+              <span className="font-semibold">
+                {match.teams.home.name}
+              </span>
 
-        <div className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <p className="text-white/60">VIP Status</p>
-          <h2 className={`mt-2 text-2xl font-bold ${isVip ? "text-green-400" : "text-red-400"}`}>
-            {isVip ? "Active" : "Inactive"}
-          </h2>
-        </div>
+              <span className="font-bold">
+                {match.goals.home ?? "-"} :
+                {match.goals.away ?? "-"}
+              </span>
 
-        <div className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <p className="text-white/60">VIP Expires</p>
-          <h2 className="mt-2 text-2xl font-bold">
-            {profile?.vipExpireAt || "Not active"}
-          </h2>
-        </div>
+              <span className="font-semibold">
+                {match.teams.away.name}
+              </span>
+            </div>
+
+            <div className="mt-3 text-sm text-gray-500">
+              {match.fixture.status.long}
+            </div>
+          </div>
+        ))}
       </div>
-
-      <button
-        onClick={logout}
-        className="mt-10 rounded-full bg-[#D4AF37] px-8 py-3 font-bold text-black"
-      >
-        Logout
-      </button>
-    </main>
+    </div>
   );
 }
