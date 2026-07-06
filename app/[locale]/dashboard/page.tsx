@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Hero from "@/components/dashboard/Hero";
-import DashboardStats from "@/components/dashboard/DashboardStats";
 import FixturesList from "@/components/dashboard/FixturesList";
 
 export default function DashboardPage() {
@@ -15,9 +14,7 @@ export default function DashboardPage() {
         const res = await fetch("/api/sports/football/fixtures");
         const data = await res.json();
 
-        if (data.success) {
-          setFixtures(data.fixtures);
-        }
+        if (data.success) setFixtures(data.fixtures);
       } catch (error) {
         console.error("Failed to load fixtures:", error);
       } finally {
@@ -40,18 +37,30 @@ export default function DashboardPage() {
     (match: any) => match.fixture.status.short === "NS"
   ).length;
 
+  const stats = [
+    { label: "Today's Matches", value: fixtures.length },
+    { label: "Live Now", value: live },
+    { label: "Finished", value: finished },
+    { label: "Upcoming", value: upcoming },
+  ];
+
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
       <Hero />
 
-      <div className="mt-8">
-        <DashboardStats
-          total={fixtures.length}
-          live={live}
-          finished={finished}
-          upcoming={upcoming}
-        />
-      </div>
+      <section className="mt-8 grid gap-4 md:grid-cols-4">
+        {stats.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-3xl border border-white/10 bg-white/5 p-5"
+          >
+            <p className="text-sm text-white/50">{item.label}</p>
+            <p className="mt-2 text-3xl font-black text-[#D4AF37]">
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </section>
 
       <div className="mt-10">
         {loading ? (
