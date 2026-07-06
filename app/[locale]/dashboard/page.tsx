@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Hero from "@/components/dashboard/Hero";
-import FilterBar from "@/components/dashboard/FilterBar";
 import FixturesList from "@/components/dashboard/FixturesList";
 
 type FilterType = "all" | "live" | "upcoming" | "finished";
@@ -42,7 +41,6 @@ export default function DashboardPage() {
     loadFixtures();
 
     const interval = setInterval(loadFixtures, 30000);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -62,17 +60,9 @@ export default function DashboardPage() {
     return fixtures.filter((m) => {
       const status = m.fixture.status.short;
 
-      if (activeFilter === "live") {
-        return LIVE_STATUSES.includes(status);
-      }
-
-      if (activeFilter === "finished") {
-        return FINISHED_STATUSES.includes(status);
-      }
-
-      if (activeFilter === "upcoming") {
-        return status === "NS";
-      }
+      if (activeFilter === "live") return LIVE_STATUSES.includes(status);
+      if (activeFilter === "finished") return FINISHED_STATUSES.includes(status);
+      if (activeFilter === "upcoming") return status === "NS";
 
       return true;
     });
@@ -83,6 +73,13 @@ export default function DashboardPage() {
     { label: "Live Now", value: live },
     { label: "Finished", value: finished },
     { label: "Upcoming", value: upcoming },
+  ];
+
+  const filters: { label: string; value: FilterType }[] = [
+    { label: "All Matches", value: "all" },
+    { label: "🔴 Live", value: "live" },
+    { label: "⏰ Upcoming", value: "upcoming" },
+    { label: "✅ Finished", value: "finished" },
   ];
 
   return (
@@ -103,12 +100,28 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <div className="mt-8">
-        <FilterBar
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-        />
-      </div>
+      <section className="mt-8 rounded-3xl border-2 border-[#D4AF37]/60 bg-[#0B1220] p-4 shadow-xl">
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+          Match Filters
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+          {filters.map((filter) => (
+            <button
+              key={filter.value}
+              type="button"
+              onClick={() => setActiveFilter(filter.value)}
+              className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+                activeFilter === filter.value
+                  ? "bg-[#D4AF37] text-black"
+                  : "bg-black/50 text-white hover:bg-white/10"
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <div className="mt-10">
         {loading ? (
