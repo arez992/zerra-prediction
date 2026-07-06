@@ -22,6 +22,7 @@ export default function VipPage() {
         plan,
         price,
         email: auth.currentUser?.email || "guest@zerra.com",
+        uid: auth.currentUser?.uid || "guest",
       }),
     });
 
