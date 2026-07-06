@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function formatDate(offsetDays = 0) {
   const date = new Date();
@@ -6,7 +6,24 @@ function formatDate(offsetDays = 0) {
   return date.toISOString().split("T")[0];
 }
 
-export async function GET() {
+async function fetchFixtures(date: string, apiKey: string) {
+  const response = await fetch(
+    `https://v3.football.api-sports.io/fixtures?date=${date}`,
+    {
+      method: "GET",
+      headers: {
+        "x-apisports-key": apiKey,
+      },
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json();
+
+  return { response, data };
+}
+
+export async function GET(request: NextRequest) {
   try {
     const apiKey = process.env.API_SPORTS_KEY;
 
@@ -17,23 +34,32 @@ export async function GET() {
       );
     }
 
+    const selectedDate = request.nextUrl.searchParams.get("date");
+
+    if (selectedDate) {
+      const { response, data } = await fetchFixtures(selectedDate, apiKey);
+
+      if (!response.ok || data?.errors?.token) {
+        return NextResponse.json(
+          { success: false, error: data },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        date: selectedDate,
+        count: data.results,
+        fixtures: data.response || [],
+      });
+    }
+
     const dates = [formatDate(0), formatDate(1), formatDate(-1)];
 
     for (const date of dates) {
-      const response = await fetch(
-        `https://v3.football.api-sports.io/fixtures?date=${date}`,
-        {
-          method: "GET",
-          headers: {
-            "x-apisports-key": apiKey,
-          },
-          cache: "no-store",
-        }
-      );
+      const { response, data } = await fetchFixtures(date, apiKey);
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!response.ok || data?.errors?.token) {
         return NextResponse.json(
           { success: false, error: data },
           { status: 400 }
