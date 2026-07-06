@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedLeague, setSelectedLeague] = useState("all");
 
   useEffect(() => {
     async function loadFixtures() {
@@ -46,6 +47,16 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const leagues = useMemo(() => {
+    const unique = new Set<string>();
+
+    fixtures.forEach((match) => {
+      if (match?.league?.name) unique.add(match.league.name);
+    });
+
+    return Array.from(unique).sort();
+  }, [fixtures]);
+
   const live = fixtures.filter((m) =>
     LIVE_STATUSES.includes(m.fixture.status.short)
   ).length;
@@ -73,6 +84,9 @@ export default function DashboardPage() {
           ? status === "NS"
           : true;
 
+      const matchesLeague =
+        selectedLeague === "all" || m.league.name === selectedLeague;
+
       const matchesSearch =
         !search ||
         m.teams.home.name.toLowerCase().includes(search) ||
@@ -80,9 +94,9 @@ export default function DashboardPage() {
         m.league.name.toLowerCase().includes(search) ||
         m.league.country.toLowerCase().includes(search);
 
-      return matchesFilter && matchesSearch;
+      return matchesFilter && matchesLeague && matchesSearch;
     });
-  }, [fixtures, activeFilter, searchTerm]);
+  }, [fixtures, activeFilter, searchTerm, selectedLeague]);
 
   const stats = [
     { label: "Today's Matches", value: fixtures.length },
@@ -117,11 +131,27 @@ export default function DashboardPage() {
       </section>
 
       <div className="mt-8">
-        <SearchBox
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-        />
+        <SearchBox searchTerm={searchTerm} onSearchChange={setSearchTerm} />
       </div>
+
+      <section className="mt-8 rounded-3xl border-2 border-[#D4AF37]/60 bg-[#0B1220] p-4 shadow-xl">
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+          League Filter
+        </p>
+
+        <select
+          value={selectedLeague}
+          onChange={(e) => setSelectedLeague(e.target.value)}
+          className="w-full rounded-2xl bg-black/50 px-5 py-4 text-sm font-black text-white outline-none"
+        >
+          <option value="all">🌍 All Leagues</option>
+          {leagues.map((league) => (
+            <option key={league} value={league}>
+              {league}
+            </option>
+          ))}
+        </select>
+      </section>
 
       <section className="mt-8 rounded-3xl border-2 border-[#D4AF37]/60 bg-[#0B1220] p-4 shadow-xl">
         <p className="mb-3 text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
