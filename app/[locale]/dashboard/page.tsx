@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Hero from "@/components/dashboard/Hero";
+import SearchBox from "@/components/dashboard/SearchBox";
 import FixturesList from "@/components/dashboard/FixturesList";
 
 type FilterType = "all" | "live" | "upcoming" | "finished";
@@ -13,6 +14,7 @@ export default function DashboardPage() {
   const [fixtures, setFixtures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     async function loadFixtures() {
@@ -57,16 +59,30 @@ export default function DashboardPage() {
   ).length;
 
   const filteredFixtures = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+
     return fixtures.filter((m) => {
       const status = m.fixture.status.short;
 
-      if (activeFilter === "live") return LIVE_STATUSES.includes(status);
-      if (activeFilter === "finished") return FINISHED_STATUSES.includes(status);
-      if (activeFilter === "upcoming") return status === "NS";
+      const matchesFilter =
+        activeFilter === "live"
+          ? LIVE_STATUSES.includes(status)
+          : activeFilter === "finished"
+          ? FINISHED_STATUSES.includes(status)
+          : activeFilter === "upcoming"
+          ? status === "NS"
+          : true;
 
-      return true;
+      const matchesSearch =
+        !search ||
+        m.teams.home.name.toLowerCase().includes(search) ||
+        m.teams.away.name.toLowerCase().includes(search) ||
+        m.league.name.toLowerCase().includes(search) ||
+        m.league.country.toLowerCase().includes(search);
+
+      return matchesFilter && matchesSearch;
     });
-  }, [fixtures, activeFilter]);
+  }, [fixtures, activeFilter, searchTerm]);
 
   const stats = [
     { label: "Today's Matches", value: fixtures.length },
@@ -99,6 +115,13 @@ export default function DashboardPage() {
           </div>
         ))}
       </section>
+
+      <div className="mt-8">
+        <SearchBox
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+        />
+      </div>
 
       <section className="mt-8 rounded-3xl border-2 border-[#D4AF37]/60 bg-[#0B1220] p-4 shadow-xl">
         <p className="mb-3 text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
