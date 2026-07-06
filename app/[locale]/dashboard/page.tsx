@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Hero from "@/components/dashboard/Hero";
 import SearchBox from "@/components/dashboard/SearchBox";
+import DateSelector from "@/components/dashboard/DateSelector";
 import FixturesList from "@/components/dashboard/FixturesList";
 
 type FilterType = "all" | "live" | "upcoming" | "finished";
@@ -10,21 +11,27 @@ type FilterType = "all" | "live" | "upcoming" | "finished";
 const LIVE_STATUSES = ["1H", "2H", "HT", "ET", "P"];
 const FINISHED_STATUSES = ["FT", "AET", "PEN"];
 
+function getToday() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function DashboardPage() {
   const [fixtures, setFixtures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLeague, setSelectedLeague] = useState("all");
+  const [selectedDate, setSelectedDate] = useState(getToday());
 
   useEffect(() => {
     async function loadFixtures() {
       try {
         setLoading(true);
 
-        const res = await fetch("/api/sports/football/fixtures", {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/sports/football/fixtures?date=${selectedDate}`,
+          { cache: "no-store" }
+        );
 
         const data = await res.json();
 
@@ -43,17 +50,15 @@ export default function DashboardPage() {
 
     loadFixtures();
 
-    const interval = setInterval(loadFixtures, 30000);
+    const interval = setInterval(loadFixtures, 300000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedDate]);
 
   const leagues = useMemo(() => {
     const unique = new Set<string>();
-
     fixtures.forEach((match) => {
       if (match?.league?.name) unique.add(match.league.name);
     });
-
     return Array.from(unique).sort();
   }, [fixtures]);
 
@@ -65,9 +70,7 @@ export default function DashboardPage() {
     FINISHED_STATUSES.includes(m.fixture.status.short)
   ).length;
 
-  const upcoming = fixtures.filter(
-    (m) => m.fixture.status.short === "NS"
-  ).length;
+  const upcoming = fixtures.filter((m) => m.fixture.status.short === "NS").length;
 
   const filteredFixtures = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -129,6 +132,13 @@ export default function DashboardPage() {
           </div>
         ))}
       </section>
+
+      <div className="mt-8">
+        <DateSelector
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
+      </div>
 
       <div className="mt-8">
         <SearchBox searchTerm={searchTerm} onSearchChange={setSearchTerm} />
