@@ -15,8 +15,6 @@ export default function DashboardPage() {
         const data = await res.json();
 
         if (data.success) setFixtures(data.fixtures);
-      } catch (error) {
-        console.error("Failed to load fixtures:", error);
       } finally {
         setLoading(false);
       }
@@ -25,16 +23,16 @@ export default function DashboardPage() {
     loadFixtures();
   }, []);
 
-  const live = fixtures.filter((match: any) =>
-    ["1H", "2H", "HT", "ET", "P"].includes(match.fixture.status.short)
+  const live = fixtures.filter((m: any) =>
+    ["1H", "2H", "HT", "ET", "P"].includes(m.fixture.status.short)
   ).length;
 
-  const finished = fixtures.filter((match: any) =>
-    ["FT", "AET", "PEN"].includes(match.fixture.status.short)
+  const finished = fixtures.filter((m: any) =>
+    ["FT", "AET", "PEN"].includes(m.fixture.status.short)
   ).length;
 
   const upcoming = fixtures.filter(
-    (match: any) => match.fixture.status.short === "NS"
+    (m: any) => m.fixture.status.short === "NS"
   ).length;
 
   const stats = [
