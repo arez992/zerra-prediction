@@ -30,11 +30,12 @@ export default function Footer() {
         </div>
 
         <div>
-          <p className="font-black text-white">Disclaimer</p>
-          <p className="mt-4 text-sm leading-6 text-white/60">
-            Predictions are AI-generated insights and are not guaranteed results.
-            Use responsibly.
-          </p>
+          <p className="font-black text-white">Legal</p>
+          <div className="mt-4 grid gap-3 text-sm text-white/60">
+            <Link href="/en/terms">Terms</Link>
+            <Link href="/en/privacy">Privacy</Link>
+            <Link href="/en/disclaimer">Disclaimer</Link>
+          </div>
         </div>
       </div>
 
