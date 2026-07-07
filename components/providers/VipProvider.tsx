@@ -1,12 +1,16 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { getUserVipStatus } from "@/lib/firebaseVip";
 import type { VipStatus } from "@/lib/vip";
 import { isVipActive } from "@/lib/vip";
 
 type VipContextValue = {
   status: VipStatus;
   isVip: boolean;
+  loading: boolean;
 };
 
 const defaultStatus: VipStatus = {
@@ -18,24 +22,47 @@ const defaultStatus: VipStatus = {
 const VipContext = createContext<VipContextValue>({
   status: defaultStatus,
   isVip: false,
+  loading: true,
 });
 
-export function VipProvider({
-  children,
-  status = defaultStatus,
-}: {
-  children: React.ReactNode;
-  status?: VipStatus;
-}) {
-  const value = useMemo(
-    () => ({
-      status,
-      isVip: isVipActive(status),
-    }),
-    [status]
-  );
+export function VipProvider({ children }: { children: React.ReactNode }) {
+  const [status, setStatus] = useState<VipStatus>(defaultStatus);
+  const [loading, setLoading] = useState(true);
 
-  return <VipContext.Provider value={value}>{children}</VipContext.Provider>;
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      try {
+        setLoading(true);
+
+        if (!user) {
+          setStatus(defaultStatus);
+          return;
+        }
+
+        const vipStatus = await getUserVipStatus(user.uid);
+        setStatus(vipStatus);
+      } catch (error) {
+        console.error("Failed to load VIP provider:", error);
+        setStatus(defaultStatus);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return (
+    <VipContext.Provider
+      value={{
+        status,
+        isVip: isVipActive(status),
+        loading,
+      }}
+    >
+      {children}
+    </VipContext.Provider>
+  );
 }
 
 export function useVip() {
