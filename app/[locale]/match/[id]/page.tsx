@@ -15,6 +15,7 @@ import RiskMeter from "@/components/ai/RiskMeter";
 import ValueBet from "@/components/ai/ValueBet";
 import MatchVerdict from "@/components/ai/MatchVerdict";
 import { calculatePrediction } from "@/lib/ai/prediction";
+import { generateExplanation } from "@/lib/ai/explanation";
 
 export default function MatchDetailsPage() {
   const params = useParams();
@@ -61,7 +62,7 @@ export default function MatchDetailsPage() {
         </Link>
 
         <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/30 bg-[#0B1220] p-8 text-center shadow-2xl">
-          <h1 className="mt-6 text-4xl font-black">Match Data Unavailable</h1>
+          <h1 className="text-4xl font-black">Match Data Unavailable</h1>
           <p className="mx-auto mt-4 max-w-2xl text-white/60">
             Match details are not available right now.
           </p>
@@ -71,6 +72,7 @@ export default function MatchDetailsPage() {
   }
 
   const prediction = calculatePrediction(match);
+  const explanation = generateExplanation(match, prediction);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 text-white">
@@ -93,25 +95,30 @@ export default function MatchDetailsPage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <AIConfidence score={prediction.confidence} />
+
           <WinProbability
             home={prediction.homeWin}
             draw={prediction.draw}
             away={prediction.awayWin}
           />
+
           <GoalPrediction
             over25={prediction.over25}
             under25={prediction.under25}
             btts={prediction.btts}
           />
+
           <RiskMeter risk={prediction.risk} />
+
           <ValueBet
             pick={prediction.valueBet}
             valueScore={prediction.confidence}
           />
+
           <MatchVerdict
             confidence={prediction.confidence}
-            risk={prediction.risk}
-            valueBet={prediction.valueBet}
+            summary={explanation.summary}
+            reasons={explanation.reasons}
           />
         </div>
       </section>
