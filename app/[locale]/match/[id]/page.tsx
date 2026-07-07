@@ -13,6 +13,7 @@ import WinProbability from "@/components/ai/WinProbability";
 import GoalPrediction from "@/components/ai/GoalPrediction";
 import RiskMeter from "@/components/ai/RiskMeter";
 import ValueBet from "@/components/ai/ValueBet";
+import { calculatePrediction } from "@/lib/ai/prediction";
 
 export default function MatchDetailsPage() {
   const params = useParams();
@@ -92,6 +93,8 @@ export default function MatchDetailsPage() {
     );
   }
 
+  const prediction = calculatePrediction(match);
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 text-white">
       <Link href="/en/dashboard" className="text-sm font-bold text-[#D4AF37]">
@@ -117,11 +120,26 @@ export default function MatchDetailsPage() {
         </p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <AIConfidence />
-          <WinProbability />
-          <GoalPrediction />
-          <RiskMeter />
-          <ValueBet />
+          <AIConfidence score={prediction.confidence} />
+
+          <WinProbability
+            home={prediction.homeWin}
+            draw={prediction.draw}
+            away={prediction.awayWin}
+          />
+
+          <GoalPrediction
+            over25={prediction.over25}
+            under25={prediction.under25}
+            btts={prediction.btts}
+          />
+
+          <RiskMeter risk={prediction.risk} />
+
+          <ValueBet
+            pick={prediction.valueBet}
+            valueScore={prediction.confidence}
+          />
         </div>
       </section>
 
