@@ -8,6 +8,11 @@ import PredictionPanel from "@/components/match/PredictionPanel";
 import StatsPanel from "@/components/match/StatsPanel";
 import TimelinePanel from "@/components/match/TimelinePanel";
 import LineupsPanel from "@/components/match/LineupsPanel";
+import AIConfidence from "@/components/ai/AIConfidence";
+import WinProbability from "@/components/ai/WinProbability";
+import GoalPrediction from "@/components/ai/GoalPrediction";
+import RiskMeter from "@/components/ai/RiskMeter";
+import ValueBet from "@/components/ai/ValueBet";
 
 export default function MatchDetailsPage() {
   const params = useParams();
@@ -96,6 +101,29 @@ export default function MatchDetailsPage() {
       <div className="mt-8">
         <MatchHeader fixture={match.fixture} />
       </div>
+
+      <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/30 bg-[#0B1220] p-6 shadow-2xl">
+        <p className="text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
+          ZERRA AI Engine
+        </p>
+
+        <h2 className="mt-3 text-3xl font-black text-white">
+          Premium Match Prediction
+        </h2>
+
+        <p className="mt-3 max-w-3xl text-white/60">
+          AI-powered match intelligence including confidence, win probability,
+          goals forecast, risk level, and value-bet detection.
+        </p>
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <AIConfidence />
+          <WinProbability />
+          <GoalPrediction />
+          <RiskMeter />
+          <ValueBet />
+        </div>
+      </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <PredictionPanel />
