@@ -1,22 +1,14 @@
 type MatchVerdictProps = {
   confidence?: number;
-  risk?: "Low" | "Medium" | "High";
-  valueBet?: string;
+  summary?: string;
+  reasons?: string[];
 };
 
 export default function MatchVerdict({
   confidence = 92,
-  risk = "Low",
-  valueBet = "Over 2.5 Goals",
+  summary = "ZERRA AI analyzed this match using prediction signals.",
+  reasons = [],
 }: MatchVerdictProps) {
-  const reasons = [
-    "Home advantage included in the model",
-    "Team strength and form signals analyzed",
-    "Goals market probability checked",
-    `Risk level detected as ${risk}`,
-    `Best value opportunity: ${valueBet}`,
-  ];
-
   return (
     <section className="rounded-[2rem] border border-[#D4AF37]/30 bg-[#101827] p-6 shadow-xl">
       <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
@@ -32,6 +24,7 @@ export default function MatchVerdict({
         <p className="mt-2 text-4xl font-black text-[#D4AF37]">
           {confidence}%
         </p>
+        <p className="mt-4 text-sm leading-6 text-white/60">{summary}</p>
       </div>
 
       <div className="mt-6 space-y-3">
