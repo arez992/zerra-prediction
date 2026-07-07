@@ -1,4 +1,31 @@
-export default function AIAccuracyCard() {
+async function getAccuracy() {
+  try {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+
+    const res = await fetch(`${siteUrl}/api/ai/accuracy`, {
+      cache: "no-store",
+    });
+
+    const data = await res.json();
+
+    if (data?.success) return data;
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function AIAccuracyCard() {
+  const accuracy = await getAccuracy();
+
+  const overall = accuracy?.overallAccuracy ?? 0;
+  const over25 = accuracy?.over25Accuracy ?? 0;
+  const btts = accuracy?.bttsAccuracy ?? 0;
+  const homeWin = accuracy?.homeWinAccuracy ?? 0;
+  const total = accuracy?.totalPredictions ?? 0;
+
   return (
     <section className="mx-auto max-w-7xl px-6 py-12">
       <div className="rounded-[2rem] border border-[#D4AF37]/30 bg-[#0B1220] p-8 shadow-2xl md:p-10">
@@ -13,16 +40,20 @@ export default function AIAccuracyCard() {
             </h2>
 
             <p className="mt-4 max-w-2xl text-white/60">
-              Track how ZERRA AI predictions perform over time using saved
-              prediction history, confidence scores, and final match results.
+              Real performance data calculated from saved prediction history and
+              final match results.
+            </p>
+
+            <p className="mt-4 text-sm font-bold text-white/40">
+              Total tracked predictions: {total}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Stat title="Overall Accuracy" value="83%" />
-            <Stat title="Over/Under" value="81%" />
-            <Stat title="BTTS" value="78%" />
-            <Stat title="VIP Picks" value="86%" />
+            <Stat title="Overall Accuracy" value={`${overall}%`} />
+            <Stat title="Over/Under" value={`${over25}%`} />
+            <Stat title="BTTS" value={`${btts}%`} />
+            <Stat title="Home Win" value={`${homeWin}%`} />
           </div>
         </div>
       </div>
