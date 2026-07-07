@@ -146,7 +146,7 @@ export default async function HomePage() {
         )}
       </section>
 
-      <LivePredictions />
+      <LivePredictions fixtures={fixtures} />
 
       <section className="mx-auto max-w-7xl px-6 py-12">
         <div className="rounded-3xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-8 md:p-12">
