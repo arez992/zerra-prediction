@@ -4,9 +4,33 @@ import { useState } from "react";
 import { auth } from "@/lib/firebase";
 
 const plans = [
-  { name: "Weekly", price: 9, description: "7 Days Access" },
-  { name: "Monthly", price: 19, description: "Best Value" },
-  { name: "Quarterly", price: 49, description: "Save 20%" },
+  {
+    name: "Weekly",
+    price: 9,
+    description: "7 Days Premium Access",
+    badge: "Starter",
+  },
+  {
+    name: "Monthly",
+    price: 19,
+    description: "Best Value For Serious Users",
+    badge: "Most Popular",
+  },
+  {
+    name: "Quarterly",
+    price: 49,
+    description: "Save More With 90 Days Access",
+    badge: "Pro",
+  },
+];
+
+const features = [
+  "Premium AI predictions",
+  "High confidence picks",
+  "VIP value bets",
+  "Risk level analysis",
+  "Daily football insights",
+  "Early access to premium picks",
 ];
 
 export default function VipPage() {
@@ -15,62 +39,95 @@ export default function VipPage() {
   async function buyPlan(plan: string, price: number) {
     setLoading(plan);
 
-    const res = await fetch("/api/nowpayments/create-payment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        plan,
-        price,
-        email: auth.currentUser?.email || "guest@zerra.com",
-        uid: auth.currentUser?.uid || "guest",
-      }),
-    });
+    try {
+      const res = await fetch("/api/nowpayments/create-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan,
+          price,
+          email: auth.currentUser?.email || "guest@zerra.com",
+          uid: auth.currentUser?.uid || "guest",
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (data.invoice_url) {
-      window.location.href = data.invoice_url;
-    } else {
-      alert("Payment error. Check NOWPayments settings.");
-      console.log(data);
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      } else {
+        alert("Payment error. Check NOWPayments settings.");
+        console.log(data);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Payment request failed.");
+    } finally {
+      setLoading("");
     }
-
-    setLoading("");
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-5 py-14">
-      <h1 className="text-5xl font-black text-white">Become a VIP Member</h1>
+    <main className="mx-auto max-w-7xl px-5 py-14 text-white">
+      <section className="rounded-[2rem] border border-[#D4AF37]/40 bg-[#0B1220] p-8 text-center shadow-2xl md:p-12">
+        <p className="text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
+          ZERRA VIP
+        </p>
 
-      <p className="mt-4 max-w-2xl text-white/70">
-        Unlock all AI predictions, confidence scores, live predictions, and daily premium picks.
-        Payments are handled securely with NOWPayments.
-      </p>
+        <h1 className="mt-4 text-5xl font-black md:text-6xl">
+          Unlock Premium AI Predictions
+        </h1>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-3">
+        <p className="mx-auto mt-5 max-w-3xl text-white/60">
+          Get access to VIP football predictions, confidence scores, risk
+          analysis, value bets, and premium AI insights powered by the ZERRA AI
+          Engine.
+        </p>
+      </section>
+
+      <section className="mt-10 grid gap-4 md:grid-cols-3">
+        {features.map((feature) => (
+          <div
+            key={feature}
+            className="rounded-2xl border border-white/10 bg-white/5 p-4 font-bold text-white/70"
+          >
+            ✓ {feature}
+          </div>
+        ))}
+      </section>
+
+      <section className="mt-12 grid gap-6 md:grid-cols-3">
         {plans.map((plan) => (
           <div
             key={plan.name}
-            className="rounded-3xl border border-[#D4AF37]/30 bg-white/5 p-8"
+            className={`rounded-[2rem] border p-8 shadow-xl ${
+              plan.name === "Monthly"
+                ? "border-[#D4AF37] bg-[#101827]"
+                : "border-white/10 bg-white/5"
+            }`}
           >
-            <h2 className="text-2xl font-bold text-[#D4AF37]">{plan.name}</h2>
+            <div className="mb-5 inline-flex rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-black">
+              {plan.badge}
+            </div>
 
-            <p className="mt-3 text-4xl font-black text-white">
+            <h2 className="text-3xl font-black text-white">{plan.name}</h2>
+
+            <p className="mt-4 text-5xl font-black text-[#D4AF37]">
               {plan.price} USDT
             </p>
 
-            <p className="mt-4 text-white/70">{plan.description}</p>
+            <p className="mt-4 text-white/60">{plan.description}</p>
 
             <button
               onClick={() => buyPlan(plan.name, plan.price)}
               disabled={loading === plan.name}
-              className="mt-8 w-full rounded-full bg-[#D4AF37] py-3 font-bold text-black disabled:opacity-60"
+              className="mt-8 w-full rounded-full bg-[#D4AF37] py-4 font-black text-black transition hover:scale-[1.02] disabled:opacity-60"
             >
               {loading === plan.name ? "Creating invoice..." : "Buy with USDT"}
             </button>
           </div>
         ))}
-      </div>
+      </section>
     </main>
   );
 }
