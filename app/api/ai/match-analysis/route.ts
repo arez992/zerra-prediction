@@ -5,6 +5,16 @@ import {
   getCachedAIAnalysis,
   saveAIAnalysisCache,
 } from "@/lib/ai/cache";
+import { savePredictionHistory } from "@/lib/ai/history";
+
+function getFixtureId(match: any) {
+  return String(
+    match?.fixture?.fixture?.id ||
+      match?.fixture?.id ||
+      match?.id ||
+      "unknown"
+  );
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,10 +29,19 @@ export async function POST(request: Request) {
 
     const context = buildAIContext(match, prediction);
     const cacheKey = createAIAnalysisCacheKey(match);
+    const fixtureId = getFixtureId(match);
 
     const cachedAnalysis = await getCachedAIAnalysis(cacheKey);
 
     if (cachedAnalysis) {
+      await savePredictionHistory({
+        fixtureId,
+        match,
+        prediction,
+        analysis: cachedAnalysis,
+        cacheKey,
+      });
+
       return NextResponse.json({
         success: true,
         cached: true,
@@ -97,6 +116,14 @@ Return JSON with this exact shape:
     }
 
     await saveAIAnalysisCache(cacheKey, analysis, context);
+
+    await savePredictionHistory({
+      fixtureId,
+      match,
+      prediction,
+      analysis,
+      cacheKey,
+    });
 
     return NextResponse.json({
       success: true,
