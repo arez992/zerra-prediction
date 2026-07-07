@@ -12,6 +12,23 @@ export async function POST(request: Request) {
   try {
     const { price, plan, email, uid } = await request.json();
 
+    if (!price || !plan || !email || !uid) {
+      return NextResponse.json(
+        { error: "Missing payment information" },
+        { status: 400 }
+      );
+    }
+
+    if (!planDays[plan]) {
+      return NextResponse.json(
+        { error: "Invalid VIP plan" },
+        { status: 400 }
+      );
+    }
+
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+
     const orderId = `zerra-${Date.now()}`;
 
     await setDoc(doc(db, "payments", orderId), {
@@ -20,7 +37,7 @@ export async function POST(request: Request) {
       email,
       plan,
       price,
-      days: planDays[plan] || 7,
+      days: planDays[plan],
       status: "pending",
       createdAt: serverTimestamp(),
     });
@@ -37,8 +54,9 @@ export async function POST(request: Request) {
         pay_currency: "usdttrc20",
         order_id: orderId,
         order_description: `ZERRA VIP ${plan}`,
-        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/en/dashboard`,
-        cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/en/vip`,
+        ipn_callback_url: `${siteUrl}/api/nowpayments/webhook`,
+        success_url: `${siteUrl}/en/dashboard`,
+        cancel_url: `${siteUrl}/en/vip`,
         customer_email: email,
       }),
     });
