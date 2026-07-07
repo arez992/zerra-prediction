@@ -51,8 +51,8 @@ export default function HomePage() {
 
             <p className="mt-6 max-w-2xl text-lg text-white/70">
               ZERRA Prediction analyzes football data, live trends, confidence
-              scores, risk levels, and premium insights for smarter match
-              forecasting.
+              scores, risk levels, value bets, and premium insights for smarter
+              match forecasting.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -74,10 +74,12 @@ export default function HomePage() {
 
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
             <p className="text-sm text-white/60">Live AI Signal</p>
+
             <h3 className="mt-3 text-6xl font-black text-[#D4AF37]">92.4%</h3>
+
             <p className="mt-4 text-white/70">
-              Football confidence based on form, trends, goals, risk signals,
-              H2H and recent performance.
+              Football confidence based on form, goal trends, defensive
+              strength, H2H, home advantage, and risk signals.
             </p>
 
             <div className="mt-8 grid grid-cols-2 gap-4">
@@ -99,7 +101,7 @@ export default function HomePage() {
         <div className="mb-8 flex items-end justify-between">
           <div>
             <p className="text-sm font-bold text-[#D4AF37]">
-              Premium analytics
+              Premium football analytics
             </p>
             <h2 className="text-3xl font-black">Today&apos;s Football Picks</h2>
           </div>
@@ -136,18 +138,17 @@ export default function HomePage() {
         </div>
       </section>
 
-      <PopularSports />
       <LivePredictions />
 
       <section className="mx-auto max-w-7xl px-6 py-12">
         <div className="rounded-3xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-8 md:p-12">
           <p className="text-[#D4AF37]">VIP Access</p>
           <h2 className="mt-2 text-4xl font-black">
-            Unlock premium predictions.
+            Unlock premium football predictions.
           </h2>
           <p className="mt-4 max-w-2xl text-white/70">
-            Get full AI analysis, confidence scores, VIP picks, and early access
-            using USDT TRC20.
+            Get full AI analysis, confidence scores, VIP picks, value bets, and
+            early access using USDT TRC20.
           </p>
           <Link
             href="/en/vip"
