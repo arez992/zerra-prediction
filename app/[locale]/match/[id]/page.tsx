@@ -14,6 +14,7 @@ import GoalPrediction from "@/components/ai/GoalPrediction";
 import RiskMeter from "@/components/ai/RiskMeter";
 import ValueBet from "@/components/ai/ValueBet";
 import MatchVerdict from "@/components/ai/MatchVerdict";
+import AIAnalysis from "@/components/ai/AIAnalysis";
 import VipGate from "@/components/vip/VipGate";
 import { calculatePrediction } from "@/lib/ai/prediction";
 import { generateExplanation } from "@/lib/ai/explanation";
@@ -97,7 +98,7 @@ export default function MatchDetailsPage() {
         <div className="mt-8">
           <VipGate
             fallbackTitle="Premium Match AI Locked"
-            fallbackText="Upgrade to VIP to unlock full win probability, goal forecast, risk meter, value bet detection, and AI verdict for this match."
+            fallbackText="Upgrade to VIP to unlock full win probability, goal forecast, risk meter, value bet detection, GPT match analysis, and AI verdict for this match."
           >
             <div className="grid gap-6 lg:grid-cols-2">
               <AIConfidence score={prediction.confidence} />
@@ -126,6 +127,10 @@ export default function MatchDetailsPage() {
                 summary={explanation.summary}
                 reasons={explanation.reasons}
               />
+            </div>
+
+            <div className="mt-8">
+              <AIAnalysis match={match} prediction={prediction} />
             </div>
           </VipGate>
         </div>
