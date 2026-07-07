@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase";
 import {
@@ -8,9 +9,46 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
+function sortObject(obj: any): any {
+  return Object.keys(obj)
+    .sort()
+    .reduce((result: any, key) => {
+      result[key] =
+        obj[key] && typeof obj[key] === "object" && !Array.isArray(obj[key])
+          ? sortObject(obj[key])
+          : obj[key];
+      return result;
+    }, {});
+}
+
+function verifyNowPaymentsSignature(body: any, signature: string | null) {
+  const secret = process.env.NOWPAYMENTS_IPN_SECRET;
+
+  if (!secret || !signature) return false;
+
+  const sortedBody = sortObject(body);
+  const hmac = crypto
+    .createHmac("sha512", secret)
+    .update(JSON.stringify(sortedBody))
+    .digest("hex");
+
+  return hmac === signature;
+}
+
+function getPlanDays(plan: string) {
+  if (plan === "Monthly") return 30;
+  if (plan === "Quarterly") return 90;
+  return 7;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const signature = request.headers.get("x-nowpayments-sig");
+
+    if (!verifyNowPaymentsSignature(body, signature)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
 
     const orderId = body.order_id;
     const status = body.payment_status;
@@ -39,8 +77,10 @@ export async function POST(request: Request) {
     const payment = paymentSnap.data();
 
     if (status === "finished" || status === "confirmed") {
-      const days = payment.days || 7;
-      const expireAt = new Date(
+      const plan = payment.plan || "Weekly";
+      const days = payment.days || getPlanDays(plan);
+
+      const expiresAt = new Date(
         Date.now() + days * 24 * 60 * 60 * 1000
       ).toISOString();
 
@@ -48,10 +88,15 @@ export async function POST(request: Request) {
         doc(db, "users", payment.uid),
         {
           email: payment.email,
+          isVip: true,
+          plan,
+          expiresAt,
+
           vip: true,
           vipStatus: "active",
-          membership: payment.plan,
-          vipExpireAt: expireAt,
+          membership: plan,
+          vipExpireAt: expiresAt,
+
           updatedAt: serverTimestamp(),
         },
         { merge: true }
