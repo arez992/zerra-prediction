@@ -30,34 +30,59 @@ export default function PredictionsPage() {
         </p>
 
         <div className="grid gap-6">
-          {otherPicks.map((item, index) => (
-            <article
-              key={`${item.match}-${index}`}
-              className="rounded-[2rem] border border-white/10 bg-[#101827] p-6 shadow-xl transition hover:border-[#D4AF37]/50"
-            >
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="mb-4 inline-flex rounded-full bg-black/30 px-4 py-2 text-sm font-black text-[#D4AF37]">
-                    #{index + 2} AI Pick
+          {otherPicks.map((item, index) => {
+            const isVip = item.access === "VIP";
+
+            return (
+              <article
+                key={`${item.match}-${index}`}
+                className={`relative overflow-hidden rounded-[2rem] border p-6 shadow-xl transition ${
+                  isVip
+                    ? "border-[#D4AF37]/40 bg-[#0B1220]"
+                    : "border-white/10 bg-[#101827] hover:border-[#D4AF37]/50"
+                }`}
+              >
+                {isVip && (
+                  <div className="absolute right-5 top-5 rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-black text-black">
+                    🔒 VIP
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="mb-4 inline-flex rounded-full bg-black/30 px-4 py-2 text-sm font-black text-[#D4AF37]">
+                      #{index + 2} AI Pick
+                    </div>
+
+                    <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D4AF37]">
+                      {item.league} • {item.time}
+                    </p>
+
+                    <h2 className="mt-2 text-3xl font-black">{item.match}</h2>
+
+                    <p className="mt-3 text-white/60">
+                      🤖 {isVip ? "Premium AI Prediction Locked" : item.prediction}
+                    </p>
+
+                    {isVip && (
+                      <Link
+                        href="/en/vip"
+                        className="mt-5 inline-block rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black"
+                      >
+                        Unlock VIP Prediction
+                      </Link>
+                    )}
                   </div>
 
-                  <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D4AF37]">
-                    {item.league} • {item.time}
-                  </p>
-
-                  <h2 className="mt-2 text-3xl font-black">{item.match}</h2>
-
-                  <p className="mt-3 text-white/60">🤖 {item.prediction}</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <InfoCard title="Confidence" value={`${item.confidence}%`} />
+                    <InfoCard title="Risk" value={item.risk} />
+                    <InfoCard title="Access" value={item.access} />
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <InfoCard title="Confidence" value={`${item.confidence}%`} />
-                  <InfoCard title="Risk" value={item.risk} />
-                  <InfoCard title="Access" value={item.access} />
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </section>
 
