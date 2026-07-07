@@ -9,22 +9,22 @@ const liveMatches = [
     confidence: 91,
   },
   {
-    sport: "Basketball",
-    league: "EuroLeague",
-    match: "Real Madrid vs Fenerbahce",
-    minute: "Q3",
-    score: "64 - 59",
-    pick: "Real Madrid Win",
-    confidence: 86,
+    sport: "Football",
+    league: "Premier League",
+    match: "Chelsea vs Tottenham",
+    minute: "54'",
+    score: "1 - 1",
+    pick: "Both Teams To Score",
+    confidence: 88,
   },
   {
-    sport: "Tennis",
-    league: "WTA",
-    match: "Swiatek vs Gauff",
-    minute: "Set 2",
-    score: "6-4, 3-2",
-    pick: "Swiatek Win",
-    confidence: 89,
+    sport: "Football",
+    league: "Serie A",
+    match: "AC Milan vs Roma",
+    minute: "72'",
+    score: "1 - 0",
+    pick: "Home Win",
+    confidence: 84,
   },
 ];
 
@@ -34,8 +34,11 @@ export default function LivePredictions() {
       <div className="mb-8 flex items-end justify-between">
         <div>
           <p className="text-sm font-bold text-[#D4AF37]">Live AI Signals</p>
-          <h2 className="text-3xl font-black text-white">Live Predictions</h2>
+          <h2 className="text-3xl font-black text-white">
+            Live Football Predictions
+          </h2>
         </div>
+
         <span className="rounded-full bg-red-500/10 px-4 py-2 text-sm font-bold text-red-300">
           LIVE
         </span>
@@ -61,6 +64,7 @@ export default function LivePredictions() {
                 <p className="text-xs text-white/50">Time</p>
                 <p className="font-bold text-white">{item.minute}</p>
               </div>
+
               <div className="text-right">
                 <p className="text-xs text-white/50">Score</p>
                 <p className="font-black text-[#D4AF37]">{item.score}</p>
@@ -72,7 +76,9 @@ export default function LivePredictions() {
 
             <div className="mt-5 rounded-2xl bg-black/30 p-4">
               <p className="text-sm text-white/50">Live Confidence</p>
-              <p className="text-3xl font-black text-white">{item.confidence}%</p>
+              <p className="text-3xl font-black text-white">
+                {item.confidence}%
+              </p>
             </div>
           </div>
         ))}
