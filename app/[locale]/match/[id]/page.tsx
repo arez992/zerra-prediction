@@ -13,6 +13,7 @@ import WinProbability from "@/components/ai/WinProbability";
 import GoalPrediction from "@/components/ai/GoalPrediction";
 import RiskMeter from "@/components/ai/RiskMeter";
 import ValueBet from "@/components/ai/ValueBet";
+import MatchVerdict from "@/components/ai/MatchVerdict";
 import { calculatePrediction } from "@/lib/ai/prediction";
 
 export default function MatchDetailsPage() {
@@ -60,34 +61,10 @@ export default function MatchDetailsPage() {
         </Link>
 
         <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/30 bg-[#0B1220] p-8 text-center shadow-2xl">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/10 text-4xl">
-            ⚠️
-          </div>
-
           <h1 className="mt-6 text-4xl font-black">Match Data Unavailable</h1>
-
           <p className="mx-auto mt-4 max-w-2xl text-white/60">
-            Match details are not available right now. This may happen when the
-            API daily limit is reached, the match ID has expired, or the data
-            provider has not returned details yet.
+            Match details are not available right now.
           </p>
-
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
-            <PredictionPanel />
-            <StatsPanel />
-            <TimelinePanel />
-          </div>
-
-          <div className="mt-8">
-            <LineupsPanel />
-          </div>
-
-          <Link
-            href="/en/vip"
-            className="mt-8 inline-block rounded-full bg-[#D4AF37] px-7 py-3 font-black text-black"
-          >
-            Unlock VIP Analysis
-          </Link>
         </section>
       </main>
     );
@@ -114,31 +91,27 @@ export default function MatchDetailsPage() {
           Premium Match Prediction
         </h2>
 
-        <p className="mt-3 max-w-3xl text-white/60">
-          AI-powered match intelligence including confidence, win probability,
-          goals forecast, risk level, and value-bet detection.
-        </p>
-
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <AIConfidence score={prediction.confidence} />
-
           <WinProbability
             home={prediction.homeWin}
             draw={prediction.draw}
             away={prediction.awayWin}
           />
-
           <GoalPrediction
             over25={prediction.over25}
             under25={prediction.under25}
             btts={prediction.btts}
           />
-
           <RiskMeter risk={prediction.risk} />
-
           <ValueBet
             pick={prediction.valueBet}
             valueScore={prediction.confidence}
+          />
+          <MatchVerdict
+            confidence={prediction.confidence}
+            risk={prediction.risk}
+            valueBet={prediction.valueBet}
           />
         </div>
       </section>
