@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { buildAIContext } from "@/lib/ai/context";
+import {
+  createAIAnalysisCacheKey,
+  getCachedAIAnalysis,
+  saveAIAnalysisCache,
+} from "@/lib/ai/cache";
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +17,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const context = buildAIContext(match, prediction);
+    const cacheKey = createAIAnalysisCacheKey(match);
+
+    const cachedAnalysis = await getCachedAIAnalysis(cacheKey);
+
+    if (cachedAnalysis) {
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        context,
+        analysis: cachedAnalysis,
+      });
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -20,8 +39,6 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-
-    const context = buildAIContext(match, prediction);
 
     const prompt = `
 You are ZERRA AI, a professional football prediction analyst.
@@ -79,8 +96,11 @@ Return JSON with this exact shape:
       };
     }
 
+    await saveAIAnalysisCache(cacheKey, analysis, context);
+
     return NextResponse.json({
       success: true,
+      cached: false,
       context,
       analysis,
     });
