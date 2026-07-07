@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import "../globals.css";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "ZERRA Prediction",
   description:
-    "AI-powered multi-sport prediction platform with premium analytics.",
+    "AI-powered football prediction platform with premium analytics.",
 };
 
 type LocaleLayoutProps = {
@@ -26,6 +27,7 @@ export default async function LocaleLayout({
       <body>
         <Navbar />
         {children}
+        <Footer />
       </body>
     </html>
   );
