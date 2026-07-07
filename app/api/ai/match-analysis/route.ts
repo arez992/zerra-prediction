@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildAIContext } from "@/lib/ai/context";
 
 export async function POST(request: Request) {
   try {
@@ -20,31 +21,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const home = match?.fixture?.teams?.home?.name || "Home team";
-    const away = match?.fixture?.teams?.away?.name || "Away team";
-    const league = match?.fixture?.league?.name || "Football match";
+    const context = buildAIContext(match, prediction);
 
     const prompt = `
 You are ZERRA AI, a professional football prediction analyst.
 
-Analyze this match and return ONLY valid JSON.
+Analyze the following football match using the provided AI context.
+Return ONLY valid JSON. Do not include markdown.
 
-Match:
-${home} vs ${away}
-League: ${league}
+AI Context:
+${JSON.stringify(context, null, 2)}
 
-Prediction data:
-Confidence: ${prediction.confidence}%
-Home Win: ${prediction.homeWin}%
-Draw: ${prediction.draw}%
-Away Win: ${prediction.awayWin}%
-Over 2.5: ${prediction.over25}%
-Under 2.5: ${prediction.under25}%
-BTTS: ${prediction.btts}%
-Risk: ${prediction.risk}
-Value Bet: ${prediction.valueBet}
-
-Return JSON with this shape:
+Return JSON with this exact shape:
 {
   "summary": "short professional match analysis",
   "verdict": "final prediction verdict",
@@ -75,10 +63,7 @@ Return JSON with this shape:
       );
     }
 
-    const text =
-      data.output_text ||
-      data.output?.[0]?.content?.[0]?.text ||
-      "";
+    const text = data.output_text || data.output?.[0]?.content?.[0]?.text || "";
 
     let analysis;
 
@@ -96,6 +81,7 @@ Return JSON with this shape:
 
     return NextResponse.json({
       success: true,
+      context,
       analysis,
     });
   } catch (error: any) {
