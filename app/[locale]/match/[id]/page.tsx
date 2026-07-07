@@ -14,6 +14,7 @@ import GoalPrediction from "@/components/ai/GoalPrediction";
 import RiskMeter from "@/components/ai/RiskMeter";
 import ValueBet from "@/components/ai/ValueBet";
 import MatchVerdict from "@/components/ai/MatchVerdict";
+import VipGate from "@/components/vip/VipGate";
 import { calculatePrediction } from "@/lib/ai/prediction";
 import { generateExplanation } from "@/lib/ai/explanation";
 
@@ -93,33 +94,40 @@ export default function MatchDetailsPage() {
           Premium Match Prediction
         </h2>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <AIConfidence score={prediction.confidence} />
+        <div className="mt-8">
+          <VipGate
+            fallbackTitle="Premium Match AI Locked"
+            fallbackText="Upgrade to VIP to unlock full win probability, goal forecast, risk meter, value bet detection, and AI verdict for this match."
+          >
+            <div className="grid gap-6 lg:grid-cols-2">
+              <AIConfidence score={prediction.confidence} />
 
-          <WinProbability
-            home={prediction.homeWin}
-            draw={prediction.draw}
-            away={prediction.awayWin}
-          />
+              <WinProbability
+                home={prediction.homeWin}
+                draw={prediction.draw}
+                away={prediction.awayWin}
+              />
 
-          <GoalPrediction
-            over25={prediction.over25}
-            under25={prediction.under25}
-            btts={prediction.btts}
-          />
+              <GoalPrediction
+                over25={prediction.over25}
+                under25={prediction.under25}
+                btts={prediction.btts}
+              />
 
-          <RiskMeter risk={prediction.risk} />
+              <RiskMeter risk={prediction.risk} />
 
-          <ValueBet
-            pick={prediction.valueBet}
-            valueScore={prediction.confidence}
-          />
+              <ValueBet
+                pick={prediction.valueBet}
+                valueScore={prediction.confidence}
+              />
 
-          <MatchVerdict
-            confidence={prediction.confidence}
-            summary={explanation.summary}
-            reasons={explanation.reasons}
-          />
+              <MatchVerdict
+                confidence={prediction.confidence}
+                summary={explanation.summary}
+                reasons={explanation.reasons}
+              />
+            </div>
+          </VipGate>
         </div>
       </section>
 
