@@ -2,7 +2,19 @@ import Link from "next/link";
 import TopPick from "@/components/predictions/TopPick";
 import { calculatePrediction } from "@/lib/ai/prediction";
 
-async function getFixtures() {
+type AIPick = {
+  id: number | string;
+  sport: string;
+  league: string;
+  match: string;
+  time: string;
+  prediction: string;
+  confidence: number;
+  risk: "Low" | "Medium" | "High";
+  access: "Free" | "VIP";
+};
+
+async function getFixtures(): Promise<any[]> {
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
@@ -35,31 +47,33 @@ function formatTime(date?: string) {
 export default async function PredictionsPage() {
   const fixtures = await getFixtures();
 
-  const aiPicks = fixtures.slice(0, 8).map((fixture: any, index: number) => {
-    const matchData = {
-      fixture,
-      statistics: [],
-      events: [],
-      lineups: [],
-    };
+  const aiPicks: AIPick[] = fixtures
+    .slice(0, 8)
+    .map((fixture: any, index: number) => {
+      const matchData = {
+        fixture,
+        statistics: [],
+        events: [],
+        lineups: [],
+      };
 
-    const prediction = calculatePrediction(matchData);
+      const prediction = calculatePrediction(matchData);
 
-    return {
-      id: fixture.fixture.id,
-      sport: "Football",
-      league: fixture.league.name,
-      match: `${fixture.teams.home.name} vs ${fixture.teams.away.name}`,
-      time: formatTime(fixture.fixture.date),
-      prediction: prediction.valueBet,
-      confidence: prediction.confidence,
-      risk: prediction.risk,
-      access: index === 0 ? "Free" : "VIP",
-    };
-  });
+      return {
+        id: fixture.fixture.id,
+        sport: "Football",
+        league: fixture.league.name,
+        match: `${fixture.teams.home.name} vs ${fixture.teams.away.name}`,
+        time: formatTime(fixture.fixture.date),
+        prediction: prediction.valueBet,
+        confidence: prediction.confidence,
+        risk: prediction.risk,
+        access: index === 0 ? "Free" : "VIP",
+      };
+    });
 
   const topPick = aiPicks[0];
-  const otherPicks = aiPicks.slice(1);
+  const otherPicks: AIPick[] = aiPicks.slice(1);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 text-white">
@@ -92,7 +106,7 @@ export default async function PredictionsPage() {
         </p>
 
         <div className="grid gap-6">
-          {otherPicks.map((item, index) => {
+          {otherPicks.map((item: AIPick, index: number) => {
             const isVip = item.access === "VIP";
 
             return (
@@ -123,7 +137,10 @@ export default async function PredictionsPage() {
                     <h2 className="mt-2 text-3xl font-black">{item.match}</h2>
 
                     <p className="mt-3 text-white/60">
-                      🤖 {isVip ? "Premium AI Prediction Locked" : item.prediction}
+                      🤖{" "}
+                      {isVip
+                        ? "Premium AI Prediction Locked"
+                        : item.prediction}
                     </p>
 
                     {isVip && (
