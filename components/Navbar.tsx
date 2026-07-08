@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useVip } from "@/components/providers/VipProvider";
 
 const navLinks = [
@@ -21,20 +20,28 @@ export default function Navbar() {
   const { isVip } = useVip();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+    async function loadUser() {
+      try {
+        const res = await fetch("/api/auth/me", {
+          cache: "no-store",
+        });
+
+        const data = await res.json();
+
+        if (data?.user) {
+          setEmail(data.user.email || "");
+          setIsAdmin(data.user.isAdmin === true);
+        } else {
+          setEmail("");
+          setIsAdmin(false);
+        }
+      } catch {
         setEmail("");
         setIsAdmin(false);
-        return;
       }
+    }
 
-      setEmail(user.email || "");
-
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      setIsAdmin(userSnap.data()?.role === "admin");
-    });
-
-    return () => unsubscribe();
+    loadUser();
   }, []);
 
   async function handleLogout() {
@@ -44,6 +51,8 @@ export default function Navbar() {
       method: "DELETE",
     });
 
+    setEmail("");
+    setIsAdmin(false);
     setOpen(false);
     window.location.href = "/en";
   }
@@ -62,13 +71,20 @@ export default function Navbar() {
 
         <nav className="hidden items-center gap-6 text-sm font-bold text-white/70 md:flex">
           {navLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="transition hover:text-[#D4AF37]">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="transition hover:text-[#D4AF37]"
+            >
               {item.label}
             </Link>
           ))}
 
           {isAdmin && (
-            <Link href="/en/admin" className="text-[#D4AF37] transition hover:text-white">
+            <Link
+              href="/en/admin"
+              className="text-[#D4AF37] transition hover:text-white"
+            >
               Admin
             </Link>
           )}
@@ -95,7 +111,10 @@ export default function Navbar() {
               </button>
             </>
           ) : (
-            <Link href="/en/login" className="text-sm font-bold text-white/60 transition hover:text-white">
+            <Link
+              href="/en/login"
+              className="text-sm font-bold text-white/60 transition hover:text-white"
+            >
               Login
             </Link>
           )}
