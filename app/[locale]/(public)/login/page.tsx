@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -25,7 +23,8 @@ export default function LoginPage() {
       });
 
       setMessage("Login successful ✅");
-      router.push("/en/dashboard");
+
+      window.location.href = "/en/dashboard";
     } catch (error: any) {
       setMessage(error.message);
     }
