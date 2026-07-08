@@ -22,7 +22,7 @@ export default function Navbar() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const res = await fetch("/api/auth/me", {
+        const res = await fetch("/api/auth/session", {
           cache: "no-store",
         });
 

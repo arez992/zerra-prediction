@@ -1,41 +1,47 @@
 import { NextResponse } from "next/server";
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 
-export async function POST(request: Request) {
+export async function GET() {
   try {
-    const { token } = await request.json();
+    const admin = await getServerAdminUser();
 
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: "Missing token" },
-        { status: 400 }
-      );
-    }
-
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
+      user: admin
+        ? {
+            uid: admin.uid,
+            email: admin.email,
+            role: admin.role,
+            isAdmin: admin.role === "admin",
+          }
+        : null,
     });
-
-    response.cookies.set("firebaseToken", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+  } catch {
+    return NextResponse.json({
+      success: true,
+      user: null,
     });
-
-    return response;
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
   }
 }
 
-export async function DELETE() {
-  const response = NextResponse.json({
-    success: true,
+export async function POST(request: Request) {
+  const { token } = await request.json();
+
+  const response = NextResponse.json({ success: true });
+
+  response.cookies.set("firebaseToken", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
   });
+
+  return response;
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({ success: true });
 
   response.cookies.set("firebaseToken", "", {
     httpOnly: true,
