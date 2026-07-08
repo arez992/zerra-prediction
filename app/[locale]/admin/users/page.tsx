@@ -1,4 +1,5 @@
 import Link from "next/link";
+import UserActions from "@/components/admin/UserActions";
 
 async function getUsers() {
   try {
@@ -53,6 +54,8 @@ export default async function AdminUsersPage() {
                 <Info title="Expires" value={user.vipExpireAt || "—"} />
                 <Info title="User ID" value={user.id} />
               </div>
+
+              <UserActions user={user} />
             </article>
           ))
         )}
