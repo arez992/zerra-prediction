@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AdminGate from "@/components/admin/AdminGate";
 
 async function getAdminStats() {
@@ -37,10 +38,29 @@ export default async function AdminPage() {
         </p>
 
         <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <AdminCard title="VIP Users" value={stats?.vipUsers ?? 0} />
-          <AdminCard title="Payments" value={stats?.payments ?? 0} />
-          <AdminCard title="Predictions" value={stats?.predictions ?? 0} />
-          <AdminCard title="AI Cache" value={stats?.aiCache ?? 0} />
+          <AdminCard
+            title="VIP Users"
+            value={stats?.vipUsers ?? 0}
+            href="/en/admin/users"
+          />
+
+          <AdminCard
+            title="Payments"
+            value={stats?.payments ?? 0}
+            href="/en/admin/payments"
+          />
+
+          <AdminCard
+            title="Predictions"
+            value={stats?.predictions ?? 0}
+            href="/en/admin/predictions"
+          />
+
+          <AdminCard
+            title="AI Cache"
+            value={stats?.aiCache ?? 0}
+            href="/en/admin/cache"
+          />
         </section>
       </main>
     </AdminGate>
@@ -50,14 +70,20 @@ export default async function AdminPage() {
 function AdminCard({
   title,
   value,
+  href,
 }: {
   title: string;
   value: string | number;
+  href: string;
 }) {
   return (
-    <div className="rounded-[2rem] border border-white/10 bg-[#101827] p-6 shadow-xl">
+    <Link
+      href={href}
+      className="rounded-[2rem] border border-white/10 bg-[#101827] p-6 shadow-xl transition hover:border-[#D4AF37]/50 hover:bg-[#141f33]"
+    >
       <p className="text-sm text-white/50">{title}</p>
       <p className="mt-3 text-4xl font-black text-[#D4AF37]">{value}</p>
-    </div>
+      <p className="mt-4 text-sm font-bold text-white/40">Open →</p>
+    </Link>
   );
 }
