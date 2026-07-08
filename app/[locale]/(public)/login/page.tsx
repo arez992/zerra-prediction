@@ -13,7 +13,17 @@ export default function LoginPage() {
 
   async function handleLogin() {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const token = await credential.user.getIdToken();
+
+      await fetch("/api/auth/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+
       setMessage("Login successful ✅");
       router.push("/en/dashboard");
     } catch (error: any) {
@@ -61,7 +71,10 @@ export default function LoginPage() {
           </p>
         )}
 
-        <a href="/en/register" className="mt-6 block text-center font-bold text-[#D4AF37]">
+        <a
+          href="/en/register"
+          className="mt-6 block text-center font-bold text-[#D4AF37]"
+        >
           Create Account
         </a>
       </div>
