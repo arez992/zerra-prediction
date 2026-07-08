@@ -12,23 +12,40 @@ export default function DashboardStats({
   upcoming,
 }: DashboardStatsProps) {
   const stats = [
-    { label: "Today's Matches", value: total },
-    { label: "Live Now", value: live },
-    { label: "Finished", value: finished },
-    { label: "Upcoming", value: upcoming },
+    {
+      title: "Today's Matches",
+      value: total,
+      color: "text-yellow-400",
+    },
+    {
+      title: "Live",
+      value: live,
+      color: "text-red-400",
+    },
+    {
+      title: "Finished",
+      value: finished,
+      color: "text-green-400",
+    },
+    {
+      title: "Upcoming",
+      value: upcoming,
+      color: "text-blue-400",
+    },
   ];
 
   return (
-    <section className="grid gap-4 md:grid-cols-4">
+    <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {stats.map((item) => (
         <div
-          key={item.label}
-          className="rounded-3xl border border-white/10 bg-white/5 p-5"
+          key={item.title}
+          className="rounded-2xl border border-white/10 bg-[#111827] p-6"
         >
-          <p className="text-sm text-white/50">{item.label}</p>
-          <p className="mt-2 text-3xl font-black text-[#D4AF37]">
+          <p className="text-sm text-gray-400">{item.title}</p>
+
+          <h2 className={`mt-2 text-4xl font-black ${item.color}`}>
             {item.value}
-          </p>
+          </h2>
         </div>
       ))}
     </section>
