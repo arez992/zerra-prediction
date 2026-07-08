@@ -1,5 +1,4 @@
 import Link from "next/link";
-import AdminGate from "@/components/admin/AdminGate";
 
 async function getAdminStats() {
   try {
@@ -24,46 +23,25 @@ export default async function AdminPage() {
   const stats = await getAdminStats();
 
   return (
-    <AdminGate>
-      <main className="mx-auto max-w-7xl px-5 py-12 text-white">
-        <p className="text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
-          ZERRA Admin
-        </p>
+    <main className="mx-auto max-w-7xl px-5 py-12 text-white">
+      <p className="text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
+        ZERRA Admin
+      </p>
 
-        <h1 className="mt-4 text-5xl font-black">Admin Dashboard</h1>
+      <h1 className="mt-4 text-5xl font-black">Admin Dashboard</h1>
 
-        <p className="mt-4 max-w-2xl text-white/60">
-          Manage VIP users, payments, prediction history, AI cache, and platform
-          performance.
-        </p>
+      <p className="mt-4 max-w-2xl text-white/60">
+        Manage VIP users, payments, prediction history, AI cache, and platform
+        performance.
+      </p>
 
-        <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <AdminCard
-            title="VIP Users"
-            value={stats?.vipUsers ?? 0}
-            href="/en/admin/users"
-          />
-
-          <AdminCard
-            title="Payments"
-            value={stats?.payments ?? 0}
-            href="/en/admin/payments"
-          />
-
-          <AdminCard
-            title="Predictions"
-            value={stats?.predictions ?? 0}
-            href="/en/admin/predictions"
-          />
-
-          <AdminCard
-            title="AI Cache"
-            value={stats?.aiCache ?? 0}
-            href="/en/admin/cache"
-          />
-        </section>
-      </main>
-    </AdminGate>
+      <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <AdminCard title="VIP Users" value={stats?.vipUsers ?? 0} href="/en/admin/users" />
+        <AdminCard title="Payments" value={stats?.payments ?? 0} href="/en/admin/payments" />
+        <AdminCard title="Predictions" value={stats?.predictions ?? 0} href="/en/admin/predictions" />
+        <AdminCard title="AI Cache" value={stats?.aiCache ?? 0} href="/en/admin/cache" />
+      </section>
+    </main>
   );
 }
 
