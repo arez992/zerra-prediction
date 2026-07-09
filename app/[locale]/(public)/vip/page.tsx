@@ -1,28 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
-
-const plans = [
-  {
-    name: "Weekly",
-    price: 9,
-    description: "7 Days Premium Access",
-    badge: "Starter",
-  },
-  {
-    name: "Monthly",
-    price: 19,
-    description: "Best Value For Serious Users",
-    badge: "Most Popular",
-  },
-  {
-    name: "Quarterly",
-    price: 49,
-    description: "Save More With 90 Days Access",
-    badge: "Pro",
-  },
-];
 
 const features = [
   "Premium AI predictions",
@@ -35,6 +14,47 @@ const features = [
 
 export default function VipPage() {
   const [loading, setLoading] = useState("");
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/admin/settings", { cache: "no-store" });
+        const data = await res.json();
+
+        if (data?.success) {
+          setSettings(data.settings);
+        }
+      } catch {
+        setSettings(null);
+      }
+    }
+
+    loadSettings();
+  }, []);
+
+  const currency = settings?.currency || "USDT";
+
+  const plans = [
+    {
+      name: "Weekly",
+      price: settings?.weeklyPrice ?? 9,
+      description: "7 Days Premium Access",
+      badge: "Starter",
+    },
+    {
+      name: "Monthly",
+      price: settings?.monthlyPrice ?? 19,
+      description: "Best Value For Serious Users",
+      badge: "Most Popular",
+    },
+    {
+      name: "Quarterly",
+      price: settings?.quarterlyPrice ?? 49,
+      description: "Save More With 90 Days Access",
+      badge: "Pro",
+    },
+  ];
 
   async function buyPlan(plan: string, price: number) {
     setLoading(plan);
@@ -113,7 +133,7 @@ export default function VipPage() {
             <h2 className="text-3xl font-black text-white">{plan.name}</h2>
 
             <p className="mt-4 text-5xl font-black text-[#D4AF37]">
-              {plan.price} USDT
+              {plan.price} {currency}
             </p>
 
             <p className="mt-4 text-white/60">{plan.description}</p>
@@ -123,7 +143,7 @@ export default function VipPage() {
               disabled={loading === plan.name}
               className="mt-8 w-full rounded-full bg-[#D4AF37] py-4 font-black text-black transition hover:scale-[1.02] disabled:opacity-60"
             >
-              {loading === plan.name ? "Creating invoice..." : "Buy with USDT"}
+              {loading === plan.name ? "Creating invoice..." : `Buy with ${currency}`}
             </button>
           </div>
         ))}
