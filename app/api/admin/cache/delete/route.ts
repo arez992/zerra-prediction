@@ -15,8 +15,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const now = new Date().toISOString();
     const ref = adminDb.collection("aiCache").doc(cacheId);
-
     const snap = await ref.get();
 
     if (!snap.exists) {
@@ -29,7 +29,21 @@ export async function POST(request: Request) {
       );
     }
 
+    const cacheData = snap.data();
+
     await ref.delete();
+
+    await adminDb.collection("activityLogs").add({
+      type: "cache",
+      actor: "admin",
+      message: `AI cache deleted: ${cacheId}`,
+      targetId: cacheId,
+      metadata: {
+        bestPick: cacheData?.analysis?.bestPick || null,
+        risk: cacheData?.analysis?.riskNote || null,
+      },
+      createdAt: now,
+    });
 
     return NextResponse.json({
       success: true,
