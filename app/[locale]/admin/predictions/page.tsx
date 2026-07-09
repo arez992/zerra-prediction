@@ -1,5 +1,4 @@
 import Link from "next/link";
-import AdminGate from "@/components/admin/AdminGate";
 
 async function getPredictions() {
   try {
@@ -24,70 +23,61 @@ export default async function AdminPredictionsPage() {
   const predictions = await getPredictions();
 
   return (
-    <AdminGate>
-      <main className="mx-auto max-w-7xl px-5 py-12 text-white">
-        <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-          ← Back to Admin
-        </Link>
+    <main className="mx-auto max-w-7xl px-5 py-12 text-white">
+      <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
+        ← Back to Admin
+      </Link>
 
-        <h1 className="mt-6 text-5xl font-black">Prediction History</h1>
+      <h1 className="mt-6 text-5xl font-black">Prediction History</h1>
 
-        <p className="mt-4 text-white/60">
-          View saved AI predictions, result checks, and model performance data.
-        </p>
+      <p className="mt-4 text-white/60">
+        View saved AI predictions, result checks, confidence, and model
+        performance data.
+      </p>
 
-        <section className="mt-10 grid gap-4">
-          {predictions.length === 0 ? (
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
-              No prediction history found.
-            </div>
-          ) : (
-            predictions.map((item: any) => (
-              <article
-                key={item.id}
-                className="rounded-3xl border border-white/10 bg-[#101827] p-6"
-              >
-                <div className="grid gap-4 md:grid-cols-5">
-                  <Info
-                    title="Fixture"
-                    value={item.fixtureId || item.id || "Unknown"}
-                  />
-                  <Info
-                    title="Pick"
-                    value={item.prediction?.valueBet || "Unknown"}
-                  />
-                  <Info
-                    title="Confidence"
-                    value={`${item.prediction?.confidence ?? 0}%`}
-                  />
-                  <Info
-                    title="Checked"
-                    value={item.resultChecked ? "Yes" : "No"}
-                  />
-                  <Info
-                    title="Correct"
-                    value={
-                      item.correct === true
-                        ? "Correct"
-                        : item.correct === false
-                        ? "Wrong"
-                        : "Pending"
-                    }
-                  />
-                </div>
+      <section className="mt-10 grid gap-4">
+        {predictions.length === 0 ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
+            No prediction history found.
+          </div>
+        ) : (
+          predictions.map((item: any) => (
+            <article
+              key={item.id}
+              className="rounded-3xl border border-white/10 bg-[#101827] p-6"
+            >
+              <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-7">
+                <Info title="Fixture" value={item.fixtureId || item.id || "Unknown"} />
+                <Info title="League" value={item.league || item.match?.league || "—"} />
+                <Info title="Home" value={item.homeTeam || item.match?.homeTeam || "—"} />
+                <Info title="Away" value={item.awayTeam || item.match?.awayTeam || "—"} />
+                <Info title="Pick" value={item.prediction?.valueBet || item.pick || "Unknown"} />
+                <Info title="Confidence" value={`${item.prediction?.confidence ?? item.confidence ?? 0}%`} />
+                <Info
+                  title="Status"
+                  value={
+                    item.correct === true
+                      ? "Correct"
+                      : item.correct === false
+                      ? "Wrong"
+                      : item.resultChecked
+                      ? "Checked"
+                      : "Pending"
+                  }
+                />
+              </div>
 
-                {item.finalResult && (
-                  <p className="mt-4 text-sm font-bold text-white/50">
-                    Final Result:{" "}
-                    <span className="text-[#D4AF37]">{item.finalResult}</span>
-                  </p>
-                )}
-              </article>
-            ))
-          )}
-        </section>
-      </main>
-    </AdminGate>
+              {item.finalResult && (
+                <p className="mt-4 text-sm font-bold text-white/50">
+                  Final Result:{" "}
+                  <span className="text-[#D4AF37]">{item.finalResult}</span>
+                </p>
+              )}
+            </article>
+          ))
+        )}
+      </section>
+    </main>
   );
 }
 
