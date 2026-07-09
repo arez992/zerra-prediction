@@ -7,10 +7,10 @@ const defaultSettings = {
   heroSubtitle:
     "AI-powered football predictions, VIP picks, confidence scores, and premium match analysis.",
 
+  weeklyPrice: 9,
   monthlyPrice: 19,
-  yearlyPrice: 99,
-  lifetimePrice: 199,
-  currency: "USD",
+  quarterlyPrice: 199,
+  currency: "USDT",
 
   maintenanceMode: false,
   registrationEnabled: true,

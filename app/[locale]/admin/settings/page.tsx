@@ -21,6 +21,7 @@ async function getSettings() {
 
 export default async function AdminSettingsPage() {
   const settings = await getSettings();
+  const currency = settings?.currency || "USDT";
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
@@ -31,24 +32,28 @@ export default async function AdminSettingsPage() {
       <h1 className="mt-6 text-5xl font-black">Settings</h1>
 
       <p className="mt-4 text-white/60">
-        Manage pricing, website text, and platform system controls.
+        Manage VIP pricing, website text, and platform system controls.
       </p>
 
       <section className="mt-10 grid gap-6 lg:grid-cols-3">
         <SettingsCard title="Site Name" value={settings?.siteName || "—"} />
-        <SettingsCard title="Currency" value={settings?.currency || "USD"} />
+        <SettingsCard title="Currency" value={currency} />
+
+        <SettingsCard
+          title="Weekly Price"
+          value={`${settings?.weeklyPrice ?? 9} ${currency}`}
+        />
+
         <SettingsCard
           title="Monthly Price"
-          value={`${settings?.monthlyPrice ?? 0} ${settings?.currency || "USD"}`}
+          value={`${settings?.monthlyPrice ?? 19} ${currency}`}
         />
+
         <SettingsCard
-          title="Yearly Price"
-          value={`${settings?.yearlyPrice ?? 0} ${settings?.currency || "USD"}`}
+          title="Quarterly Price"
+          value={`${settings?.quarterlyPrice ?? 49} ${currency}`}
         />
-        <SettingsCard
-          title="Lifetime Price"
-          value={`${settings?.lifetimePrice ?? 0} ${settings?.currency || "USD"}`}
-        />
+
         <SettingsCard
           title="Maintenance"
           value={settings?.maintenanceMode ? "Enabled" : "Disabled"}
