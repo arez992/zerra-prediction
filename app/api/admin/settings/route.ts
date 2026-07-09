@@ -51,14 +51,31 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const settings = await request.json();
+    const now = new Date().toISOString();
 
-    await adminDb.collection("settings").doc("site").set(
+    const ref = adminDb.collection("settings").doc("site");
+    const oldSnap = await ref.get();
+    const oldSettings = oldSnap.exists ? oldSnap.data() : null;
+
+    await ref.set(
       {
         ...settings,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       },
       { merge: true }
     );
+
+    await adminDb.collection("activityLogs").add({
+      type: "settings",
+      actor: "admin",
+      message: "Admin updated site settings",
+      targetId: "settings/site",
+      metadata: {
+        before: oldSettings,
+        after: settings,
+      },
+      createdAt: now,
+    });
 
     return NextResponse.json({
       success: true,
