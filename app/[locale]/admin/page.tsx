@@ -32,16 +32,17 @@ export default async function AdminPage() {
 
       <p className="mt-4 max-w-2xl text-white/60">
         Manage VIP users, payments, prediction history, AI cache, revenue,
-        settings, health, and platform performance.
+        settings, health, activity, and platform performance.
       </p>
 
-      <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-7">
+      <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-8">
         <AdminCard title="VIP Users" value={stats?.vipUsers ?? 0} href="/en/admin/users" />
         <AdminCard title="Payments" value={stats?.payments ?? 0} href="/en/admin/payments" />
         <AdminCard title="Predictions" value={stats?.predictions ?? 0} href="/en/admin/predictions" />
         <AdminCard title="AI Cache" value={stats?.aiCache ?? 0} href="/en/admin/cache" />
         <AdminCard title="Revenue" value="View" href="/en/admin/revenue" />
         <AdminCard title="Health" value="Check" href="/en/admin/health" />
+        <AdminCard title="Activity" value="Logs" href="/en/admin/activity" />
         <AdminCard title="Settings" value="Manage" href="/en/admin/settings" />
       </section>
     </main>
