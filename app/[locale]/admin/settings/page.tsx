@@ -41,18 +41,18 @@ export default async function AdminSettingsPage() {
         <SettingsCard title="Currency" value={currency} />
 
         <SettingsCard
-          title="Weekly Price"
-          value={`${settings?.weeklyPrice ?? 9} ${currency}`}
-        />
-
-        <SettingsCard
           title="Monthly Price"
-          value={`${settings?.monthlyPrice ?? 19} ${currency}`}
+          value={`${settings?.monthlyPrice ?? 14.99} ${currency}`}
         />
 
         <SettingsCard
           title="Quarterly Price"
-          value={`${settings?.quarterlyPrice ?? 49} ${currency}`}
+          value={`${settings?.quarterlyPrice ?? 39.99} ${currency}`}
+        />
+
+        <SettingsCard
+          title="Lifetime Price"
+          value={`${settings?.lifetimePrice ?? 129} ${currency}`}
         />
 
         <SettingsCard

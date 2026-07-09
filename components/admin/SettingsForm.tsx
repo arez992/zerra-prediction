@@ -8,9 +8,9 @@ export default function SettingsForm({ settings }: { settings: any }) {
     heroTitle: settings?.heroTitle || "",
     heroSubtitle: settings?.heroSubtitle || "",
 
-    weeklyPrice: settings?.weeklyPrice ?? 9,
-    monthlyPrice: settings?.monthlyPrice ?? 19,
-    quarterlyPrice: settings?.quarterlyPrice ?? 49,
+    monthlyPrice: settings?.monthlyPrice ?? 14.99,
+    quarterlyPrice: settings?.quarterlyPrice ?? 39.99,
+    lifetimePrice: settings?.lifetimePrice ?? 129,
     currency: settings?.currency || "USDT",
 
     maintenanceMode: settings?.maintenanceMode ?? false,
@@ -23,10 +23,7 @@ export default function SettingsForm({ settings }: { settings: any }) {
   const [loading, setLoading] = useState(false);
 
   function updateField(name: string, value: any) {
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    setForm((current) => ({ ...current, [name]: value }));
   }
 
   async function saveSettings() {
@@ -35,9 +32,7 @@ export default function SettingsForm({ settings }: { settings: any }) {
 
       const res = await fetch("/api/admin/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
 
@@ -64,13 +59,11 @@ export default function SettingsForm({ settings }: { settings: any }) {
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <Input label="Site Name" value={form.siteName} onChange={(v) => updateField("siteName", v)} />
         <Input label="Currency" value={form.currency} onChange={(v) => updateField("currency", v)} />
-
         <Input label="Hero Title" value={form.heroTitle} onChange={(v) => updateField("heroTitle", v)} />
         <Input label="Hero Subtitle" value={form.heroSubtitle} onChange={(v) => updateField("heroSubtitle", v)} />
-
-        <Input label="Weekly Price" type="number" value={form.weeklyPrice} onChange={(v) => updateField("weeklyPrice", Number(v))} />
         <Input label="Monthly Price" type="number" value={form.monthlyPrice} onChange={(v) => updateField("monthlyPrice", Number(v))} />
         <Input label="Quarterly Price" type="number" value={form.quarterlyPrice} onChange={(v) => updateField("quarterlyPrice", Number(v))} />
+        <Input label="Lifetime Price" type="number" value={form.lifetimePrice} onChange={(v) => updateField("lifetimePrice", Number(v))} />
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-5">

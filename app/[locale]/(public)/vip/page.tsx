@@ -22,9 +22,7 @@ export default function VipPage() {
         const res = await fetch("/api/admin/settings", { cache: "no-store" });
         const data = await res.json();
 
-        if (data?.success) {
-          setSettings(data.settings);
-        }
+        if (data?.success) setSettings(data.settings);
       } catch {
         setSettings(null);
       }
@@ -37,22 +35,22 @@ export default function VipPage() {
 
   const plans = [
     {
-      name: "Weekly",
-      price: settings?.weeklyPrice ?? 9,
-      description: "7 Days Premium Access",
-      badge: "Starter",
-    },
-    {
       name: "Monthly",
-      price: settings?.monthlyPrice ?? 19,
-      description: "Best Value For Serious Users",
+      price: settings?.monthlyPrice ?? 14.99,
+      description: "30 Days Premium Access",
       badge: "Most Popular",
     },
     {
       name: "Quarterly",
-      price: settings?.quarterlyPrice ?? 49,
-      description: "Save More With 90 Days Access",
-      badge: "Pro",
+      price: settings?.quarterlyPrice ?? 39.99,
+      description: "90 Days Premium Access",
+      badge: "Best Value",
+    },
+    {
+      name: "Lifetime",
+      price: settings?.lifetimePrice ?? 129,
+      description: "Lifetime Premium Access",
+      badge: "Lifetime",
     },
   ];
 
@@ -76,7 +74,7 @@ export default function VipPage() {
       if (data.invoice_url) {
         window.location.href = data.invoice_url;
       } else {
-        alert("Payment error. Check NOWPayments settings.");
+        alert(data.error || "Payment error. Check NOWPayments settings.");
         console.log(data);
       }
     } catch (error) {
@@ -121,7 +119,7 @@ export default function VipPage() {
           <div
             key={plan.name}
             className={`rounded-[2rem] border p-8 shadow-xl ${
-              plan.name === "Monthly"
+              plan.name === "Quarterly"
                 ? "border-[#D4AF37] bg-[#101827]"
                 : "border-white/10 bg-white/5"
             }`}
@@ -143,7 +141,9 @@ export default function VipPage() {
               disabled={loading === plan.name}
               className="mt-8 w-full rounded-full bg-[#D4AF37] py-4 font-black text-black transition hover:scale-[1.02] disabled:opacity-60"
             >
-              {loading === plan.name ? "Creating invoice..." : `Buy with ${currency}`}
+              {loading === plan.name
+                ? "Creating invoice..."
+                : `Buy with ${currency}`}
             </button>
           </div>
         ))}
