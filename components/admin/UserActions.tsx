@@ -39,8 +39,54 @@ export default function UserActions({ user }: { user: any }) {
     }
   }
 
+  async function deleteUser() {
+    if (!confirm("Delete this user?")) return;
+
+    try {
+      setLoading(true);
+
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: user.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(data.error || "Delete failed");
+        return;
+      }
+
+      window.location.reload();
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function extendVip() {
+    const expire = user.vipExpireAt
+      ? new Date(user.vipExpireAt)
+      : new Date();
+
+    expire.setDate(expire.getDate() + 30);
+
+    updateUser({
+      isVip: true,
+      plan: user.plan || "Monthly",
+      vipExpireAt: expire.toISOString(),
+    });
+  }
+
   return (
     <div className="mt-5 flex flex-wrap gap-3">
+
       <button
         disabled={loading}
         onClick={() =>
@@ -48,7 +94,7 @@ export default function UserActions({ user }: { user: any }) {
             role: user.role === "admin" ? "user" : "admin",
           })
         }
-        className="rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+        className="rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50"
       >
         {user.role === "admin" ? "Remove Admin" : "Make Admin"}
       </button>
@@ -61,13 +107,32 @@ export default function UserActions({ user }: { user: any }) {
             plan: user.isVip ? "Free" : "Monthly",
             vipExpireAt: user.isVip
               ? null
-              : "2030-01-01T00:00:00.000Z",
+              : new Date(
+                  Date.now() + 30 * 24 * 60 * 60 * 1000
+                ).toISOString(),
           })
         }
         className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-black text-black disabled:opacity-50"
       >
         {user.isVip ? "Remove VIP" : "Make VIP"}
       </button>
+
+      <button
+        disabled={loading}
+        onClick={extendVip}
+        className="rounded-full bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+      >
+        Extend 30 Days
+      </button>
+
+      <button
+        disabled={loading}
+        onClick={deleteUser}
+        className="rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+      >
+        Delete User
+      </button>
+
     </div>
   );
 }
