@@ -31,30 +31,56 @@ export default async function AdminRevenuePage() {
       <h1 className="mt-6 text-5xl font-black">Revenue Dashboard</h1>
 
       <p className="mt-4 text-white/60">
-        Track VIP revenue, payments, users, and plan performance.
+        Track VIP revenue, payments, users, success rate, and plan performance.
       </p>
 
       <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <Stat title="Today Revenue" value={`${revenue?.todayRevenue ?? 0} USDT`} />
+        <Stat title="This Month" value={`${revenue?.thisMonthRevenue ?? 0} USDT`} />
         <Stat title="Lifetime Revenue" value={`${revenue?.lifetimeRevenue ?? 0} USDT`} />
+        <Stat title="Success Rate" value={`${revenue?.successRate ?? 0}%`} />
+      </section>
+
+      <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Stat title="Completed Payments" value={revenue?.completedPayments ?? 0} />
         <Stat title="Pending Payments" value={revenue?.pendingPayments ?? 0} />
-        <Stat title="Active VIP Users" value={revenue?.activeVipUsers ?? 0} />
+        <Stat title="Failed Payments" value={revenue?.failedPayments ?? 0} />
+        <Stat title="Total Payments" value={revenue?.totalPayments ?? 0} />
       </section>
 
       <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Stat title="Total Users" value={revenue?.totalUsers ?? 0} />
-        <Stat title="Total Payments" value={revenue?.totalPayments ?? 0} />
+        <Stat title="Active VIP Users" value={revenue?.activeVipUsers ?? 0} />
         <Stat title="Monthly Sales" value={revenue?.planCounts?.Monthly ?? 0} />
         <Stat title="Lifetime Sales" value={revenue?.planCounts?.Lifetime ?? 0} />
       </section>
 
       <section className="mt-10 rounded-[2rem] border border-white/10 bg-[#101827] p-6">
-        <h2 className="text-2xl font-black">Plan Breakdown</h2>
+        <h2 className="text-2xl font-black">Sales by Plan</h2>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <Plan title="Monthly" value={revenue?.planCounts?.Monthly ?? 0} />
           <Plan title="Quarterly" value={revenue?.planCounts?.Quarterly ?? 0} />
           <Plan title="Lifetime" value={revenue?.planCounts?.Lifetime ?? 0} />
+        </div>
+      </section>
+
+      <section className="mt-10 rounded-[2rem] border border-white/10 bg-[#101827] p-6">
+        <h2 className="text-2xl font-black">Revenue by Plan</h2>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <Plan
+            title="Monthly Revenue"
+            value={`${revenue?.planRevenue?.Monthly ?? 0} USDT`}
+          />
+          <Plan
+            title="Quarterly Revenue"
+            value={`${revenue?.planRevenue?.Quarterly ?? 0} USDT`}
+          />
+          <Plan
+            title="Lifetime Revenue"
+            value={`${revenue?.planRevenue?.Lifetime ?? 0} USDT`}
+          />
         </div>
       </section>
     </main>
