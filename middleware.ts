@@ -11,7 +11,6 @@ function hasLocale(pathname: string) {
 
 function isAllowedDuringMaintenance(pathname: string) {
   return (
-    pathname.startsWith("/api") ||
     pathname.includes("/admin") ||
     pathname.includes("/login") ||
     pathname.includes("/register") ||
@@ -41,5 +40,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)"],
+  matcher: ["/((?!api|_next|.*\\..*).*)"],
 };
