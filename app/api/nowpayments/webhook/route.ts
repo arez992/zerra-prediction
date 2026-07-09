@@ -4,9 +4,10 @@ import { db } from "@/lib/firebase";
 import {
   doc,
   getDoc,
+  increment,
+  serverTimestamp,
   setDoc,
   updateDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 
 function sortObject(obj: any): any {
@@ -27,6 +28,7 @@ function verifyNowPaymentsSignature(body: any, signature: string | null) {
   if (!secret || !signature) return false;
 
   const sortedBody = sortObject(body);
+
   const hmac = crypto
     .createHmac("sha512", secret)
     .update(JSON.stringify(sortedBody))
@@ -38,7 +40,12 @@ function verifyNowPaymentsSignature(body: any, signature: string | null) {
 function getPlanDays(plan: string) {
   if (plan === "Monthly") return 30;
   if (plan === "Quarterly") return 90;
-  return 7;
+  if (plan === "Lifetime") return 36500;
+  return 30;
+}
+
+function isPaidStatus(status: string) {
+  return ["finished", "confirmed"].includes(status);
 }
 
 export async function POST(request: Request) {
@@ -51,7 +58,7 @@ export async function POST(request: Request) {
     }
 
     const orderId = body.order_id;
-    const status = body.payment_status;
+    const paymentStatus = body.payment_status;
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing order_id" }, { status: 400 });
@@ -64,7 +71,8 @@ export async function POST(request: Request) {
       paymentRef,
       {
         nowpayments: body,
-        paymentStatus: status,
+        paymentStatus,
+        nowpaymentsUpdatedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -76,11 +84,18 @@ export async function POST(request: Request) {
 
     const payment = paymentSnap.data();
 
-    if (status === "finished" || status === "confirmed") {
-      const plan = payment.plan || "Weekly";
+    if (payment.status === "completed") {
+      return NextResponse.json({
+        received: true,
+        duplicate: true,
+      });
+    }
+
+    if (isPaidStatus(paymentStatus)) {
+      const plan = payment.plan || "Monthly";
       const days = payment.days || getPlanDays(plan);
 
-      const expiresAt = new Date(
+      const vipExpireAt = new Date(
         Date.now() + days * 24 * 60 * 60 * 1000
       ).toISOString();
 
@@ -90,13 +105,10 @@ export async function POST(request: Request) {
           email: payment.email,
           isVip: true,
           plan,
-          expiresAt,
-
-          vip: true,
-          vipStatus: "active",
-          membership: plan,
-          vipExpireAt: expiresAt,
-
+          vipExpireAt,
+          vipActivatedAt: serverTimestamp(),
+          lastPaymentId: orderId,
+          totalPayments: increment(1),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -105,6 +117,11 @@ export async function POST(request: Request) {
       await updateDoc(paymentRef, {
         status: "completed",
         completedAt: serverTimestamp(),
+        confirmedAt: serverTimestamp(),
+        paidAmount: body.actually_paid || body.pay_amount || null,
+        payCurrency: body.pay_currency || null,
+        paymentId: body.payment_id || null,
+        updatedAt: serverTimestamp(),
       });
     }
 
