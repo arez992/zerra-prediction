@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PredictionActions from "@/components/admin/PredictionActions";
 
 async function getPredictions() {
   try {
@@ -73,6 +74,8 @@ export default async function AdminPredictionsPage() {
                   <span className="text-[#D4AF37]">{item.finalResult}</span>
                 </p>
               )}
+
+              <PredictionActions predictionId={item.id} />
             </article>
           ))
         )}
