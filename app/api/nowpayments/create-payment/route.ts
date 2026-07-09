@@ -3,9 +3,9 @@ import { db } from "@/lib/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const planDays: Record<string, number> = {
-  Weekly: 7,
   Monthly: 30,
   Quarterly: 90,
+  Lifetime: 36500,
 };
 
 export async function POST(request: Request) {
