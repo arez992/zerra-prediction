@@ -9,7 +9,7 @@ const defaultSettings = {
 
   weeklyPrice: 9,
   monthlyPrice: 19,
-  quarterlyPrice: 199,
+  quarterlyPrice: 49,
   currency: "USDT",
 
   maintenanceMode: false,
