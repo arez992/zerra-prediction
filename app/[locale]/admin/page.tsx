@@ -31,15 +31,16 @@ export default async function AdminPage() {
       <h1 className="mt-4 text-5xl font-black">Admin Dashboard</h1>
 
       <p className="mt-4 max-w-2xl text-white/60">
-        Manage VIP users, payments, prediction history, AI cache, settings, and
-        platform performance.
+        Manage VIP users, payments, prediction history, AI cache, revenue,
+        settings, and platform performance.
       </p>
 
-      <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+      <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-6">
         <AdminCard title="VIP Users" value={stats?.vipUsers ?? 0} href="/en/admin/users" />
         <AdminCard title="Payments" value={stats?.payments ?? 0} href="/en/admin/payments" />
         <AdminCard title="Predictions" value={stats?.predictions ?? 0} href="/en/admin/predictions" />
         <AdminCard title="AI Cache" value={stats?.aiCache ?? 0} href="/en/admin/cache" />
+        <AdminCard title="Revenue" value="View" href="/en/admin/revenue" />
         <AdminCard title="Settings" value="Manage" href="/en/admin/settings" />
       </section>
     </main>
