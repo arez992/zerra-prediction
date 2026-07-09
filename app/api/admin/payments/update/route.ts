@@ -30,12 +30,13 @@ export async function POST(request: Request) {
     }
 
     const payment = paymentSnap.data() as any;
+    const now = new Date().toISOString();
 
     await paymentRef.set(
       {
         status,
         manuallyUpdated: true,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       },
       { merge: true }
     );
@@ -53,11 +54,26 @@ export async function POST(request: Request) {
           plan: payment.plan,
           vipExpireAt,
           lastPaymentId: paymentId,
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         },
         { merge: true }
       );
     }
+
+    await adminDb.collection("activityLogs").add({
+      type: "payment",
+      actor: "admin",
+      message: `Payment ${paymentId} marked as ${status}`,
+      targetId: paymentId,
+      metadata: {
+        status,
+        plan: payment.plan || null,
+        price: payment.price || null,
+        email: payment.email || null,
+        uid: payment.uid || null,
+      },
+      createdAt: now,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
