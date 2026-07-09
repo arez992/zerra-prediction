@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SettingsForm from "@/components/admin/SettingsForm";
 
 async function getSettings() {
   try {
@@ -59,6 +60,8 @@ export default async function AdminSettingsPage() {
           value={settings?.maintenanceMode ? "Enabled" : "Disabled"}
         />
       </section>
+
+      <SettingsForm settings={settings} />
     </main>
   );
 }
