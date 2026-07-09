@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "../globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import MaintenanceGate from "@/components/MaintenanceGate";
 import { VipProvider } from "@/components/providers/VipProvider";
 
 export const metadata: Metadata = {
@@ -48,12 +49,20 @@ export default async function LocaleLayout({
 }: LocaleLayoutProps) {
   const { locale } = await params;
 
+  const isAdminRoute = false;
+
   return (
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
       <body>
         <VipProvider>
           <Navbar />
-          {children}
+
+          {isAdminRoute ? (
+            children
+          ) : (
+            <MaintenanceGate>{children}</MaintenanceGate>
+          )}
+
           <Footer />
         </VipProvider>
       </body>
