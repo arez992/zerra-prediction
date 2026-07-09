@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PaymentActions from "@/components/admin/PaymentActions";
 
 async function getPayments() {
   try {
@@ -62,6 +63,8 @@ export default async function AdminPaymentsPage() {
                   }
                 />
               </div>
+
+              <PaymentActions paymentId={payment.id} />
             </article>
           ))
         )}
