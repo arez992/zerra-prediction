@@ -67,6 +67,12 @@ export default async function AdminPage() {
       icon: "🌍",
     },
     {
+      title: "AI Market Scanner",
+      value: "Scan",
+      href: "/en/admin/market-scanner",
+      icon: "🤖",
+    },
+    {
       title: "Health",
       value: "Check",
       href: "/en/admin/health",
@@ -114,8 +120,8 @@ export default async function AdminPage() {
 
       <p className="mt-4 max-w-3xl text-white/60">
         Manage VIP users, payments, predictions, AI cache, revenue, analytics,
-        market intelligence, security, settings, health, activity,
-        notifications, exports, and platform performance.
+        market intelligence, AI market scanning, security, settings, health,
+        activity, notifications, exports, and platform performance.
       </p>
 
       <section className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
