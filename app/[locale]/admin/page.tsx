@@ -26,6 +26,7 @@ export default async function AdminPage() {
     { title: "Predictions", value: stats?.predictions ?? 0, href: "/en/admin/predictions", icon: "🏆" },
     { title: "AI Cache", value: stats?.aiCache ?? 0, href: "/en/admin/cache", icon: "⚙️" },
     { title: "Revenue", value: "View", href: "/en/admin/revenue", icon: "💰" },
+    { title: "Analytics", value: "View", href: "/en/admin/analytics", icon: "📊" },
     { title: "Health", value: "Check", href: "/en/admin/health", icon: "🛡️" },
     { title: "Activity", value: "Logs", href: "/en/admin/activity", icon: "📋" },
     { title: "Notifications", value: "Alerts", href: "/en/admin/notifications", icon: "🔔" },
@@ -43,8 +44,8 @@ export default async function AdminPage() {
 
       <p className="mt-4 max-w-3xl text-white/60">
         Manage VIP users, payments, prediction history, AI cache, revenue,
-        settings, health, activity, notifications, exports, and platform
-        performance.
+        analytics, settings, health, activity, notifications, exports, and
+        platform performance.
       </p>
 
       <section className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
