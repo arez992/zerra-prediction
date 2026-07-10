@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MaintenanceGate from "@/components/MaintenanceGate";
 import { VipProvider } from "@/components/providers/VipProvider";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 export const metadata: Metadata = {
   title: {
@@ -65,6 +66,12 @@ export default async function LocaleLayout({
 
           <Footer />
         </VipProvider>
+
+        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
+          <GoogleAnalytics
+            gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID}
+          />
+        )}
       </body>
     </html>
   );
