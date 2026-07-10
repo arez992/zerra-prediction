@@ -73,6 +73,12 @@ export default async function AdminPage() {
       icon: "🤖",
     },
     {
+      title: "Market Insights",
+      value: "AI",
+      href: "/en/admin/market-insights",
+      icon: "🧠",
+    },
+    {
       title: "Health",
       value: "Check",
       href: "/en/admin/health",
@@ -120,8 +126,9 @@ export default async function AdminPage() {
 
       <p className="mt-4 max-w-3xl text-white/60">
         Manage VIP users, payments, predictions, AI cache, revenue, analytics,
-        market intelligence, AI market scanning, security, settings, health,
-        activity, notifications, exports, and platform performance.
+        market intelligence, AI market scanning, market insights, security,
+        settings, health, activity, notifications, exports, and platform
+        performance.
       </p>
 
       <section className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
@@ -155,7 +162,9 @@ function AdminCard({
 
       <p className="text-sm font-bold text-white/60">{title}</p>
 
-      <p className="mt-4 text-4xl font-black text-[#D4AF37]">{value}</p>
+      <p className="mt-4 break-words text-4xl font-black text-[#D4AF37]">
+        {value}
+      </p>
 
       <p className="mt-5 text-sm font-bold text-white/40 transition group-hover:text-[#D4AF37]">
         Open →
