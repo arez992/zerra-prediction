@@ -3,14 +3,17 @@ import Link from "next/link";
 async function getAdminStats() {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://zerra-prediction.vercel.app";
 
     const res = await fetch(`${siteUrl}/api/admin/stats`, {
       cache: "no-store",
     });
 
     const data = await res.json();
+
     if (data?.success) return data.stats;
+
     return null;
   } catch {
     return null;
@@ -21,17 +24,78 @@ export default async function AdminPage() {
   const stats = await getAdminStats();
 
   const cards = [
-    { title: "VIP Users", value: stats?.vipUsers ?? 0, href: "/en/admin/users", icon: "👥" },
-    { title: "Payments", value: stats?.payments ?? 0, href: "/en/admin/payments", icon: "💳" },
-    { title: "Predictions", value: stats?.predictions ?? 0, href: "/en/admin/predictions", icon: "🏆" },
-    { title: "AI Cache", value: stats?.aiCache ?? 0, href: "/en/admin/cache", icon: "⚙️" },
-    { title: "Revenue", value: "View", href: "/en/admin/revenue", icon: "💰" },
-    { title: "Analytics", value: "View", href: "/en/admin/analytics", icon: "📊" },
-    { title: "Health", value: "Check", href: "/en/admin/health", icon: "🛡️" },
-    { title: "Activity", value: "Logs", href: "/en/admin/activity", icon: "📋" },
-    { title: "Notifications", value: "Alerts", href: "/en/admin/notifications", icon: "🔔" },
-    { title: "Export", value: "CSV", href: "/en/admin/export", icon: "⬇️" },
-    { title: "Settings", value: "Manage", href: "/en/admin/settings", icon: "⚙️" },
+    {
+      title: "VIP Users",
+      value: stats?.vipUsers ?? 0,
+      href: "/en/admin/users",
+      icon: "👥",
+    },
+    {
+      title: "Payments",
+      value: stats?.payments ?? 0,
+      href: "/en/admin/payments",
+      icon: "💳",
+    },
+    {
+      title: "Predictions",
+      value: stats?.predictions ?? 0,
+      href: "/en/admin/predictions",
+      icon: "🏆",
+    },
+    {
+      title: "AI Cache",
+      value: stats?.aiCache ?? 0,
+      href: "/en/admin/cache",
+      icon: "⚙️",
+    },
+    {
+      title: "Revenue",
+      value: "View",
+      href: "/en/admin/revenue",
+      icon: "💰",
+    },
+    {
+      title: "Analytics",
+      value: "View",
+      href: "/en/admin/analytics",
+      icon: "📊",
+    },
+    {
+      title: "Health",
+      value: "Check",
+      href: "/en/admin/health",
+      icon: "🛡️",
+    },
+    {
+      title: "Security",
+      value: "Check",
+      href: "/en/admin/security",
+      icon: "🔐",
+    },
+    {
+      title: "Activity",
+      value: "Logs",
+      href: "/en/admin/activity",
+      icon: "📋",
+    },
+    {
+      title: "Notifications",
+      value: "Alerts",
+      href: "/en/admin/notifications",
+      icon: "🔔",
+    },
+    {
+      title: "Export",
+      value: "CSV",
+      href: "/en/admin/export",
+      icon: "⬇️",
+    },
+    {
+      title: "Settings",
+      value: "Manage",
+      href: "/en/admin/settings",
+      icon: "⚙️",
+    },
   ];
 
   return (
@@ -44,11 +108,11 @@ export default async function AdminPage() {
 
       <p className="mt-4 max-w-3xl text-white/60">
         Manage VIP users, payments, prediction history, AI cache, revenue,
-        analytics, settings, health, activity, notifications, exports, and
-        platform performance.
+        analytics, security, settings, health, activity, notifications,
+        exports, and platform performance.
       </p>
 
-      <section className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {cards.map((card) => (
           <AdminCard key={card.href} {...card} />
         ))}
