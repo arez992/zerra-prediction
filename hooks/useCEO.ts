@@ -4,11 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import {
   approveCEORecommendation,
   executeCEORecommendation,
+  fetchCEOMemory,
   fetchCEORecommendations,
+  fetchCEOTasks,
   generateCEORecommendations,
   rejectCEORecommendation,
+  type CEOMemoryItem,
   type CEORecommendation,
   type CEORecommendationStats,
+  type CEOTaskItem,
 } from "@/lib/ai-ceo/client";
 
 const emptyStats: CEORecommendationStats = {
@@ -24,6 +28,9 @@ export function useCEO() {
   const [recommendations, setRecommendations] = useState<
     CEORecommendation[]
   >([]);
+
+  const [memory, setMemory] = useState<CEOMemoryItem[]>([]);
+  const [tasks, setTasks] = useState<CEOTaskItem[]>([]);
 
   const [stats, setStats] =
     useState<CEORecommendationStats>(emptyStats);
@@ -41,16 +48,35 @@ export function useCEO() {
     string | null
   >(null);
 
-  const loadRecommendations = useCallback(async () => {
+  const loadCEOData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const data = await fetchCEORecommendations();
+      const [
+        recommendationsResponse,
+        memoryResponse,
+        tasksResponse,
+      ] = await Promise.all([
+        fetchCEORecommendations(),
+        fetchCEOMemory(),
+        fetchCEOTasks(),
+      ]);
 
-      setRecommendations(data.recommendations || []);
-      setStats(data.stats || emptyStats);
-      setCheckedAt(data.checkedAt || null);
+      setRecommendations(
+        recommendationsResponse.recommendations || []
+      );
+
+      setStats(
+        recommendationsResponse.stats || emptyStats
+      );
+
+      setCheckedAt(
+        recommendationsResponse.checkedAt || null
+      );
+
+      setMemory(memoryResponse.memory || []);
+      setTasks(tasksResponse.tasks || []);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -76,7 +102,7 @@ export function useCEO() {
           `${result.created ?? 0} new recommendation(s) created.`
         );
 
-        await loadRecommendations();
+        await loadCEOData();
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -86,7 +112,7 @@ export function useCEO() {
       } finally {
         setGenerating(false);
       }
-    }, [loadRecommendations]);
+    }, [loadCEOData]);
 
   const approve = useCallback(
     async (id: string) => {
@@ -101,7 +127,7 @@ export function useCEO() {
           "Recommendation approved successfully."
         );
 
-        await loadRecommendations();
+        await loadCEOData();
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -112,7 +138,7 @@ export function useCEO() {
         setActiveActionId(null);
       }
     },
-    [loadRecommendations]
+    [loadCEOData]
   );
 
   const reject = useCallback(
@@ -126,7 +152,7 @@ export function useCEO() {
 
         setMessage("Recommendation rejected.");
 
-        await loadRecommendations();
+        await loadCEOData();
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -137,7 +163,7 @@ export function useCEO() {
         setActiveActionId(null);
       }
     },
-    [loadRecommendations]
+    [loadCEOData]
   );
 
   const execute = useCallback(
@@ -153,7 +179,7 @@ export function useCEO() {
           "Recommendation execution completed."
         );
 
-        await loadRecommendations();
+        await loadCEOData();
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -161,20 +187,22 @@ export function useCEO() {
             : "Unable to execute recommendation."
         );
 
-        await loadRecommendations();
+        await loadCEOData();
       } finally {
         setActiveActionId(null);
       }
     },
-    [loadRecommendations]
+    [loadCEOData]
   );
 
   useEffect(() => {
-    void loadRecommendations();
-  }, [loadRecommendations]);
+    void loadCEOData();
+  }, [loadCEOData]);
 
   return {
     recommendations,
+    memory,
+    tasks,
     stats,
     loading,
     generating,
@@ -182,7 +210,8 @@ export function useCEO() {
     error,
     message,
     checkedAt,
-    loadRecommendations,
+    loadCEOData,
+    loadRecommendations: loadCEOData,
     generateRecommendations,
     approve,
     reject,

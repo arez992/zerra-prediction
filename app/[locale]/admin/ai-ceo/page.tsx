@@ -4,11 +4,15 @@ import Link from "next/link";
 import CEOHeader from "@/components/admin/ceo/CEOHeader";
 import CEOStats from "@/components/admin/ceo/CEOStats";
 import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList";
+import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
+import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
 import { useCEO } from "@/hooks/useCEO";
 
 export default function AICEODashboardPage() {
   const {
     recommendations,
+    memory,
+    tasks,
     stats,
     loading,
     generating,
@@ -16,7 +20,7 @@ export default function AICEODashboardPage() {
     error,
     message,
     checkedAt,
-    loadRecommendations,
+    loadCEOData,
     generateRecommendations,
     approve,
     reject,
@@ -36,7 +40,7 @@ export default function AICEODashboardPage() {
         <CEOHeader
           loading={loading}
           generating={generating}
-          onRefresh={() => void loadRecommendations()}
+          onRefresh={() => void loadCEOData()}
           onGenerate={() => void generateRecommendations()}
         />
       </div>
@@ -81,6 +85,18 @@ export default function AICEODashboardPage() {
           onApprove={(id) => void approve(id)}
           onReject={(id, reason) => void reject(id, reason)}
           onExecute={(id) => void execute(id)}
+        />
+      </section>
+
+      <section className="mt-12 grid gap-6 xl:grid-cols-2">
+        <CEOMemoryCard
+          memories={memory}
+          loading={loading}
+        />
+
+        <CEOTaskCard
+          tasks={tasks}
+          loading={loading}
         />
       </section>
     </main>

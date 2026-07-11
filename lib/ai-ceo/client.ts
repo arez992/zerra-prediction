@@ -50,12 +50,63 @@ export type CEORecommendationStats = {
   failed: number;
 };
 
+export type CEOMemoryItem = {
+  id: string;
+  recommendationId?: string;
+  lesson?: string;
+  success?: boolean;
+  roi?: number;
+  source?: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type CEOTaskStatus =
+  | "pending"
+  | "approved"
+  | "running"
+  | "completed"
+  | "failed";
+
+export type CEOTaskItem = {
+  id: string;
+  recommendationId?: string;
+  title?: string;
+  description?: string;
+  status?: CEOTaskStatus;
+  executionType?: string | null;
+  executionPayload?: Record<string, unknown>;
+  assignedTo?: string | null;
+  result?: unknown;
+  error?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+};
+
 export type CEORecommendationsResponse = {
   success: boolean;
   recommendations: CEORecommendation[];
   stats: CEORecommendationStats;
   count: number;
   checkedAt?: string;
+  error?: string;
+};
+
+export type CEOMemoryResponse = {
+  success: boolean;
+  memory: CEOMemoryItem[];
+  count: number;
+  error?: string;
+};
+
+export type CEOTasksResponse = {
+  success: boolean;
+  tasks: CEOTaskItem[];
+  count: number;
   error?: string;
 };
 
@@ -87,29 +138,46 @@ async function parseJSON<T>(response: Response): Promise<T> {
   }
 }
 
-export async function fetchCEORecommendations(): Promise<CEORecommendationsResponse> {
-  const response = await fetch(
-    "/api/admin/ai-ceo/recommendations",
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "include",
-    }
+async function fetchCEOResource<T>(
+  endpoint: string,
+  fallbackMessage: string
+): Promise<T> {
+  const response = await fetch(endpoint, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+
+  const data = await parseJSON<T & { success?: boolean; error?: string }>(
+    response
   );
 
-  const data =
-    await parseJSON<CEORecommendationsResponse>(
-      response
-    );
-
-  if (!response.ok || !data.success) {
-    throw new Error(
-      data.error ||
-        "Unable to load AI CEO recommendations."
-    );
+  if (!response.ok || data.success === false) {
+    throw new Error(data.error || fallbackMessage);
   }
 
-  return data;
+  return data as T;
+}
+
+export async function fetchCEORecommendations(): Promise<CEORecommendationsResponse> {
+  return fetchCEOResource<CEORecommendationsResponse>(
+    "/api/admin/ai-ceo/recommendations",
+    "Unable to load AI CEO recommendations."
+  );
+}
+
+export async function fetchCEOMemory(): Promise<CEOMemoryResponse> {
+  return fetchCEOResource<CEOMemoryResponse>(
+    "/api/admin/ai-ceo/memory",
+    "Unable to load AI CEO memory."
+  );
+}
+
+export async function fetchCEOTasks(): Promise<CEOTasksResponse> {
+  return fetchCEOResource<CEOTasksResponse>(
+    "/api/admin/ai-ceo/tasks",
+    "Unable to load AI CEO tasks."
+  );
 }
 
 export async function generateCEORecommendations(): Promise<CEOGenerateResponse> {
