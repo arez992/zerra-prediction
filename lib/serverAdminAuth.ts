@@ -4,12 +4,19 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 export async function getServerAdminUser() {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get("firebaseToken")?.value;
+    const sessionCookie = cookieStore.get("firebaseSession")?.value;
 
-    if (!token) return null;
+    if (!sessionCookie) return null;
 
-    const decoded = await adminAuth.verifyIdToken(token);
-    const userDoc = await adminDb.collection("users").doc(decoded.uid).get();
+    const decoded = await adminAuth.verifySessionCookie(
+      sessionCookie,
+      true
+    );
+
+    const userDoc = await adminDb
+      .collection("users")
+      .doc(decoded.uid)
+      .get();
 
     if (!userDoc.exists) return null;
 
@@ -19,8 +26,8 @@ export async function getServerAdminUser() {
 
     return {
       uid: decoded.uid,
-      email: decoded.email,
-      role: user.role,
+      email: decoded.email || null,
+      role: "admin",
     };
   } catch (error) {
     console.error("Server admin auth failed:", error);

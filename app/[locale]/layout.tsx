@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MaintenanceGate from "@/components/MaintenanceGate";
 import { VipProvider } from "@/components/providers/VipProvider";
+import AuthSessionProvider from "@/components/providers/AuthSessionProvider";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 export const metadata: Metadata = {
@@ -55,17 +56,19 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
       <body>
-        <VipProvider>
-          <Navbar />
+        <AuthSessionProvider>
+          <VipProvider>
+            <Navbar />
 
-          {isAdminRoute ? (
-            children
-          ) : (
-            <MaintenanceGate>{children}</MaintenanceGate>
-          )}
+            {isAdminRoute ? (
+              children
+            ) : (
+              <MaintenanceGate>{children}</MaintenanceGate>
+            )}
 
-          <Footer />
-        </VipProvider>
+            <Footer />
+          </VipProvider>
+        </AuthSessionProvider>
 
         {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
           <GoogleAnalytics
