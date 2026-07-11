@@ -12,7 +12,9 @@ async function getAdminStats() {
 
     const data = await res.json();
 
-    if (data?.success) return data.stats;
+    if (data?.success) {
+      return data.stats;
+    }
 
     return null;
   } catch {
@@ -76,6 +78,12 @@ export default async function AdminPage() {
       title: "Market Insights",
       value: "AI",
       href: "/en/admin/market-insights",
+      icon: "📈",
+    },
+    {
+      title: "AI CEO",
+      value: "Command",
+      href: "/en/admin/ai-ceo",
       icon: "🧠",
     },
     {
@@ -122,13 +130,15 @@ export default async function AdminPage() {
         ZERRA Admin
       </p>
 
-      <h1 className="mt-4 text-5xl font-black">Admin Dashboard</h1>
+      <h1 className="mt-4 text-5xl font-black">
+        Admin Dashboard
+      </h1>
 
-      <p className="mt-4 max-w-3xl text-white/60">
-        Manage VIP users, payments, predictions, AI cache, revenue, analytics,
-        market intelligence, AI market scanning, market insights, security,
-        settings, health, activity, notifications, exports, and platform
-        performance.
+      <p className="mt-4 max-w-4xl text-white/60">
+        Manage VIP users, payments, predictions, AI cache, revenue,
+        analytics, market intelligence, AI market scanning, market insights,
+        AI CEO decisions, security, settings, health, activity,
+        notifications, exports, and platform performance.
       </p>
 
       <section className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
@@ -160,7 +170,9 @@ function AdminCard({
         {icon}
       </div>
 
-      <p className="text-sm font-bold text-white/60">{title}</p>
+      <p className="text-sm font-bold text-white/60">
+        {title}
+      </p>
 
       <p className="mt-4 break-words text-4xl font-black text-[#D4AF37]">
         {value}
