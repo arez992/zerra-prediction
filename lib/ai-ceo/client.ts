@@ -87,6 +87,50 @@ export type CEOTaskItem = {
   completedAt?: string | null;
 };
 
+export type SEOOpportunityItem = {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  priority: CEORecommendationPriority;
+  confidence: number;
+  risk: CEORecommendationRisk;
+  expectedImpact: string;
+  query?: string | null;
+  page?: string | null;
+  reasons?: string[];
+};
+
+export type SEODirectorReport = {
+  connected: boolean;
+
+  summary: {
+    totalQueries: number;
+    totalPages: number;
+    opportunities: number;
+    highPriority: number;
+    estimatedQuickWins: number;
+  };
+
+  searchPerformance: {
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    averagePosition: number;
+  };
+
+  opportunities: SEOOpportunityItem[];
+
+  guardrails: {
+    peopleFirstContent: boolean;
+    preventDuplicatePages: boolean;
+    requireHumanApproval: boolean;
+    preventScaledContentAbuse: boolean;
+  };
+
+  checkedAt: string;
+};
+
 export type CEORecommendationsResponse = {
   success: boolean;
   recommendations: CEORecommendation[];
@@ -107,6 +151,16 @@ export type CEOTasksResponse = {
   success: boolean;
   tasks: CEOTaskItem[];
   count: number;
+  error?: string;
+};
+
+export type SEODirectorResponse = {
+  success: boolean;
+  seo: SEODirectorReport;
+  report?: SEODirectorReport;
+  created?: number;
+  skipped?: number;
+  createdRecommendationIds?: string[];
   error?: string;
 };
 
@@ -131,14 +185,29 @@ export type CEOActionResponse = {
 };
 
 async function parseJSON<T>(response: Response): Promise<T> {
+  const raw = await response.text();
+
+  if (!raw) {
+    throw new Error(
+      `The server returned an empty response. HTTP ${response.status}`
+    );
+  }
+
   try {
-    return (await response.json()) as T;
+    return JSON.parse(raw) as T;
   } catch {
-    throw new Error("The server returned an invalid response.");
+    throw new Error(
+      `Invalid server response: ${raw.slice(0, 200)}`
+    );
   }
 }
 
-async function fetchCEOResource<T>(
+async function fetchCEOResource<
+  T extends {
+    success: boolean;
+    error?: string;
+  },
+>(
   endpoint: string,
   fallbackMessage: string
 ): Promise<T> {
@@ -148,15 +217,13 @@ async function fetchCEOResource<T>(
     credentials: "include",
   });
 
-  const data = await parseJSON<T & { success?: boolean; error?: string }>(
-    response
-  );
+  const data = await parseJSON<T>(response);
 
-  if (!response.ok || data.success === false) {
+  if (!response.ok || !data.success) {
     throw new Error(data.error || fallbackMessage);
   }
 
-  return data as T;
+  return data;
 }
 
 export async function fetchCEORecommendations(): Promise<CEORecommendationsResponse> {
@@ -180,6 +247,13 @@ export async function fetchCEOTasks(): Promise<CEOTasksResponse> {
   );
 }
 
+export async function fetchSEODirector(): Promise<SEODirectorResponse> {
+  return fetchCEOResource<SEODirectorResponse>(
+    "/api/admin/ai-ceo/seo",
+    "Unable to load SEO Director."
+  );
+}
+
 export async function generateCEORecommendations(): Promise<CEOGenerateResponse> {
   const response = await fetch(
     "/api/admin/ai-ceo/generate",
@@ -200,6 +274,31 @@ export async function generateCEORecommendations(): Promise<CEOGenerateResponse>
   }
 
   return data;
+}
+
+export async function generateSEORecommendations(): Promise<SEODirectorResponse> {
+  const response = await fetch(
+    "/api/admin/ai-ceo/seo",
+    {
+      method: "POST",
+      credentials: "include",
+    }
+  );
+
+  const data =
+    await parseJSON<SEODirectorResponse>(response);
+
+  if (!response.ok || !data.success) {
+    throw new Error(
+      data.error ||
+        "Unable to generate SEO recommendations."
+    );
+  }
+
+  return {
+    ...data,
+    seo: data.seo || data.report!,
+  };
 }
 
 async function runCEOAction(

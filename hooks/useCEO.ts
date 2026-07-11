@@ -7,12 +7,15 @@ import {
   fetchCEOMemory,
   fetchCEORecommendations,
   fetchCEOTasks,
+  fetchSEODirector,
   generateCEORecommendations,
+  generateSEORecommendations,
   rejectCEORecommendation,
   type CEOMemoryItem,
   type CEORecommendation,
   type CEORecommendationStats,
   type CEOTaskItem,
+  type SEODirectorReport,
 } from "@/lib/ai-ceo/client";
 
 const emptyStats: CEORecommendationStats = {
@@ -31,12 +34,17 @@ export function useCEO() {
 
   const [memory, setMemory] = useState<CEOMemoryItem[]>([]);
   const [tasks, setTasks] = useState<CEOTaskItem[]>([]);
+  const [seoReport, setSEOReport] =
+    useState<SEODirectorReport | null>(null);
 
   const [stats, setStats] =
     useState<CEORecommendationStats>(emptyStats);
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [seoLoading, setSEOLoading] = useState(false);
+  const [seoGenerating, setSEOGenerating] =
+    useState(false);
 
   const [activeActionId, setActiveActionId] =
     useState<string | null>(null);
@@ -57,10 +65,12 @@ export function useCEO() {
         recommendationsResponse,
         memoryResponse,
         tasksResponse,
+        seoResponse,
       ] = await Promise.all([
         fetchCEORecommendations(),
         fetchCEOMemory(),
         fetchCEOTasks(),
+        fetchSEODirector(),
       ]);
 
       setRecommendations(
@@ -77,6 +87,7 @@ export function useCEO() {
 
       setMemory(memoryResponse.memory || []);
       setTasks(tasksResponse.tasks || []);
+      setSEOReport(seoResponse.seo || null);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -85,6 +96,25 @@ export function useCEO() {
       );
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadSEOData = useCallback(async () => {
+    try {
+      setSEOLoading(true);
+      setError("");
+
+      const response = await fetchSEODirector();
+
+      setSEOReport(response.seo || null);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load SEO Director."
+      );
+    } finally {
+      setSEOLoading(false);
     }
   }, []);
 
@@ -113,6 +143,33 @@ export function useCEO() {
         setGenerating(false);
       }
     }, [loadCEOData]);
+
+  const generateSEO = useCallback(async () => {
+    try {
+      setSEOGenerating(true);
+      setError("");
+      setMessage("");
+
+      const result =
+        await generateSEORecommendations();
+
+      setSEOReport(result.seo || result.report || null);
+
+      setMessage(
+        `${result.created ?? 0} new SEO recommendation(s) created.`
+      );
+
+      await loadCEOData();
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to generate SEO recommendations."
+      );
+    } finally {
+      setSEOGenerating(false);
+    }
+  }, [loadCEOData]);
 
   const approve = useCallback(
     async (id: string) => {
@@ -203,16 +260,21 @@ export function useCEO() {
     recommendations,
     memory,
     tasks,
+    seoReport,
     stats,
     loading,
     generating,
+    seoLoading,
+    seoGenerating,
     activeActionId,
     error,
     message,
     checkedAt,
     loadCEOData,
     loadRecommendations: loadCEOData,
+    loadSEOData,
     generateRecommendations,
+    generateSEO,
     approve,
     reject,
     execute,

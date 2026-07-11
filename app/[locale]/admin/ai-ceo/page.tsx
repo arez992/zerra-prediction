@@ -6,6 +6,7 @@ import CEOStats from "@/components/admin/ceo/CEOStats";
 import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList";
 import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
+import SEODirectorCard from "@/components/admin/ceo/SEODirectorCard";
 import { useCEO } from "@/hooks/useCEO";
 
 export default function AICEODashboardPage() {
@@ -13,15 +14,20 @@ export default function AICEODashboardPage() {
     recommendations,
     memory,
     tasks,
+    seoReport,
     stats,
     loading,
     generating,
+    seoLoading,
+    seoGenerating,
     activeActionId,
     error,
     message,
     checkedAt,
     loadCEOData,
+    loadSEOData,
     generateRecommendations,
+    generateSEO,
     approve,
     reject,
     execute,
@@ -60,6 +66,16 @@ export default function AICEODashboardPage() {
       <div className="mt-8">
         <CEOStats stats={stats} />
       </div>
+
+      <section className="mt-12">
+        <SEODirectorCard
+          report={seoReport}
+          loading={seoLoading}
+          generating={seoGenerating}
+          onRefresh={() => void loadSEOData()}
+          onGenerate={() => void generateSEO()}
+        />
+      </section>
 
       <section className="mt-12">
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
