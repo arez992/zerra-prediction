@@ -12,11 +12,15 @@ export default function AICEODashboardPage() {
     stats,
     loading,
     generating,
+    activeActionId,
     error,
     message,
     checkedAt,
     loadRecommendations,
     generateRecommendations,
+    approve,
+    reject,
+    execute,
   } = useCEO();
 
   return (
@@ -73,6 +77,10 @@ export default function AICEODashboardPage() {
         <CEORecommendationList
           recommendations={recommendations}
           loading={loading}
+          activeActionId={activeActionId}
+          onApprove={(id) => void approve(id)}
+          onReject={(id, reason) => void reject(id, reason)}
+          onExecute={(id) => void execute(id)}
         />
       </section>
     </main>
