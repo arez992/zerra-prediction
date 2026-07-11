@@ -131,6 +131,68 @@ export type SEODirectorReport = {
   checkedAt: string;
 };
 
+export type SEOPageDraftStatus =
+  | "draft"
+  | "approved"
+  | "published"
+  | "rejected"
+  | "failed";
+
+export type SEOPageLanguage =
+  | "en"
+  | "ku";
+
+export type SEOPageSectionItem = {
+  heading: string;
+  content: string;
+};
+
+export type SEOPageFAQItem = {
+  question: string;
+  answer: string;
+};
+
+export type SEOPageDraftItem = {
+  id: string;
+  keyword: string;
+  country?: string | null;
+  language: SEOPageLanguage;
+
+  slug: string;
+  canonicalPath: string;
+
+  title: string;
+  metaDescription: string;
+
+  h1: string;
+  intro: string;
+
+  sections?: SEOPageSectionItem[];
+  faq?: SEOPageFAQItem[];
+
+  internalLinks?: string[];
+  relatedKeywords?: string[];
+
+  schemaType?: string;
+  status: SEOPageDraftStatus;
+
+  sourceRecommendationId?: string | null;
+  createdBy?: string;
+
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  approvedAt?: string | null;
+  publishedAt?: string | null;
+
+  guardrails?: {
+    peopleFirstContent: boolean;
+    uniqueHelpfulContent: boolean;
+    duplicateChecked: boolean;
+    humanApprovalRequired: boolean;
+    autoPublishDisabled: boolean;
+  };
+};
+
 export type CEORecommendationsResponse = {
   success: boolean;
   recommendations: CEORecommendation[];
@@ -156,11 +218,25 @@ export type CEOTasksResponse = {
 
 export type SEODirectorResponse = {
   success: boolean;
-  seo: SEODirectorReport;
+  seo?: SEODirectorReport;
   report?: SEODirectorReport;
   created?: number;
   skipped?: number;
   createdRecommendationIds?: string[];
+  error?: string;
+};
+
+export type SEOPageDraftsResponse = {
+  success: boolean;
+  drafts: SEOPageDraftItem[];
+  count: number;
+  error?: string;
+};
+
+export type CreateSEOPageDraftResponse = {
+  success: boolean;
+  message?: string;
+  draft?: SEOPageDraftItem;
   error?: string;
 };
 
@@ -184,6 +260,11 @@ export type CEOActionResponse = {
   error?: string;
 };
 
+type APIResponseBase = {
+  success: boolean;
+  error?: string;
+};
+
 async function parseJSON<T>(response: Response): Promise<T> {
   const raw = await response.text();
 
@@ -202,12 +283,7 @@ async function parseJSON<T>(response: Response): Promise<T> {
   }
 }
 
-async function fetchCEOResource<
-  T extends {
-    success: boolean;
-    error?: string;
-  },
->(
+async function fetchCEOResource<T extends APIResponseBase>(
   endpoint: string,
   fallbackMessage: string
 ): Promise<T> {
@@ -254,6 +330,13 @@ export async function fetchSEODirector(): Promise<SEODirectorResponse> {
   );
 }
 
+export async function fetchSEOPageDrafts(): Promise<SEOPageDraftsResponse> {
+  return fetchCEOResource<SEOPageDraftsResponse>(
+    "/api/admin/ai-ceo/seo-pages",
+    "Unable to load SEO page drafts."
+  );
+}
+
 export async function generateCEORecommendations(): Promise<CEOGenerateResponse> {
   const response = await fetch(
     "/api/admin/ai-ceo/generate",
@@ -295,10 +378,51 @@ export async function generateSEORecommendations(): Promise<SEODirectorResponse>
     );
   }
 
+  const seo = data.seo || data.report;
+
+  if (!seo) {
+    throw new Error(
+      "SEO Director did not return a report."
+    );
+  }
+
   return {
     ...data,
-    seo: data.seo || data.report!,
+    seo,
   };
+}
+
+export async function createSEOPageDraft(input: {
+  keyword: string;
+  language: SEOPageLanguage;
+  country?: string;
+  sourceRecommendationId?: string;
+}): Promise<CreateSEOPageDraftResponse> {
+  const response = await fetch(
+    "/api/admin/ai-ceo/seo-pages",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }
+  );
+
+  const data =
+    await parseJSON<CreateSEOPageDraftResponse>(
+      response
+    );
+
+  if (!response.ok || !data.success) {
+    throw new Error(
+      data.error ||
+        "Unable to create SEO page draft."
+    );
+  }
+
+  return data;
 }
 
 async function runCEOAction(

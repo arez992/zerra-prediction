@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   approveCEORecommendation,
+  createSEOPageDraft,
   executeCEORecommendation,
   fetchCEOMemory,
   fetchCEORecommendations,
+  fetchSEOPageDrafts,
   fetchCEOTasks,
   fetchSEODirector,
   generateCEORecommendations,
@@ -16,6 +18,8 @@ import {
   type CEORecommendationStats,
   type CEOTaskItem,
   type SEODirectorReport,
+  type SEOPageDraftItem,
+  type SEOPageLanguage,
 } from "@/lib/ai-ceo/client";
 
 const emptyStats: CEORecommendationStats = {
@@ -25,6 +29,13 @@ const emptyStats: CEORecommendationStats = {
   executing: 0,
   completed: 0,
   failed: 0,
+};
+
+type CreateDraftInput = {
+  keyword: string;
+  language: SEOPageLanguage;
+  country?: string;
+  sourceRecommendationId?: string;
 };
 
 export function useCEO() {
@@ -37,13 +48,24 @@ export function useCEO() {
   const [seoReport, setSEOReport] =
     useState<SEODirectorReport | null>(null);
 
+  const [seoDrafts, setSEODrafts] = useState<
+    SEOPageDraftItem[]
+  >([]);
+
   const [stats, setStats] =
     useState<CEORecommendationStats>(emptyStats);
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+
   const [seoLoading, setSEOLoading] = useState(false);
   const [seoGenerating, setSEOGenerating] =
+    useState(false);
+
+  const [draftsLoading, setDraftsLoading] =
+    useState(false);
+
+  const [draftCreating, setDraftCreating] =
     useState(false);
 
   const [activeActionId, setActiveActionId] =
@@ -66,11 +88,13 @@ export function useCEO() {
         memoryResponse,
         tasksResponse,
         seoResponse,
+        seoDraftsResponse,
       ] = await Promise.all([
         fetchCEORecommendations(),
         fetchCEOMemory(),
         fetchCEOTasks(),
         fetchSEODirector(),
+        fetchSEOPageDrafts(),
       ]);
 
       setRecommendations(
@@ -87,7 +111,16 @@ export function useCEO() {
 
       setMemory(memoryResponse.memory || []);
       setTasks(tasksResponse.tasks || []);
-      setSEOReport(seoResponse.seo || null);
+
+      setSEOReport(
+        seoResponse.seo ||
+          seoResponse.report ||
+          null
+      );
+
+      setSEODrafts(
+        seoDraftsResponse.drafts || []
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -106,7 +139,11 @@ export function useCEO() {
 
       const response = await fetchSEODirector();
 
-      setSEOReport(response.seo || null);
+      setSEOReport(
+        response.seo ||
+          response.report ||
+          null
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -115,6 +152,25 @@ export function useCEO() {
       );
     } finally {
       setSEOLoading(false);
+    }
+  }, []);
+
+  const loadSEODrafts = useCallback(async () => {
+    try {
+      setDraftsLoading(true);
+      setError("");
+
+      const response = await fetchSEOPageDrafts();
+
+      setSEODrafts(response.drafts || []);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load SEO page drafts."
+      );
+    } finally {
+      setDraftsLoading(false);
     }
   }, []);
 
@@ -153,7 +209,11 @@ export function useCEO() {
       const result =
         await generateSEORecommendations();
 
-      setSEOReport(result.seo || result.report || null);
+      setSEOReport(
+        result.seo ||
+          result.report ||
+          null
+      );
 
       setMessage(
         `${result.created ?? 0} new SEO recommendation(s) created.`
@@ -170,6 +230,34 @@ export function useCEO() {
       setSEOGenerating(false);
     }
   }, [loadCEOData]);
+
+  const createDraft = useCallback(
+    async (input: CreateDraftInput) => {
+      try {
+        setDraftCreating(true);
+        setError("");
+        setMessage("");
+
+        const result = await createSEOPageDraft(input);
+
+        setMessage(
+          result.message ||
+            "SEO page draft created successfully."
+        );
+
+        await loadSEODrafts();
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to create SEO page draft."
+        );
+      } finally {
+        setDraftCreating(false);
+      }
+    },
+    [loadSEODrafts]
+  );
 
   const approve = useCallback(
     async (id: string) => {
@@ -261,20 +349,30 @@ export function useCEO() {
     memory,
     tasks,
     seoReport,
+    seoDrafts,
     stats,
+
     loading,
     generating,
     seoLoading,
     seoGenerating,
+    draftsLoading,
+    draftCreating,
+
     activeActionId,
     error,
     message,
     checkedAt,
+
     loadCEOData,
     loadRecommendations: loadCEOData,
     loadSEOData,
+    loadSEODrafts,
+
     generateRecommendations,
     generateSEO,
+    createDraft,
+
     approve,
     reject,
     execute,
