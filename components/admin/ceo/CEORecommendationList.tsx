@@ -1,13 +1,23 @@
 import type { CEORecommendation } from "@/lib/ai-ceo/client";
 import CEORecommendationCard from "./CEORecommendationCard";
 
+type Props = {
+  recommendations: CEORecommendation[];
+  loading: boolean;
+  activeActionId: string | null;
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
+  onExecute: (id: string) => void;
+};
+
 export default function CEORecommendationList({
   recommendations,
   loading,
-}: {
-  recommendations: CEORecommendation[];
-  loading: boolean;
-}) {
+  activeActionId,
+  onApprove,
+  onReject,
+  onExecute,
+}: Props) {
   if (loading) {
     return (
       <section className="rounded-[2rem] border border-white/10 bg-[#101827] p-10 text-center text-white/50">
@@ -26,8 +36,7 @@ export default function CEORecommendationList({
         </h2>
 
         <p className="mt-3 text-white/50">
-          Click Generate Recommendations to let the AI CEO
-          analyze the latest business data.
+          Click Generate Recommendations to analyze the latest business data.
         </p>
       </section>
     );
@@ -39,6 +48,10 @@ export default function CEORecommendationList({
         <CEORecommendationCard
           key={recommendation.id}
           recommendation={recommendation}
+          busy={activeActionId === recommendation.id}
+          onApprove={onApprove}
+          onReject={onReject}
+          onExecute={onExecute}
         />
       ))}
     </section>
