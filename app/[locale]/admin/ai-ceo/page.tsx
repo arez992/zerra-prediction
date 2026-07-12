@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+
 import CEOHeader from "@/components/admin/ceo/CEOHeader";
 import CEOStats from "@/components/admin/ceo/CEOStats";
 import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList";
@@ -8,6 +9,8 @@ import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
 import SEODirectorCard from "@/components/admin/ceo/SEODirectorCard";
 import SEOPageDraftsCard from "@/components/admin/ceo/SEOPageDraftsCard";
+import SEOAuditLogCard from "@/components/admin/ceo/SEOAuditLogCard";
+
 import { useCEO } from "@/hooks/useCEO";
 
 export default function AICEODashboardPage() {
@@ -18,27 +21,22 @@ export default function AICEODashboardPage() {
     seoReport,
     seoDrafts,
     stats,
-
     loading,
     generating,
     seoLoading,
     seoGenerating,
     draftsLoading,
     draftCreating,
-
     activeActionId,
     error,
     message,
     checkedAt,
-
     loadCEOData,
     loadSEOData,
     loadSEODrafts,
-
     generateRecommendations,
     generateSEO,
     createDraft,
-
     approve,
     reject,
     execute,
@@ -99,6 +97,10 @@ export default function AICEODashboardPage() {
       </section>
 
       <section className="mt-12">
+        <SEOAuditLogCard pageSize={10} showActivityLink />
+      </section>
+
+      <section className="mt-12">
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
@@ -126,15 +128,8 @@ export default function AICEODashboardPage() {
       </section>
 
       <section className="mt-12 grid gap-6 xl:grid-cols-2">
-        <CEOMemoryCard
-          memories={memory}
-          loading={loading}
-        />
-
-        <CEOTaskCard
-          tasks={tasks}
-          loading={loading}
-        />
+        <CEOMemoryCard memories={memory} loading={loading} />
+        <CEOTaskCard tasks={tasks} loading={loading} />
       </section>
     </main>
   );
