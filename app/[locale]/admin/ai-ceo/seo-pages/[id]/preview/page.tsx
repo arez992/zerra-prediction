@@ -9,6 +9,10 @@ import {
 } from "react";
 
 import type { SEOPageDraftItem } from "@/lib/ai-ceo/client";
+import {
+  evaluateSEOContentQuality,
+  type SEOQualityCheckStatus,
+} from "@/lib/ai-ceo/contentQuality";
 
 type DraftResponse = {
   success: boolean;
@@ -403,6 +407,9 @@ export default function SEOPagePreviewPage() {
   const publicPath =
     draft.canonicalPath || "";
 
+  const quality =
+    evaluateSEOContentQuality(draft);
+
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 text-white">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -582,6 +589,89 @@ export default function SEOPagePreviewPage() {
             }
           />
         </div>
+      </section>
+
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Content Quality
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              SEO Quality Score
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Automated checks for SEO structure,
+              readability, keyword usage, factual-data
+              status, and publishing guardrails.
+            </p>
+          </div>
+
+          <div className="min-w-[190px] rounded-3xl border border-[#D4AF37]/25 bg-black/25 p-5 text-center">
+            <p className="text-5xl font-black text-[#D4AF37]">
+              {quality.score}
+              <span className="text-xl text-white/35">
+                /100
+              </span>
+            </p>
+
+            <p className="mt-2 text-sm font-black uppercase tracking-wider text-white/70">
+              {quality.label}
+            </p>
+
+            <p className="mt-2 text-xs text-white/40">
+              {quality.wordCount} content words
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 h-3 overflow-hidden rounded-full bg-black/40">
+          <div
+            className="h-full rounded-full bg-[#D4AF37] transition-all"
+            style={{
+              width: `${quality.score}%`,
+            }}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          {quality.checks.map((check) => (
+            <article
+              key={check.id}
+              className="rounded-3xl border border-white/10 bg-black/25 p-5"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="font-black">
+                    <QualityIcon
+                      status={check.status}
+                    />{" "}
+                    {check.label}
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-white/50">
+                    {check.detail}
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-white/60">
+                  {check.points}/
+                  {check.maximumPoints}
+                </span>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {quality.score < 75 && (
+          <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
+            This draft should be improved before
+            approval. The score is advisory and does
+            not replace human editorial review.
+          </div>
+        )}
       </section>
 
       <section className="mt-8 space-y-6">
@@ -986,4 +1076,20 @@ function EmptyState({
       {text}
     </div>
   );
+}
+
+function QualityIcon({
+  status,
+}: {
+  status: SEOQualityCheckStatus;
+}) {
+  if (status === "pass") {
+    return <span aria-label="Passed">✅</span>;
+  }
+
+  if (status === "warning") {
+    return <span aria-label="Warning">⚠️</span>;
+  }
+
+  return <span aria-label="Failed">❌</span>;
 }
