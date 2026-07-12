@@ -14,14 +14,38 @@ export type SEOQualityCheck = {
   detail: string;
 };
 
+export type SEOReadabilityLevel =
+  | "Easy"
+  | "Moderate"
+  | "Difficult";
+
+export type SEOReadabilityMetrics = {
+  wordCount: number;
+  sentenceCount: number;
+  paragraphCount: number;
+  headingCount: number;
+  faqCount: number;
+  averageWordsPerSentence: number;
+  longSentenceCount: number;
+  readingTimeMinutes: number;
+  readabilityLevel: SEOReadabilityLevel;
+};
+
 export type SEOContentQualityResult = {
   score: number;
-  label: "Excellent" | "Good" | "Needs Improvement" | "Poor";
+  label:
+    | "Excellent"
+    | "Good"
+    | "Needs Improvement"
+    | "Poor";
   wordCount: number;
+  readability: SEOReadabilityMetrics;
   checks: SEOQualityCheck[];
 };
 
-function normalizeText(value?: string | null): string {
+function normalizeText(
+  value?: string | null
+): string {
   return String(value || "")
     .replace(/\s+/g, " ")
     .trim();
@@ -30,11 +54,58 @@ function normalizeText(value?: string | null): string {
 function countWords(value: string): number {
   const clean = normalizeText(value);
 
-  if (!clean) {
-    return 0;
+  if (!clean) return 0;
+
+  return clean
+    .split(" ")
+    .filter(Boolean).length;
+}
+
+function splitSentences(
+  value: string
+): string[] {
+  return String(value || "")
+    .split(/[.!?؟]+/)
+    .map((sentence) =>
+      normalizeText(sentence)
+    )
+    .filter(Boolean);
+}
+
+function countParagraphs(
+  draft: SEOPageDraftItem
+): number {
+  let count = 0;
+
+  if (normalizeText(draft.intro)) {
+    count += 1;
   }
 
-  return clean.split(" ").filter(Boolean).length;
+  for (const section of draft.sections || []) {
+    const content = String(
+      section.content || ""
+    );
+
+    const sectionParagraphs = content
+      .split(/\n\s*\n/)
+      .map((paragraph) =>
+        normalizeText(paragraph)
+      )
+      .filter(Boolean);
+
+    count += Math.max(
+      1,
+      sectionParagraphs.length
+    );
+  }
+
+  for (const item of draft.faq || []) {
+    if (normalizeText(item.answer)) {
+      count += 1;
+    }
+  }
+
+  return count;
 }
 
 function createCheck(input: {
@@ -62,25 +133,70 @@ function getQualityLabel(
 ): SEOContentQualityResult["label"] {
   if (score >= 90) return "Excellent";
   if (score >= 75) return "Good";
-  if (score >= 55) return "Needs Improvement";
+  if (score >= 55) {
+    return "Needs Improvement";
+  }
+
   return "Poor";
+}
+
+function getReadabilityLevel(
+  averageWordsPerSentence: number,
+  longSentenceCount: number,
+  sentenceCount: number
+): SEOReadabilityLevel {
+  if (sentenceCount === 0) {
+    return "Difficult";
+  }
+
+  const longSentenceRatio =
+    longSentenceCount / sentenceCount;
+
+  if (
+    averageWordsPerSentence <= 18 &&
+    longSentenceRatio <= 0.2
+  ) {
+    return "Easy";
+  }
+
+  if (
+    averageWordsPerSentence <= 25 &&
+    longSentenceRatio <= 0.4
+  ) {
+    return "Moderate";
+  }
+
+  return "Difficult";
 }
 
 export function evaluateSEOContentQuality(
   draft: SEOPageDraftItem
 ): SEOContentQualityResult {
-  const title = normalizeText(draft.title);
-  const metaDescription = normalizeText(
-    draft.metaDescription
+  const title = normalizeText(
+    draft.title
   );
-  const h1 = normalizeText(draft.h1);
-  const intro = normalizeText(draft.intro);
 
-  const sectionText = (draft.sections || [])
+  const metaDescription =
+    normalizeText(
+      draft.metaDescription
+    );
+
+  const h1 = normalizeText(draft.h1);
+  const intro = normalizeText(
+    draft.intro
+  );
+
+  const sectionText = (
+    draft.sections || []
+  )
     .map((section) =>
       [
-        normalizeText(section.heading),
-        normalizeText(section.content),
+        normalizeText(
+          section.heading
+        ),
+        normalizeText(
+          section.content
+        ),
       ]
         .filter(Boolean)
         .join(" ")
@@ -90,7 +206,9 @@ export function evaluateSEOContentQuality(
   const faqText = (draft.faq || [])
     .map((item) =>
       [
-        normalizeText(item.question),
+        normalizeText(
+          item.question
+        ),
         normalizeText(item.answer),
       ]
         .filter(Boolean)
@@ -115,12 +233,20 @@ export function evaluateSEOContentQuality(
     .filter(Boolean)
     .join(" ");
 
-  const wordCount = countWords(bodyText);
+  const wordCount =
+    countWords(bodyText);
+
   const titleLength = title.length;
-  const metaLength = metaDescription.length;
-  const sections = draft.sections || [];
+  const metaLength =
+    metaDescription.length;
+
+  const sections =
+    draft.sections || [];
+
   const faq = draft.faq || [];
-  const internalLinks = draft.internalLinks || [];
+
+  const internalLinks =
+    draft.internalLinks || [];
 
   const keyword = normalizeText(
     draft.keyword
@@ -128,48 +254,117 @@ export function evaluateSEOContentQuality(
 
   const titleHasKeyword =
     Boolean(keyword) &&
-    title.toLowerCase().includes(keyword);
+    title
+      .toLowerCase()
+      .includes(keyword);
 
   const h1HasKeyword =
     Boolean(keyword) &&
-    h1.toLowerCase().includes(keyword);
+    h1
+      .toLowerCase()
+      .includes(keyword);
 
   const bodyHasKeyword =
     Boolean(keyword) &&
-    bodyText.toLowerCase().includes(keyword);
+    bodyText
+      .toLowerCase()
+      .includes(keyword);
 
-  const sentenceCount = Math.max(
-    1,
-    (fullText.match(/[.!?؟]+/g) || []).length
-  );
+  const sentences =
+    splitSentences(fullText);
+
+  const sentenceCount =
+    sentences.length;
 
   const averageWordsPerSentence =
-    countWords(fullText) / sentenceCount;
+    sentenceCount > 0
+      ? countWords(fullText) /
+        sentenceCount
+      : 0;
 
-  const completeFAQCount = faq.filter(
+  const longSentenceCount =
+    sentences.filter(
+      (sentence) =>
+        countWords(sentence) > 25
+    ).length;
+
+  const paragraphCount =
+    countParagraphs(draft);
+
+  const headingCount =
+    sections.filter(
+      (section) =>
+        Boolean(
+          normalizeText(
+            section.heading
+          )
+        )
+    ).length;
+
+  const faqCount = faq.filter(
     (item) =>
-      normalizeText(item.question).length >= 8 &&
-      normalizeText(item.answer).length >= 30
-  ).length;
-
-  const validSectionCount = sections.filter(
-    (section) =>
-      normalizeText(section.heading).length >= 3 &&
-      normalizeText(section.content).length >= 80
-  ).length;
-
-  const validInternalLinks = Array.from(
-    new Set(
-      internalLinks.filter(
-        (link) =>
-          typeof link === "string" &&
-          link.startsWith("/") &&
-          link.length > 1
+      Boolean(
+        normalizeText(
+          item.question
+        )
+      ) &&
+      Boolean(
+        normalizeText(item.answer)
       )
-    )
-  );
+  ).length;
 
-  const checks: SEOQualityCheck[] = [];
+  const readingTimeMinutes =
+    wordCount > 0
+      ? Math.max(
+          1,
+          Math.ceil(wordCount / 220)
+        )
+      : 0;
+
+  const readabilityLevel =
+    getReadabilityLevel(
+      averageWordsPerSentence,
+      longSentenceCount,
+      sentenceCount
+    );
+
+  const completeFAQCount =
+    faq.filter(
+      (item) =>
+        normalizeText(
+          item.question
+        ).length >= 8 &&
+        normalizeText(
+          item.answer
+        ).length >= 30
+    ).length;
+
+  const validSectionCount =
+    sections.filter(
+      (section) =>
+        normalizeText(
+          section.heading
+        ).length >= 3 &&
+        normalizeText(
+          section.content
+        ).length >= 80
+    ).length;
+
+  const validInternalLinks =
+    Array.from(
+      new Set(
+        internalLinks.filter(
+          (link) =>
+            typeof link ===
+              "string" &&
+            link.startsWith("/") &&
+            link.length > 1
+        )
+      )
+    );
+
+  const checks: SEOQualityCheck[] =
+    [];
 
   checks.push(
     createCheck({
@@ -177,7 +372,8 @@ export function evaluateSEOContentQuality(
       label: "SEO title",
       maximumPoints: 10,
       points:
-        titleLength >= 30 && titleLength <= 65
+        titleLength >= 30 &&
+        titleLength <= 65
           ? 10
           : titleLength >= 20 &&
               titleLength <= 75
@@ -194,10 +390,12 @@ export function evaluateSEOContentQuality(
   checks.push(
     createCheck({
       id: "meta",
-      label: "Meta description",
+      label:
+        "Meta description",
       maximumPoints: 10,
       points:
-        metaLength >= 120 && metaLength <= 160
+        metaLength >= 120 &&
+        metaLength <= 160
           ? 10
           : metaLength >= 80 &&
               metaLength <= 180
@@ -233,7 +431,8 @@ export function evaluateSEOContentQuality(
   checks.push(
     createCheck({
       id: "sections",
-      label: "Content sections",
+      label:
+        "Content sections",
       maximumPoints: 10,
       points:
         validSectionCount >= 5
@@ -274,16 +473,23 @@ export function evaluateSEOContentQuality(
   checks.push(
     createCheck({
       id: "keyword",
-      label: "Primary keyword usage",
+      label:
+        "Primary keyword usage",
       maximumPoints: 10,
       points: keywordPoints,
       detail: keyword
         ? `Title: ${
-            titleHasKeyword ? "yes" : "no"
+            titleHasKeyword
+              ? "yes"
+              : "no"
           }, H1: ${
-            h1HasKeyword ? "yes" : "no"
+            h1HasKeyword
+              ? "yes"
+              : "no"
           }, body: ${
-            bodyHasKeyword ? "yes" : "no"
+            bodyHasKeyword
+              ? "yes"
+              : "no"
           }.`
         : "Primary keyword is missing.",
     })
@@ -309,21 +515,20 @@ export function evaluateSEOContentQuality(
   checks.push(
     createCheck({
       id: "readability",
-      label: "Basic readability",
+      label: "Readability",
       maximumPoints: 10,
       points:
-        averageWordsPerSentence >= 8 &&
-        averageWordsPerSentence <= 22
+        readabilityLevel === "Easy"
           ? 10
-          : averageWordsPerSentence >= 5 &&
-              averageWordsPerSentence <= 28
+          : readabilityLevel ===
+              "Moderate"
             ? 6
             : fullText
               ? 3
               : 0,
-      detail: `${averageWordsPerSentence.toFixed(
+      detail: `${readabilityLevel}. ${averageWordsPerSentence.toFixed(
         1
-      )} average words per sentence. Recommended range: 8–22.`,
+      )} average words per sentence; ${longSentenceCount} long sentence(s).`,
     })
   );
 
@@ -336,12 +541,17 @@ export function evaluateSEOContentQuality(
   checks.push(
     createCheck({
       id: "factual-data",
-      label: "Factual fixture data",
+      label:
+        "Factual fixture data",
       maximumPoints: 5,
-      points: factualDataAvailable ? 5 : 0,
-      detail: factualDataAvailable
-        ? "Draft records verified fixture data as available."
-        : "Verified fixture-data generation is not recorded for this draft.",
+      points:
+        factualDataAvailable
+          ? 5
+          : 0,
+      detail:
+        factualDataAvailable
+          ? "Draft records verified fixture data as available."
+          : "Verified fixture-data generation is not recorded for this draft.",
     })
   );
 
@@ -351,7 +561,8 @@ export function evaluateSEOContentQuality(
       ? 2
       : 0) +
     (draft.guardrails
-      ?.humanApprovalRequired === true
+      ?.humanApprovalRequired ===
+    true
       ? 2
       : 0) +
     (draft.guardrails
@@ -362,7 +573,8 @@ export function evaluateSEOContentQuality(
   checks.push(
     createCheck({
       id: "guardrails",
-      label: "Publishing guardrails",
+      label:
+        "Publishing guardrails",
       maximumPoints: 5,
       points: guardrailPoints,
       detail:
@@ -373,14 +585,27 @@ export function evaluateSEOContentQuality(
   );
 
   const score = checks.reduce(
-    (total, check) => total + check.points,
+    (total, check) =>
+      total + check.points,
     0
   );
 
   return {
     score,
-    label: getQualityLabel(score),
+    label:
+      getQualityLabel(score),
     wordCount,
+    readability: {
+      wordCount,
+      sentenceCount,
+      paragraphCount,
+      headingCount,
+      faqCount,
+      averageWordsPerSentence,
+      longSentenceCount,
+      readingTimeMinutes,
+      readabilityLevel,
+    },
     checks,
   };
 }

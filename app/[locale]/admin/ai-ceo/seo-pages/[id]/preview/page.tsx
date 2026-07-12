@@ -665,6 +665,77 @@ export default function SEOPagePreviewPage() {
           ))}
         </div>
 
+        <div className="mt-8 border-t border-white/10 pt-8">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Readability Details
+            </p>
+
+            <h3 className="mt-3 text-2xl font-black">
+              Content Metrics
+            </h3>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Words"
+              value={quality.readability.wordCount}
+              detail="Body content"
+            />
+
+            <MetricCard
+              title="Reading Time"
+              value={`${quality.readability.readingTimeMinutes} min`}
+              detail="Estimated at 220 WPM"
+            />
+
+            <MetricCard
+              title="Sentences"
+              value={quality.readability.sentenceCount}
+              detail={`${quality.readability.averageWordsPerSentence.toFixed(
+                1
+              )} words average`}
+            />
+
+            <MetricCard
+              title="Paragraphs"
+              value={quality.readability.paragraphCount}
+              detail="Intro, sections, and FAQ"
+            />
+
+            <MetricCard
+              title="Headings"
+              value={quality.readability.headingCount}
+              detail="Content sections"
+            />
+
+            <MetricCard
+              title="FAQ Items"
+              value={quality.readability.faqCount}
+              detail="Complete questions"
+            />
+
+            <MetricCard
+              title="Long Sentences"
+              value={quality.readability.longSentenceCount}
+              detail="More than 25 words"
+            />
+
+            <MetricCard
+              title="Readability"
+              value={quality.readability.readabilityLevel}
+              detail="Structural estimate"
+            />
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-white/55">
+            Readability is estimated from sentence
+            length and content structure. It works for
+            English and Kurdish without relying on an
+            English-only reading formula.
+          </div>
+        </div>
+
         {quality.score < 75 && (
           <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
             This draft should be improved before
@@ -1092,4 +1163,31 @@ function QualityIcon({
   }
 
   return <span aria-label="Failed">❌</span>;
+}
+
+
+function MetricCard({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string | number;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
+      <p className="text-xs font-black uppercase tracking-wider text-white/40">
+        {title}
+      </p>
+
+      <p className="mt-3 text-2xl font-black text-[#D4AF37]">
+        {value}
+      </p>
+
+      <p className="mt-2 text-xs leading-5 text-white/40">
+        {detail}
+      </p>
+    </div>
+  );
 }
