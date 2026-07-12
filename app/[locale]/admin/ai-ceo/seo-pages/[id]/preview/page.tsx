@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+
 import type { SEOPageDraftItem } from "@/lib/ai-ceo/client";
 
 type DraftResponse = {
@@ -13,11 +18,28 @@ type DraftResponse = {
   error?: string;
 };
 
+type VersionItem = {
+  id: string;
+  sourceAction: string;
+  createdBy: string | null;
+  createdAt: string | null;
+  status: string;
+  title: string;
+  canonicalPath: string | null;
+};
+
+type VersionsResponse = {
+  success: boolean;
+  versions?: VersionItem[];
+  error?: string;
+};
+
 type DraftAction =
   | "approve"
   | "reject"
   | "publish"
-  | "unpublish";
+  | "unpublish"
+  | "rollback";
 
 export default function SEOPagePreviewPage() {
   const params = useParams<{
@@ -31,10 +53,19 @@ export default function SEOPagePreviewPage() {
   const [draft, setDraft] =
     useState<SEOPageDraftItem | null>(null);
 
+  const [versions, setVersions] = useState<
+    VersionItem[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
+  const [versionsLoading, setVersionsLoading] =
+    useState(true);
 
   const [activeAction, setActiveAction] =
     useState<DraftAction | null>(null);
+
+  const [activeVersionId, setActiveVersionId] =
+    useState<string | null>(null);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -64,7 +95,11 @@ export default function SEOPagePreviewPage() {
       const data =
         await parseResponse<DraftResponse>(response);
 
-      if (!response.ok || !data.success || !data.draft) {
+      if (
+        !response.ok ||
+        !data.success ||
+        !data.draft
+      ) {
         throw new Error(
           data.error ||
             "Unable to load SEO page draft."
@@ -83,12 +118,59 @@ export default function SEOPagePreviewPage() {
     }
   }, [draftId]);
 
+  const loadVersions = useCallback(async () => {
+    if (!draftId) {
+      setVersionsLoading(false);
+      return;
+    }
+
+    try {
+      setVersionsLoading(true);
+
+      const response = await fetch(
+        `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
+          draftId
+        )}/versions`,
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        }
+      );
+
+      const data =
+        await parseResponse<VersionsResponse>(
+          response
+        );
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Unable to load version history."
+        );
+      }
+
+      setVersions(data.versions || []);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load version history."
+      );
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, [draftId]);
+
   useEffect(() => {
-    void loadDraft();
-  }, [loadDraft]);
+    void Promise.all([
+      loadDraft(),
+      loadVersions(),
+    ]);
+  }, [loadDraft, loadVersions]);
 
   async function runDraftAction(
-    action: DraftAction,
+    action: Exclude<DraftAction, "rollback">,
     body?: Record<string, unknown>
   ) {
     try {
@@ -125,7 +207,10 @@ export default function SEOPagePreviewPage() {
           `SEO draft ${action} action completed successfully.`
       );
 
-      await loadDraft();
+      await Promise.all([
+        loadDraft(),
+        loadVersions(),
+      ]);
 
       if (
         action === "publish" &&
@@ -198,6 +283,72 @@ export default function SEOPagePreviewPage() {
     if (!confirmed) return;
 
     await runDraftAction("unpublish");
+  }
+
+  async function handleRollback(
+    version: VersionItem
+  ) {
+    const createdLabel = formatDateTime(
+      version.createdAt
+    );
+
+    const confirmed = window.confirm(
+      `Roll back to this saved version?\n\n${version.title}\nSaved: ${createdLabel}\nStatus at save: ${version.status}\n\nThe current content will be backed up first. The restored page will return to draft status and must be approved again before publishing.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setActiveAction("rollback");
+      setActiveVersionId(version.id);
+      setError("");
+      setMessage("");
+
+      const response = await fetch(
+        `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
+          draftId
+        )}/rollback`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            versionId: version.id,
+          }),
+        }
+      );
+
+      const data =
+        await parseResponse<DraftResponse>(response);
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Unable to roll back SEO page."
+        );
+      }
+
+      setMessage(
+        data.message ||
+          "SEO page rolled back successfully."
+      );
+
+      await Promise.all([
+        loadDraft(),
+        loadVersions(),
+      ]);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to roll back SEO page."
+      );
+    } finally {
+      setActiveAction(null);
+      setActiveVersionId(null);
+    }
   }
 
   if (loading) {
@@ -589,6 +740,107 @@ export default function SEOPagePreviewPage() {
         </div>
       </section>
 
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Version History
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              Rollback
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              A version is saved automatically before every edit. Rolling back first backs up the current page, restores the selected content, and returns the page to draft status for human review.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void loadVersions()}
+            disabled={
+              versionsLoading ||
+              activeAction !== null
+            }
+            className="rounded-full border border-white/15 px-4 py-2 text-xs font-black text-white/70 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {versionsLoading
+              ? "Refreshing..."
+              : "Refresh Versions"}
+          </button>
+        </div>
+
+        {versionsLoading ? (
+          <div className="mt-6 rounded-2xl bg-black/25 p-6 text-center text-sm text-white/45">
+            Loading version history...
+          </div>
+        ) : versions.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-6 text-center text-sm leading-7 text-white/45">
+            No saved versions yet. Edit and save this SEO page once to create the first rollback point.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {versions.map((version) => (
+              <article
+                key={version.id}
+                className="rounded-3xl border border-white/10 bg-black/25 p-5"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <VersionBadge>
+                        {version.sourceAction}
+                      </VersionBadge>
+
+                      <VersionBadge>
+                        {version.status}
+                      </VersionBadge>
+                    </div>
+
+                    <h3 className="mt-3 truncate text-lg font-black">
+                      {version.title}
+                    </h3>
+
+                    <p className="mt-2 text-xs leading-6 text-white/45">
+                      Saved{" "}
+                      {formatDateTime(
+                        version.createdAt
+                      )}
+                      {version.createdBy
+                        ? ` by ${version.createdBy}`
+                        : ""}
+                    </p>
+
+                    {version.canonicalPath && (
+                      <p className="mt-2 break-all text-xs text-[#D4AF37]/70">
+                        {version.canonicalPath}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleRollback(version)
+                    }
+                    disabled={
+                      activeAction !== null
+                    }
+                    className="shrink-0 rounded-full border border-purple-500/40 px-5 py-3 text-sm font-black text-purple-300 transition hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {activeAction === "rollback" &&
+                    activeVersionId === version.id
+                      ? "Rolling Back..."
+                      : "Rollback to Version"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="mt-8 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-5 text-sm leading-7 text-yellow-200/80">
         {draft.status === "published"
           ? "This SEO page is publicly published and may be indexed by search engines."
@@ -618,6 +870,22 @@ async function parseResponse<T>(
   }
 }
 
+function formatDateTime(
+  value: string | null
+): string {
+  if (!value) {
+    return "at an unknown time";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
+}
+
 function Badge({
   children,
 }: {
@@ -625,6 +893,18 @@ function Badge({
 }) {
   return (
     <span className="rounded-full border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-3 py-1 text-xs font-black uppercase text-[#D4AF37]">
+      {children}
+    </span>
+  );
+}
+
+function VersionBadge({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white/55">
       {children}
     </span>
   );

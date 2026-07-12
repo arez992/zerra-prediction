@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+
 import { adminDb } from "@/lib/firebaseAdmin";
 import { requireServerAdmin } from "@/lib/serverAdminAuth";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -36,7 +38,7 @@ type UpdateDraftBody = {
   schemaType?: string;
 };
 
-function cleanText(value: unknown, maximumLength: number) {
+function cleanText(value: unknown, maximumLength: number): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -44,7 +46,7 @@ function cleanText(value: unknown, maximumLength: number) {
   return value.trim().slice(0, maximumLength);
 }
 
-function cleanSlug(value: unknown) {
+function cleanSlug(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -76,7 +78,9 @@ function cleanSections(value: unknown): SEOPageSection[] {
       };
     })
     .filter(
-      (item) => item.heading.length > 0 && item.content.length > 0
+      (item) =>
+        item.heading.length > 0 &&
+        item.content.length > 0
     )
     .slice(0, 30);
 }
@@ -99,7 +103,9 @@ function cleanFAQ(value: unknown): SEOFAQItem[] {
       };
     })
     .filter(
-      (item) => item.question.length > 0 && item.answer.length > 0
+      (item) =>
+        item.question.length > 0 &&
+        item.answer.length > 0
     )
     .slice(0, 20);
 }
@@ -108,7 +114,7 @@ function cleanStringList(
   value: unknown,
   maximumItems: number,
   maximumLength: number
-) {
+): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -127,11 +133,16 @@ function serializeTimestamp(value: unknown): string | null {
     value &&
     typeof value === "object" &&
     "toDate" in value &&
-    typeof (value as { toDate?: unknown }).toDate === "function"
+    typeof (value as { toDate?: unknown }).toDate ===
+      "function"
   ) {
     return (value as { toDate: () => Date })
       .toDate()
       .toISOString();
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
   }
 
   if (typeof value === "string") {
@@ -139,6 +150,38 @@ function serializeTimestamp(value: unknown): string | null {
   }
 
   return null;
+}
+
+function getErrorStatus(message: string): number {
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    normalizedMessage.includes("unauthorized") ||
+    normalizedMessage.includes("authentication required") ||
+    normalizedMessage.includes("not authenticated")
+  ) {
+    return 401;
+  }
+
+  if (
+    normalizedMessage.includes("forbidden") ||
+    normalizedMessage.includes("admin access required")
+  ) {
+    return 403;
+  }
+
+  if (message === "SEO draft was not found.") {
+    return 404;
+  }
+
+  if (
+    message.includes("cannot be edited") ||
+    message.includes("already uses this canonical path")
+  ) {
+    return 409;
+  }
+
+  return 500;
 }
 
 export async function PATCH(
@@ -149,7 +192,7 @@ export async function PATCH(
     const admin = await requireServerAdmin();
 
     const { id } = await context.params;
-    const draftId = decodeURIComponent(id).trim();
+    const draftId = decodeURIComponent(id || "").trim();
 
     if (!draftId) {
       return NextResponse.json(
@@ -157,7 +200,12 @@ export async function PATCH(
           success: false,
           error: "SEO draft ID is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
       );
     }
 
@@ -171,36 +219,12 @@ export async function PATCH(
           success: false,
           error: "Invalid JSON request body.",
         },
-        { status: 400 }
-      );
-    }
-
-    const draftRef = adminDb
-      .collection("seoPageDrafts")
-      .doc(draftId);
-
-    const draftDocument = await draftRef.get();
-
-    if (!draftDocument.exists) {
-      return NextResponse.json(
         {
-          success: false,
-          error: "SEO draft was not found.",
-        },
-        { status: 404 }
-      );
-    }
-
-    const existingDraft = draftDocument.data() || {};
-    const currentStatus = String(existingDraft.status || "draft");
-
-    if (currentStatus === "published") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Published SEO pages cannot be edited directly.",
-        },
-        { status: 409 }
+          status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
       );
     }
 
@@ -266,8 +290,40 @@ export async function PATCH(
       );
     }
 
+    const draftRef = adminDb
+      .collection("seoPageDrafts")
+      .doc(draftId);
+
+    const currentDocument = await draftRef.get();
+
+    if (!currentDocument.exists) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "SEO draft was not found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const currentData = currentDocument.data() ?? {};
+    const currentStatus = String(
+      currentData.status || "draft"
+    );
+
+    if (currentStatus === "published") {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Published SEO pages cannot be edited directly.",
+        },
+        { status: 409 }
+      );
+    }
+
     const language =
-      existingDraft.language === "ku" ? "ku" : "en";
+      currentData.language === "ku" ? "ku" : "en";
 
     const canonicalPath =
       language === "ku"
@@ -295,64 +351,146 @@ export async function PATCH(
       );
     }
 
-    await draftRef.update({
-      title,
-      metaDescription,
-      slug,
-      canonicalPath,
-      h1,
-      intro,
-      sections,
-      faq,
-      internalLinks,
-      relatedKeywords,
-      schemaType: schemaType || "WebPage",
+    const performedBy =
+      admin.email || admin.uid || "unknown-admin";
 
-      status:
-        currentStatus === "approved"
-          ? "draft"
-          : currentStatus,
+    const versionRef = adminDb
+      .collection("seoPageVersions")
+      .doc();
 
-      approvedAt:
-        currentStatus === "approved"
-          ? null
-          : existingDraft.approvedAt || null,
+    const auditRef = adminDb
+      .collection("seoAuditLogs")
+      .doc();
 
-      approvedBy:
-        currentStatus === "approved"
-          ? null
-          : existingDraft.approvedBy || null,
+    await adminDb.runTransaction(async (transaction) => {
+      const draftDocument =
+        await transaction.get(draftRef);
 
-      lastEditedBy: admin.email || admin.uid,
-      updatedAt: FieldValue.serverTimestamp(),
+      if (!draftDocument.exists) {
+        throw new Error("SEO draft was not found.");
+      }
 
-      guardrails: {
-        ...(existingDraft.guardrails || {}),
-        peopleFirstContent: true,
-        uniqueHelpfulContent: true,
-        duplicateChecked: true,
-        humanApprovalRequired: true,
-        autoPublishDisabled: true,
-      },
+      const existingDraft =
+        draftDocument.data() ?? {};
+
+      const status = String(
+        existingDraft.status || "draft"
+      );
+
+      if (status === "published") {
+        throw new Error(
+          "Published SEO pages cannot be edited directly."
+        );
+      }
+
+      transaction.set(versionRef, {
+        draftId,
+        sourceAction: "edit",
+        createdBy: performedBy,
+        createdAt: FieldValue.serverTimestamp(),
+        snapshot: existingDraft,
+      });
+
+      transaction.update(draftRef, {
+        title,
+        metaDescription,
+        slug,
+        canonicalPath,
+        h1,
+        intro,
+        sections,
+        faq,
+        internalLinks,
+        relatedKeywords,
+        schemaType: schemaType || "WebPage",
+
+        status:
+          status === "approved"
+            ? "draft"
+            : status,
+
+        approvedAt:
+          status === "approved"
+            ? null
+            : existingDraft.approvedAt || null,
+
+        approvedBy:
+          status === "approved"
+            ? null
+            : existingDraft.approvedBy || null,
+
+        lastEditedBy: performedBy,
+        updatedAt: FieldValue.serverTimestamp(),
+
+        guardrails: {
+          ...(existingDraft.guardrails || {}),
+          peopleFirstContent: true,
+          uniqueHelpfulContent: true,
+          duplicateChecked: true,
+          humanApprovalRequired: true,
+          autoPublishDisabled: true,
+        },
+      });
+
+      transaction.set(auditRef, {
+        action: "edit",
+        draftId,
+        versionId: versionRef.id,
+        previousStatus: status,
+        newStatus:
+          status === "approved"
+            ? "draft"
+            : status,
+        performedBy,
+        createdAt: FieldValue.serverTimestamp(),
+      });
     });
 
     const updatedDocument = await draftRef.get();
-    const updatedData = updatedDocument.data() || {};
+    const updatedData = updatedDocument.data() ?? {};
 
-    return NextResponse.json({
-      success: true,
-      message: "SEO draft updated successfully.",
-      draft: {
-        id: updatedDocument.id,
-        ...updatedData,
-        createdAt: serializeTimestamp(updatedData.createdAt),
-        updatedAt: serializeTimestamp(updatedData.updatedAt),
-        approvedAt: serializeTimestamp(updatedData.approvedAt),
-        rejectedAt: serializeTimestamp(updatedData.rejectedAt),
-        publishedAt: serializeTimestamp(updatedData.publishedAt),
+    return NextResponse.json(
+      {
+        success: true,
+        message:
+          "SEO draft updated and previous version saved.",
+        versionId: versionRef.id,
+        draft: {
+          id: updatedDocument.id,
+          ...updatedData,
+          createdAt: serializeTimestamp(
+            updatedData.createdAt
+          ),
+          updatedAt: serializeTimestamp(
+            updatedData.updatedAt
+          ),
+          approvedAt: serializeTimestamp(
+            updatedData.approvedAt
+          ),
+          rejectedAt: serializeTimestamp(
+            updatedData.rejectedAt
+          ),
+          publishedAt: serializeTimestamp(
+            updatedData.publishedAt
+          ),
+          unpublishedAt: serializeTimestamp(
+            updatedData.unpublishedAt
+          ),
+          rolledBackAt: serializeTimestamp(
+            updatedData.rolledBackAt
+          ),
+        },
       },
-    });
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
+    console.error("[SEO_DRAFT_UPDATE_ERROR]", error);
+
     const message =
       error instanceof Error
         ? error.message
@@ -364,10 +502,10 @@ export async function PATCH(
         error: message,
       },
       {
-        status:
-          message === "Unauthorized admin access"
-            ? 401
-            : 500,
+        status: getErrorStatus(message),
+        headers: {
+          "Cache-Control": "no-store",
+        },
       }
     );
   }
