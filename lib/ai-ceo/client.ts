@@ -138,9 +138,7 @@ export type SEOPageDraftStatus =
   | "rejected"
   | "failed";
 
-export type SEOPageLanguage =
-  | "en"
-  | "ku";
+export type SEOPageLanguage = "en" | "ku";
 
 export type SEOPageSectionItem = {
   heading: string;
@@ -152,11 +150,23 @@ export type SEOPageFAQItem = {
   answer: string;
 };
 
+export type SEOPageGeneration = {
+  mode: "template" | "openai_fixture";
+  model?: string | null;
+  fixtureId?: string | null;
+  fixtureDate?: string | null;
+  generatedAt?: string | null;
+  factualDataAvailable?: boolean;
+};
+
 export type SEOPageDraftItem = {
   id: string;
   keyword: string;
   country?: string | null;
   language: SEOPageLanguage;
+
+  fixtureId?: string | null;
+  fixtureDate?: string | null;
 
   slug: string;
   canonicalPath: string;
@@ -183,6 +193,8 @@ export type SEOPageDraftItem = {
   updatedAt?: string | null;
   approvedAt?: string | null;
   publishedAt?: string | null;
+
+  generation?: SEOPageGeneration;
 
   guardrails?: {
     peopleFirstContent: boolean;
@@ -396,6 +408,8 @@ export async function createSEOPageDraft(input: {
   keyword: string;
   language: SEOPageLanguage;
   country?: string;
+  fixtureId?: string;
+  fixtureDate?: string;
   sourceRecommendationId?: string;
 }): Promise<CreateSEOPageDraftResponse> {
   const response = await fetch(
@@ -455,9 +469,7 @@ export function approveCEORecommendation(
 ): Promise<CEOActionResponse> {
   return runCEOAction(
     "/api/admin/ai-ceo/approve",
-    {
-      id,
-    }
+    { id }
   );
 }
 
@@ -467,10 +479,7 @@ export function rejectCEORecommendation(
 ): Promise<CEOActionResponse> {
   return runCEOAction(
     "/api/admin/ai-ceo/reject",
-    {
-      id,
-      reason,
-    }
+    { id, reason }
   );
 }
 
@@ -479,8 +488,6 @@ export function executeCEORecommendation(
 ): Promise<CEOActionResponse> {
   return runCEOAction(
     "/api/admin/ai-ceo/execute",
-    {
-      id,
-    }
+    { id }
   );
 }

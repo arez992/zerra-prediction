@@ -25,11 +25,11 @@ async function fetchFixtures(date: string, apiKey: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const apiKey = process.env.API_SPORTS_KEY;
+    const apiKey = process.env.API_FOOTBALL_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { success: false, message: "API_SPORTS_KEY is missing" },
+        { success: false, message: "API_FOOTBALL_KEY is missing" },
         { status: 500 }
       );
     }

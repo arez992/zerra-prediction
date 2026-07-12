@@ -2,8 +2,43 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import DateSelector from "@/components/dashboard/DateSelector";
 import type { SEOPageDraftItem } from "@/lib/ai-ceo/client";
+
+type FixtureItem = {
+  fixture?: {
+    id?: number;
+    date?: string;
+    status?: {
+      short?: string;
+    };
+  };
+  league?: {
+    name?: string;
+    country?: string;
+  };
+  teams?: {
+    home?: {
+      name?: string;
+    };
+    away?: {
+      name?: string;
+    };
+  };
+};
+
+type FixturesResponse = {
+  success: boolean;
+  fixtures?: FixtureItem[];
+  error?: unknown;
+  message?: string;
+};
 
 type Props = {
   drafts: SEOPageDraftItem[];
@@ -14,8 +49,14 @@ type Props = {
     keyword: string;
     language: "en" | "ku";
     country?: string;
+    fixtureId?: string;
+    fixtureDate?: string;
   }) => void | Promise<void>;
 };
+
+function getToday(): string {
+  return new Date().toISOString().split("T")[0];
+}
 
 export default function SEOPageDraftsCard({
   drafts,
@@ -35,6 +76,131 @@ export default function SEOPageDraftsCard({
     useState<"en" | "ku">("en");
   const [country, setCountry] = useState("");
 
+  const [selectedDate, setSelectedDate] =
+    useState(getToday());
+  const [fixtures, setFixtures] = useState<
+    FixtureItem[]
+  >([]);
+  const [selectedFixtureId, setSelectedFixtureId] =
+    useState("");
+  const [fixturesLoading, setFixturesLoading] =
+    useState(false);
+  const [fixturesError, setFixturesError] =
+    useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFixtures() {
+      try {
+        setFixturesLoading(true);
+        setFixturesError("");
+        setSelectedFixtureId("");
+
+        const response = await fetch(
+          `/api/sports/football/fixtures?date=${encodeURIComponent(
+            selectedDate
+          )}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
+
+        const raw = await response.text();
+
+        if (!raw) {
+          throw new Error(
+            `Fixture API returned an empty response. HTTP ${response.status}`
+          );
+        }
+
+        let data: FixturesResponse;
+
+        try {
+          data = JSON.parse(raw) as FixturesResponse;
+        } catch {
+          throw new Error(
+            `Invalid fixture API response: ${raw.slice(
+              0,
+              160
+            )}`
+          );
+        }
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message ||
+              "Unable to load football fixtures."
+          );
+        }
+
+        if (!cancelled) {
+          setFixtures(data.fixtures || []);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setFixtures([]);
+          setFixturesError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Unable to load football fixtures."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setFixturesLoading(false);
+        }
+      }
+    }
+
+    void loadFixtures();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
+
+  const selectedFixture = useMemo(
+    () =>
+      fixtures.find(
+        (fixture) =>
+          String(fixture.fixture?.id || "") ===
+          selectedFixtureId
+      ) || null,
+    [fixtures, selectedFixtureId]
+  );
+
+  function handleFixtureChange(
+    fixtureId: string
+  ) {
+    setSelectedFixtureId(fixtureId);
+
+    const fixture = fixtures.find(
+      (item) =>
+        String(item.fixture?.id || "") === fixtureId
+    );
+
+    if (!fixture) {
+      return;
+    }
+
+    const home =
+      fixture.teams?.home?.name?.trim() || "";
+    const away =
+      fixture.teams?.away?.name?.trim() || "";
+
+    if (home && away) {
+      setKeyword(
+        `${home} vs ${away} prediction`
+      );
+    }
+
+    if (fixture.league?.country) {
+      setCountry(fixture.league.country);
+    }
+  }
+
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>
   ) {
@@ -44,7 +210,16 @@ export default function SEOPageDraftsCard({
     const cleanCountry = country.trim();
 
     if (!cleanKeyword) {
-      window.alert("Please enter an SEO keyword.");
+      window.alert(
+        "Please enter an SEO keyword."
+      );
+      return;
+    }
+
+    if (!selectedFixtureId) {
+      window.alert(
+        "Please select a real football fixture before creating the AI draft."
+      );
       return;
     }
 
@@ -52,10 +227,15 @@ export default function SEOPageDraftsCard({
       keyword: cleanKeyword,
       language,
       country: cleanCountry || undefined,
+      fixtureId: selectedFixtureId,
+      fixtureDate:
+        selectedFixture?.fixture?.date ||
+        selectedDate,
     });
 
     setKeyword("");
     setCountry("");
+    setSelectedFixtureId("");
   }
 
   return (
@@ -71,9 +251,10 @@ export default function SEOPageDraftsCard({
           </h2>
 
           <p className="mt-3 max-w-3xl text-sm leading-7 text-white/50">
-            Create people-first SEO page drafts with metadata,
-            headings, FAQ, internal links, duplicate protection,
-            editing, approval, and private preview.
+            Select a real football fixture, then
+            create a factual AI-assisted SEO draft.
+            Every draft remains private until human
+            approval and publishing.
           </p>
         </div>
 
@@ -83,14 +264,79 @@ export default function SEOPageDraftsCard({
           disabled={loading || creating}
           className="rounded-full border border-white/15 px-5 py-3 text-sm font-black transition hover:border-[#D4AF37]/60 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Refreshing..." : "Refresh Drafts"}
+          {loading
+            ? "Refreshing..."
+            : "Refresh Drafts"}
         </button>
       </div>
 
+      <div className="mt-8">
+        <DateSelector
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
+      </div>
+
+      {fixturesError && (
+        <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+          {fixturesError}
+        </div>
+      )}
+
       <form
         onSubmit={handleSubmit}
-        className="mt-8 grid gap-4 rounded-3xl bg-black/25 p-5 lg:grid-cols-[1fr_160px_180px_auto]"
+        className="mt-6 grid gap-4 rounded-3xl bg-black/25 p-5 lg:grid-cols-2"
       >
+        <div className="lg:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-wider text-white/40">
+            Football fixture
+          </label>
+
+          <select
+            value={selectedFixtureId}
+            disabled={
+              creating ||
+              fixturesLoading
+            }
+            onChange={(event) =>
+              handleFixtureChange(
+                event.target.value
+              )
+            }
+            className="w-full rounded-2xl border border-white/10 bg-[#0B1220] px-4 py-3 text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
+          >
+            <option value="">
+              {fixturesLoading
+                ? "Loading fixtures..."
+                : fixtures.length === 0
+                ? "No fixtures available for this date"
+                : "Select a fixture"}
+            </option>
+
+            {fixtures.map((fixture) => {
+              const id = String(
+                fixture.fixture?.id || ""
+              );
+
+              const home =
+                fixture.teams?.home?.name ||
+                "Home";
+              const away =
+                fixture.teams?.away?.name ||
+                "Away";
+              const league =
+                fixture.league?.name ||
+                "Unknown league";
+
+              return (
+                <option key={id} value={id}>
+                  {home} vs {away} — {league}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
         <input
           type="text"
           value={keyword}
@@ -98,7 +344,7 @@ export default function SEOPageDraftsCard({
           onChange={(event) =>
             setKeyword(event.target.value)
           }
-          placeholder="Example: Liverpool vs Arsenal prediction"
+          placeholder="SEO keyword"
           className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-[#D4AF37]/50 disabled:opacity-50"
         />
 
@@ -112,7 +358,7 @@ export default function SEOPageDraftsCard({
                 : "en"
             )
           }
-          className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
+          className="rounded-2xl border border-white/10 bg-[#0B1220] px-4 py-3 text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
         >
           <option value="en">English</option>
           <option value="ku">Kurdish</option>
@@ -125,16 +371,22 @@ export default function SEOPageDraftsCard({
           onChange={(event) =>
             setCountry(event.target.value)
           }
-          placeholder="Country (optional)"
+          placeholder="Country"
           className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-[#D4AF37]/50 disabled:opacity-50"
         />
 
         <button
           type="submit"
-          disabled={creating || !keyword.trim()}
+          disabled={
+            creating ||
+            !keyword.trim() ||
+            !selectedFixtureId
+          }
           className="rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {creating ? "Creating..." : "Create Draft"}
+          {creating
+            ? "Writing AI Draft..."
+            : "Create AI Draft"}
         </button>
       </form>
 
@@ -151,7 +403,8 @@ export default function SEOPageDraftsCard({
           </h3>
 
           <p className="mt-2 text-sm text-white/40">
-            Enter a keyword above and click Create Draft.
+            Select a real fixture and create the
+            first AI draft.
           </p>
         </div>
       ) : (
@@ -159,11 +412,15 @@ export default function SEOPageDraftsCard({
           {drafts.map((draft) => {
             const previewHref =
               `/${locale}/admin/ai-ceo/seo-pages/` +
-              `${encodeURIComponent(draft.id)}/preview`;
+              `${encodeURIComponent(
+                draft.id
+              )}/preview`;
 
             const editHref =
               `/${locale}/admin/ai-ceo/seo-pages/` +
-              `${encodeURIComponent(draft.id)}/edit`;
+              `${encodeURIComponent(
+                draft.id
+              )}/edit`;
 
             return (
               <article
@@ -173,8 +430,11 @@ export default function SEOPageDraftsCard({
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap gap-2">
-                      <StatusBadge status={draft.status}>
-                        {draft.status || "draft"}
+                      <StatusBadge
+                        status={draft.status}
+                      >
+                        {draft.status ||
+                          "draft"}
                       </StatusBadge>
 
                       <Badge>
@@ -182,12 +442,22 @@ export default function SEOPageDraftsCard({
                       </Badge>
 
                       {draft.country && (
-                        <Badge>{draft.country}</Badge>
+                        <Badge>
+                          {draft.country}
+                        </Badge>
+                      )}
+
+                      {draft.generation?.mode ===
+                        "openai_fixture" && (
+                        <Badge>
+                          AI + Fixture Data
+                        </Badge>
                       )}
                     </div>
 
                     <h3 className="mt-4 text-xl font-black">
-                      {draft.title || draft.keyword}
+                      {draft.title ||
+                        draft.keyword}
                     </h3>
 
                     <p className="mt-2 text-sm leading-7 text-white/55">
@@ -198,19 +468,24 @@ export default function SEOPageDraftsCard({
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <Info
                         title="Keyword"
-                        value={draft.keyword || "—"}
+                        value={
+                          draft.keyword || "—"
+                        }
+                      />
+
+                      <Info
+                        title="Fixture ID"
+                        value={
+                          draft.fixtureId || "—"
+                        }
                       />
 
                       <Info
                         title="Canonical Path"
                         value={
-                          draft.canonicalPath || "—"
+                          draft.canonicalPath ||
+                          "—"
                         }
-                      />
-
-                      <Info
-                        title="Slug"
-                        value={draft.slug || "—"}
                       />
 
                       <Info
@@ -271,7 +546,8 @@ export default function SEOPageDraftsCard({
                         Preview Page
                       </Link>
 
-                      {draft.status !== "published" && (
+                      {draft.status !==
+                        "published" && (
                         <Link
                           href={editHref}
                           className="flex items-center justify-center rounded-full border border-white/15 px-5 py-3 text-sm font-black text-white transition hover:border-[#D4AF37]/50 hover:text-[#D4AF37]"
@@ -284,7 +560,10 @@ export default function SEOPageDraftsCard({
                 </div>
 
                 <div className="mt-5 border-t border-white/10 pt-4 text-xs text-white/35">
-                  Created: {formatDate(draft.createdAt)}
+                  Created:{" "}
+                  {formatDate(
+                    draft.createdAt
+                  )}
                 </div>
               </article>
             );

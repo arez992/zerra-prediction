@@ -35,48 +35,47 @@ type CreateDraftInput = {
   keyword: string;
   language: SEOPageLanguage;
   country?: string;
+  fixtureId?: string;
+  fixtureDate?: string;
   sourceRecommendationId?: string;
 };
 
 export function useCEO() {
-  const [recommendations, setRecommendations] = useState<
-    CEORecommendation[]
-  >([]);
+  const [recommendations, setRecommendations] =
+    useState<CEORecommendation[]>([]);
 
-  const [memory, setMemory] = useState<CEOMemoryItem[]>([]);
-  const [tasks, setTasks] = useState<CEOTaskItem[]>([]);
+  const [memory, setMemory] =
+    useState<CEOMemoryItem[]>([]);
+
+  const [tasks, setTasks] =
+    useState<CEOTaskItem[]>([]);
+
   const [seoReport, setSEOReport] =
     useState<SEODirectorReport | null>(null);
 
-  const [seoDrafts, setSEODrafts] = useState<
-    SEOPageDraftItem[]
-  >([]);
+  const [seoDrafts, setSEODrafts] =
+    useState<SEOPageDraftItem[]>([]);
 
   const [stats, setStats] =
     useState<CEORecommendationStats>(emptyStats);
 
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-
-  const [seoLoading, setSEOLoading] = useState(false);
+  const [generating, setGenerating] =
+    useState(false);
+  const [seoLoading, setSEOLoading] =
+    useState(false);
   const [seoGenerating, setSEOGenerating] =
     useState(false);
-
   const [draftsLoading, setDraftsLoading] =
     useState(false);
-
   const [draftCreating, setDraftCreating] =
     useState(false);
-
   const [activeActionId, setActiveActionId] =
     useState<string | null>(null);
-
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
-  const [checkedAt, setCheckedAt] = useState<
-    string | null
-  >(null);
+  const [checkedAt, setCheckedAt] =
+    useState<string | null>(null);
 
   const loadCEOData = useCallback(async () => {
     try {
@@ -100,24 +99,19 @@ export function useCEO() {
       setRecommendations(
         recommendationsResponse.recommendations || []
       );
-
       setStats(
         recommendationsResponse.stats || emptyStats
       );
-
       setCheckedAt(
         recommendationsResponse.checkedAt || null
       );
-
       setMemory(memoryResponse.memory || []);
       setTasks(tasksResponse.tasks || []);
-
       setSEOReport(
         seoResponse.seo ||
           seoResponse.report ||
           null
       );
-
       setSEODrafts(
         seoDraftsResponse.drafts || []
       );
@@ -160,7 +154,8 @@ export function useCEO() {
       setDraftsLoading(true);
       setError("");
 
-      const response = await fetchSEOPageDrafts();
+      const response =
+        await fetchSEOPageDrafts();
 
       setSEODrafts(response.drafts || []);
     } catch (requestError) {
@@ -238,7 +233,8 @@ export function useCEO() {
         setError("");
         setMessage("");
 
-        const result = await createSEOPageDraft(input);
+        const result =
+          await createSEOPageDraft(input);
 
         setMessage(
           result.message ||
@@ -293,9 +289,14 @@ export function useCEO() {
         setError("");
         setMessage("");
 
-        await rejectCEORecommendation(id, reason);
+        await rejectCEORecommendation(
+          id,
+          reason
+        );
 
-        setMessage("Recommendation rejected.");
+        setMessage(
+          "Recommendation rejected."
+        );
 
         await loadCEOData();
       } catch (requestError) {

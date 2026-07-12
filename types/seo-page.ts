@@ -5,9 +5,7 @@ export type SEOPageStatus =
   | "rejected"
   | "failed";
 
-export type SEOPageLanguage =
-  | "en"
-  | "ku";
+export type SEOPageLanguage = "en" | "ku";
 
 export type SEOFAQItem = {
   question: string;
@@ -19,12 +17,24 @@ export type SEOPageSection = {
   content: string;
 };
 
+export type SEOContentGeneration = {
+  mode: "template" | "openai_fixture";
+  model?: string | null;
+  fixtureId?: string | null;
+  fixtureDate?: string | null;
+  generatedAt?: string | null;
+  factualDataAvailable?: boolean;
+};
+
 export type SEOPageDraft = {
   id: string;
 
   keyword: string;
   country?: string | null;
   language: SEOPageLanguage;
+
+  fixtureId?: string | null;
+  fixtureDate?: string | null;
 
   slug: string;
   canonicalPath: string;
@@ -57,6 +67,8 @@ export type SEOPageDraft = {
   approvedAt?: string | null;
   publishedAt?: string | null;
 
+  generation?: SEOContentGeneration;
+
   guardrails: {
     peopleFirstContent: boolean;
     uniqueHelpfulContent: boolean;
@@ -70,6 +82,8 @@ export type CreateSEOPageDraftInput = {
   keyword: string;
   country?: string | null;
   language?: SEOPageLanguage;
+  fixtureId?: string | null;
+  fixtureDate?: string | null;
   sourceRecommendationId?: string | null;
   createdBy: string;
 };

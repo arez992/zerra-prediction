@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
+
 import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  generateFixtureSEOContent,
+} from "@/lib/ai-ceo/seoContentWriter";
+
 import type {
   CreateSEOPageDraftInput,
   SEOFAQItem,
@@ -10,9 +15,7 @@ import type {
 } from "@/types/seo-page";
 
 function normalizeKeyword(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ");
+  return value.trim().replace(/\s+/g, " ");
 }
 
 function createSlug(value: string) {
@@ -28,7 +31,8 @@ function createSlug(value: string) {
 function createDraftId(
   keyword: string,
   language: SEOPageLanguage,
-  country?: string | null
+  country?: string | null,
+  fixtureId?: string | null
 ) {
   const hash = createHash("sha256")
     .update(
@@ -36,6 +40,7 @@ function createDraftId(
         keyword.toLowerCase(),
         language,
         country?.toLowerCase() || "",
+        fixtureId || "",
       ].join("|")
     )
     .digest("hex")
@@ -48,141 +53,110 @@ function buildTitle(
   keyword: string,
   language: SEOPageLanguage
 ) {
-  if (language === "ku") {
-    return `${keyword} | پێشبینی و شیکاری AI`;
-  }
-
-  return `${keyword} | AI Prediction and Match Analysis`;
+  return language === "ku"
+    ? `${keyword} | پێشبینی و شیکاری AI`
+    : `${keyword} | AI Prediction and Match Analysis`;
 }
 
 function buildMetaDescription(
   keyword: string,
   language: SEOPageLanguage
 ) {
-  if (language === "ku") {
-    return `پێشبینی و شیکاری AI بۆ ${keyword} لەگەڵ confidence، risk، form، stats و هەڵسەنگاندنی یاری.`;
-  }
-
-  return `Get an AI-powered prediction for ${keyword}, including confidence, risk, recent form, match insights, and key statistics.`;
+  return language === "ku"
+    ? `پێشبینی و شیکاری AI بۆ ${keyword} لەگەڵ confidence، risk، form، stats و هەڵسەنگاندنی یاری.`
+    : `Get an AI-powered prediction for ${keyword}, including confidence, risk, recent form, match insights, and key statistics.`;
 }
 
 function buildIntro(
   keyword: string,
   language: SEOPageLanguage
 ) {
-  if (language === "ku") {
-    return `ئەم پەڕەیە شیکاری AI بۆ ${keyword} پیشان دەدات. داتاکان دەبێت لە form، stats، team strength و match context وەرگیرابن و نابێت هیچ دڵنیاییەکی درۆیین بدات.`;
-  }
-
-  return `This page provides an AI-assisted analysis for ${keyword}. It should combine form, statistics, team strength, and match context without presenting uncertain outcomes as guaranteed facts.`;
+  return language === "ku"
+    ? `ئەم پەڕەیە شیکاری AI بۆ ${keyword} پیشان دەدات و هیچ ئەنجامێک گەرەنتی ناکات.`
+    : `This page provides an AI-assisted analysis for ${keyword} without presenting uncertain outcomes as guaranteed facts.`;
 }
 
 function buildSections(
   keyword: string,
   language: SEOPageLanguage
 ): SEOPageSection[] {
-  if (language === "ku") {
-    return [
-      {
-        heading: "کورتەی یاری",
-        content: `کورتەیەکی ڕوون و بەسوود دەربارەی ${keyword}، گرنگترین داتا و بارودۆخی تیمەکان.`,
-      },
-      {
-        heading: "شیکاری AI",
-        content:
-          "شیکاری rule-based و AI لەسەر form، هێز، گۆڵ، risk و match context.",
-      },
-      {
-        heading: "پێشبینی و confidence",
-        content:
-          "پێشبینی سەرەکی، confidence score، risk level و هۆکارە سەرەکییەکان.",
-      },
-      {
-        heading: "داتا و ئامار",
-        content:
-          "ئاماری گرنگی یاری، recent form، attack، defence و head-to-head ئەگەر بەردەست بێت.",
-      },
-      {
-        heading: "ڕیسکی پێشبینی",
-        content:
-          "ڕوونکردنەوەی ئەو هۆکارانەی دەتوانن ئەنجامەکە بگۆڕن.",
-      },
-    ];
-  }
-
-  return [
-    {
-      heading: "Match Overview",
-      content: `A clear overview of ${keyword}, including the most relevant match context and team data.`,
-    },
-    {
-      heading: "AI Analysis",
-      content:
-        "A structured analysis using recent form, team strength, goals, risk, and match context.",
-    },
-    {
-      heading: "Prediction and Confidence",
-      content:
-        "The main prediction, confidence score, risk level, and the strongest supporting reasons.",
-    },
-    {
-      heading: "Key Statistics",
-      content:
-        "Important match statistics, form, attack, defence, and head-to-head data when available.",
-    },
-    {
-      heading: "Prediction Risks",
-      content:
-        "A transparent explanation of factors that could change the expected result.",
-    },
-  ];
+  return language === "ku"
+    ? [
+        {
+          heading: "کورتەی یاری",
+          content: `کورتەیەکی ڕوون دەربارەی ${keyword}.`,
+        },
+        {
+          heading: "شیکاری AI",
+          content:
+            "شیکاری rule-based و AI بەبێ گەرەنتیکردنی ئەنجام.",
+        },
+        {
+          heading: "داتا و ئامار",
+          content:
+            "تەنها داتای پشتڕاستکراو لێرە پیشان دەدرێت.",
+        },
+        {
+          heading: "ڕیسکی پێشبینی",
+          content:
+            "ڕوونکردنەوەی ئەو هۆکارانەی دەتوانن ئەنجامەکە بگۆڕن.",
+        },
+      ]
+    : [
+        {
+          heading: "Match Overview",
+          content: `A clear overview of ${keyword}.`,
+        },
+        {
+          heading: "AI Analysis",
+          content:
+            "A cautious AI-assisted interpretation without guaranteed outcomes.",
+        },
+        {
+          heading: "Available Match Data",
+          content:
+            "Only verified data should be presented here.",
+        },
+        {
+          heading: "Prediction Risks",
+          content:
+            "A transparent explanation of factors that may affect the expected result.",
+        },
+      ];
 }
 
 function buildFAQ(
   keyword: string,
   language: SEOPageLanguage
 ): SEOFAQItem[] {
-  if (language === "ku") {
-    return [
-      {
-        question: `پێشبینی AI بۆ ${keyword} چییە؟`,
-        answer:
-          "پێشبینییەکە لەسەر بنەمای داتای یاری، form، stats و risk هەژمار دەکرێت و هیچ ئەنجامێک گەرەنتی ناکات.",
-      },
-      {
-        question: "confidence score واتای چییە؟",
-        answer:
-          "confidence score ئاستی متمانەی model ـە بە پێشبینییەکە، نەک گەرەنتیی بردنەوە.",
-      },
-      {
-        question: "ئایا ئەم پێشبینییە دەتوانێت هەڵە بێت؟",
-        answer:
-          "بەڵێ. هەموو پێشبینییە وەرزشییەکان risk ـیان هەیە و دەتوانن بەهۆی injury، lineup، red card یان دۆخی ناگەڕاو بگۆڕێن.",
-      },
-    ];
-  }
-
-  return [
-    {
-      question: `What is the AI prediction for ${keyword}?`,
-      answer:
-        "The prediction is calculated from match data, recent form, statistics, and risk factors. It should not be treated as a guaranteed result.",
-    },
-    {
-      question: "What does the confidence score mean?",
-      answer:
-        "The confidence score indicates how strongly the model supports the prediction based on available data. It is not a guarantee.",
-    },
-    {
-      question: "Can the prediction be wrong?",
-      answer:
-        "Yes. Football predictions always carry risk and can be affected by injuries, lineups, red cards, and unexpected match events.",
-    },
-  ];
+  return language === "ku"
+    ? [
+        {
+          question: `پێشبینی AI بۆ ${keyword} چییە؟`,
+          answer:
+            "پێشبینییەکە شیکارییە و هیچ ئەنجامێک گەرەنتی ناکات.",
+        },
+        {
+          question: "ئایا پێشبینییەکە دەتوانێت هەڵە بێت؟",
+          answer:
+            "بەڵێ. هەموو پێشبینییە وەرزشییەکان risk ـیان هەیە.",
+        },
+      ]
+    : [
+        {
+          question: `What is the AI prediction for ${keyword}?`,
+          answer:
+            "It is an analytical estimate and should not be treated as a guaranteed result.",
+        },
+        {
+          question: "Can the prediction be wrong?",
+          answer:
+            "Yes. Football predictions always carry uncertainty and risk.",
+        },
+      ];
 }
 
 function buildInternalLinks(
-  keyword: string,
   language: SEOPageLanguage
 ) {
   const base = language === "ku" ? "/ku" : "/en";
@@ -220,16 +194,23 @@ export async function createSEOPageDraft(
   }
 
   const language = input.language || "en";
+  const fixtureId = input.fixtureId
+    ? String(input.fixtureId).trim()
+    : null;
+
   const slug = createSlug(keyword);
 
   if (!slug) {
-    throw new Error("Unable to create a valid SEO slug");
+    throw new Error(
+      "Unable to create a valid SEO slug"
+    );
   }
 
   const documentId = createDraftId(
     keyword,
     language,
-    input.country
+    input.country,
+    fixtureId
   );
 
   const draftRef = adminDb
@@ -240,7 +221,7 @@ export async function createSEOPageDraft(
 
   if (existing.exists) {
     throw new Error(
-      "A draft for this keyword, language, and country already exists"
+      "A draft for this keyword, language, country, and fixture already exists"
     );
   }
 
@@ -249,36 +230,90 @@ export async function createSEOPageDraft(
       ? `/ku/predictions/${slug}`
       : `/en/predictions/${slug}`;
 
+  let title = buildTitle(keyword, language);
+  let metaDescription = buildMetaDescription(
+    keyword,
+    language
+  );
+  let h1 = keyword;
+  let intro = buildIntro(keyword, language);
+  let sections = buildSections(keyword, language);
+  let faq = buildFAQ(keyword, language);
+  let relatedKeywords =
+    buildRelatedKeywords(keyword);
+
+  let generation: SEOPageDraft["generation"] = {
+    mode: "template",
+    model: null,
+    fixtureId,
+    fixtureDate: input.fixtureDate || null,
+    generatedAt: new Date().toISOString(),
+    factualDataAvailable: false,
+  };
+
+  let resolvedFixtureDate =
+    input.fixtureDate || null;
+
+  if (fixtureId) {
+    const generated =
+      await generateFixtureSEOContent({
+        keyword,
+        language,
+        country: input.country,
+        fixtureId,
+      });
+
+    title = generated.content.title;
+    metaDescription =
+      generated.content.metaDescription;
+    h1 = generated.content.h1;
+    intro = generated.content.intro;
+    sections = generated.content.sections;
+    faq = generated.content.faq;
+    relatedKeywords =
+      generated.content.relatedKeywords.length > 0
+        ? generated.content.relatedKeywords
+        : relatedKeywords;
+
+    resolvedFixtureDate =
+      generated.facts.fixtureDate ||
+      resolvedFixtureDate;
+
+    generation = {
+      mode: "openai_fixture",
+      model: generated.content.model,
+      fixtureId,
+      fixtureDate: resolvedFixtureDate,
+      generatedAt: new Date().toISOString(),
+      factualDataAvailable:
+        generated.content.factualDataAvailable,
+    };
+  }
+
   const draft = {
     keyword,
     country: input.country || null,
     language,
 
+    fixtureId,
+    fixtureDate: resolvedFixtureDate,
+
     slug,
     canonicalPath,
 
-    title: buildTitle(keyword, language),
-    metaDescription: buildMetaDescription(
-      keyword,
-      language
-    ),
+    title,
+    metaDescription,
 
-    h1: keyword,
-    intro: buildIntro(keyword, language),
+    h1,
+    intro,
 
-    sections: buildSections(keyword, language),
-    faq: buildFAQ(keyword, language),
+    sections,
+    faq,
 
-    internalLinks: buildInternalLinks(
-      keyword,
-      language
-    ),
-
-    relatedKeywords:
-      buildRelatedKeywords(keyword),
+    internalLinks: buildInternalLinks(language),
+    relatedKeywords,
 
     schemaType: "SportsEvent" as const,
-
     status: "draft" as const,
 
     sourceRecommendationId:
@@ -291,6 +326,8 @@ export async function createSEOPageDraft(
 
     approvedAt: null,
     publishedAt: null,
+
+    generation,
 
     guardrails: {
       peopleFirstContent: true,
