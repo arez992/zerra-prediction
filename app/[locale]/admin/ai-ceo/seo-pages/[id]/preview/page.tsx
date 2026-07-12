@@ -16,7 +16,8 @@ type DraftResponse = {
 type DraftAction =
   | "approve"
   | "reject"
-  | "publish";
+  | "publish"
+  | "unpublish";
 
 export default function SEOPagePreviewPage() {
   const params = useParams<{
@@ -189,6 +190,16 @@ export default function SEOPagePreviewPage() {
     await runDraftAction("publish");
   }
 
+  async function handleUnpublish() {
+    const confirmed = window.confirm(
+      "Unpublish this SEO page? The public page will become unavailable and the draft will return to approved status."
+    );
+
+    if (!confirmed) return;
+
+    await runDraftAction("unpublish");
+  }
+
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-5 py-12 text-white">
@@ -234,6 +245,9 @@ export default function SEOPagePreviewPage() {
 
   const canPublish =
     draft.status === "approved";
+
+  const canUnpublish =
+    draft.status === "published";
 
   const publicPath =
     draft.canonicalPath || "";
@@ -373,6 +387,21 @@ export default function SEOPagePreviewPage() {
                   >
                     View Public Page
                   </Link>
+                )}
+
+                {canUnpublish && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleUnpublish()
+                    }
+                    disabled={activeAction !== null}
+                    className="rounded-full border border-orange-500/40 px-5 py-3 text-sm font-black text-orange-300 transition hover:bg-orange-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {activeAction === "unpublish"
+                      ? "Unpublishing..."
+                      : "Unpublish Page"}
+                  </button>
                 )}
               </>
             )}
