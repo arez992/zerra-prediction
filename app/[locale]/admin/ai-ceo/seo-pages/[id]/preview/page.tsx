@@ -9,10 +9,14 @@ type DraftResponse = {
   success: boolean;
   draft?: SEOPageDraftItem;
   message?: string;
+  publicPath?: string | null;
   error?: string;
 };
 
-type DraftAction = "approve" | "reject";
+type DraftAction =
+  | "approve"
+  | "reject"
+  | "publish";
 
 export default function SEOPagePreviewPage() {
   const params = useParams<{
@@ -27,6 +31,7 @@ export default function SEOPagePreviewPage() {
     useState<SEOPageDraftItem | null>(null);
 
   const [loading, setLoading] = useState(true);
+
   const [activeAction, setActiveAction] =
     useState<DraftAction | null>(null);
 
@@ -34,7 +39,11 @@ export default function SEOPagePreviewPage() {
   const [message, setMessage] = useState("");
 
   const loadDraft = useCallback(async () => {
-    if (!draftId) return;
+    if (!draftId) {
+      setLoading(false);
+      setError("SEO page draft ID is missing.");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -51,13 +60,13 @@ export default function SEOPagePreviewPage() {
         }
       );
 
-      const data = await parseResponse<DraftResponse>(
-        response
-      );
+      const data =
+        await parseResponse<DraftResponse>(response);
 
       if (!response.ok || !data.success || !data.draft) {
         throw new Error(
-          data.error || "Unable to load SEO page draft."
+          data.error ||
+            "Unable to load SEO page draft."
         );
       }
 
@@ -100,9 +109,8 @@ export default function SEOPagePreviewPage() {
         }
       );
 
-      const data = await parseResponse<DraftResponse>(
-        response
-      );
+      const data =
+        await parseResponse<DraftResponse>(response);
 
       if (!response.ok || !data.success) {
         throw new Error(
@@ -113,10 +121,21 @@ export default function SEOPagePreviewPage() {
 
       setMessage(
         data.message ||
-          `SEO draft ${action}d successfully.`
+          `SEO draft ${action} action completed successfully.`
       );
 
       await loadDraft();
+
+      if (
+        action === "publish" &&
+        data.publicPath
+      ) {
+        window.open(
+          data.publicPath,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -149,13 +168,25 @@ export default function SEOPagePreviewPage() {
     const cleanReason = reason.trim();
 
     if (!cleanReason) {
-      window.alert("Please enter a rejection reason.");
+      window.alert(
+        "Please enter a rejection reason."
+      );
       return;
     }
 
     await runDraftAction("reject", {
       reason: cleanReason,
     });
+  }
+
+  async function handlePublish() {
+    const confirmed = window.confirm(
+      "Publish this approved SEO page? It will become publicly accessible and may be indexed by search engines."
+    );
+
+    if (!confirmed) return;
+
+    await runDraftAction("publish");
   }
 
   if (loading) {
@@ -179,7 +210,8 @@ export default function SEOPagePreviewPage() {
         </Link>
 
         <div className="mt-8 rounded-[2rem] border border-red-500/30 bg-red-500/10 p-8 text-red-300">
-          {error || "SEO page draft was not found."}
+          {error ||
+            "SEO page draft was not found."}
         </div>
       </main>
     );
@@ -199,6 +231,12 @@ export default function SEOPagePreviewPage() {
   const canReject =
     draft.status === "draft" ||
     draft.status === "approved";
+
+  const canPublish =
+    draft.status === "approved";
+
+  const publicPath =
+    draft.canonicalPath || "";
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 text-white">
@@ -266,7 +304,9 @@ export default function SEOPagePreviewPage() {
             {canApprove && (
               <button
                 type="button"
-                onClick={() => void handleApprove()}
+                onClick={() =>
+                  void handleApprove()
+                }
                 disabled={activeAction !== null}
                 className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -279,7 +319,9 @@ export default function SEOPagePreviewPage() {
             {canReject && (
               <button
                 type="button"
-                onClick={() => void handleReject()}
+                onClick={() =>
+                  void handleReject()
+                }
                 disabled={activeAction !== null}
                 className="rounded-full border border-red-500/30 px-5 py-3 text-sm font-black text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -289,9 +331,24 @@ export default function SEOPagePreviewPage() {
               </button>
             )}
 
+            {canPublish && (
+              <button
+                type="button"
+                onClick={() =>
+                  void handlePublish()
+                }
+                disabled={activeAction !== null}
+                className="rounded-full bg-green-500 px-5 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {activeAction === "publish"
+                  ? "Publishing..."
+                  : "Publish Page"}
+              </button>
+            )}
+
             {draft.status === "approved" && (
               <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-4 text-center text-sm font-bold text-green-300">
-                Ready for publishing workflow
+                Ready to publish
               </div>
             )}
 
@@ -302,9 +359,22 @@ export default function SEOPagePreviewPage() {
             )}
 
             {draft.status === "published" && (
-              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 text-center text-sm font-bold text-blue-300">
-                This page is published
-              </div>
+              <>
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 text-center text-sm font-bold text-blue-300">
+                  This page is published
+                </div>
+
+                {publicPath && (
+                  <Link
+                    href={publicPath}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center rounded-full bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:brightness-110"
+                  >
+                    View Public Page
+                  </Link>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -327,7 +397,9 @@ export default function SEOPagePreviewPage() {
 
           <Info
             title="Schema Type"
-            value={draft.schemaType || "WebPage"}
+            value={
+              draft.schemaType || "WebPage"
+            }
           />
         </div>
       </section>
@@ -366,20 +438,22 @@ export default function SEOPagePreviewPage() {
           </h2>
 
           <div className="mt-6 space-y-4">
-            {(draft.faq || []).map((item, index) => (
-              <article
-                key={`${item.question}-${index}`}
-                className="rounded-3xl bg-black/25 p-5"
-              >
-                <h3 className="text-lg font-black">
-                  {item.question}
-                </h3>
+            {(draft.faq || []).map(
+              (item, index) => (
+                <article
+                  key={`${item.question}-${index}`}
+                  className="rounded-3xl bg-black/25 p-5"
+                >
+                  <h3 className="text-lg font-black">
+                    {item.question}
+                  </h3>
 
-                <p className="mt-3 leading-7 text-white/60">
-                  {item.answer}
-                </p>
-              </article>
-            ))}
+                  <p className="mt-3 leading-7 text-white/60">
+                    {item.answer}
+                  </p>
+                </article>
+              )
+            )}
           </div>
         </section>
       )}
@@ -390,20 +464,23 @@ export default function SEOPagePreviewPage() {
             Internal Links
           </h2>
 
-          {(draft.internalLinks || []).length === 0 ? (
+          {(draft.internalLinks || []).length ===
+          0 ? (
             <p className="mt-4 text-sm text-white/40">
               No internal links added.
             </p>
           ) : (
             <ul className="mt-4 space-y-3">
-              {(draft.internalLinks || []).map((link) => (
-                <li
-                  key={link}
-                  className="break-all rounded-2xl bg-black/25 p-3 text-sm text-[#D4AF37]"
-                >
-                  {link}
-                </li>
-              ))}
+              {(draft.internalLinks || []).map(
+                (link) => (
+                  <li
+                    key={link}
+                    className="break-all rounded-2xl bg-black/25 p-3 text-sm text-[#D4AF37]"
+                  >
+                    {link}
+                  </li>
+                )
+              )}
             </ul>
           )}
         </div>
@@ -413,7 +490,8 @@ export default function SEOPagePreviewPage() {
             Related Keywords
           </h2>
 
-          {(draft.relatedKeywords || []).length === 0 ? (
+          {(draft.relatedKeywords || []).length ===
+          0 ? (
             <p className="mt-4 text-sm text-white/40">
               No related keywords added.
             </p>
@@ -443,44 +521,49 @@ export default function SEOPagePreviewPage() {
           <Guardrail
             title="People-first content"
             active={
-              draft.guardrails?.peopleFirstContent === true
+              draft.guardrails
+                ?.peopleFirstContent === true
             }
           />
 
           <Guardrail
             title="Unique helpful content"
             active={
-              draft.guardrails?.uniqueHelpfulContent === true
+              draft.guardrails
+                ?.uniqueHelpfulContent === true
             }
           />
 
           <Guardrail
             title="Duplicate checked"
             active={
-              draft.guardrails?.duplicateChecked === true
+              draft.guardrails
+                ?.duplicateChecked === true
             }
           />
 
           <Guardrail
             title="Human approval required"
             active={
-              draft.guardrails?.humanApprovalRequired === true
+              draft.guardrails
+                ?.humanApprovalRequired === true
             }
           />
 
           <Guardrail
             title="Auto publish disabled"
             active={
-              draft.guardrails?.autoPublishDisabled === true
+              draft.guardrails
+                ?.autoPublishDisabled === true
             }
           />
         </div>
       </section>
 
       <div className="mt-8 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-5 text-sm leading-7 text-yellow-200/80">
-        This is a private draft preview. It is not publicly
-        published and Google cannot index it until the publishing
-        workflow is completed.
+        {draft.status === "published"
+          ? "This SEO page is publicly published and may be indexed by search engines."
+          : "This is a private draft preview. It is not publicly published and search engines cannot index it until the publishing workflow is completed."}
       </div>
     </main>
   );
@@ -525,7 +608,10 @@ function StatusBadge({
   children: React.ReactNode;
   status: SEOPageDraftItem["status"];
 }) {
-  const classes = {
+  const classes: Record<
+    SEOPageDraftItem["status"],
+    string
+  > = {
     draft:
       "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
     approved:
@@ -581,7 +667,11 @@ function Guardrail({
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function EmptyState({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <div className="rounded-[2rem] border border-white/10 bg-[#101827] p-8 text-center text-sm text-white/40">
       {text}
