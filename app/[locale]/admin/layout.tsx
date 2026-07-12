@@ -1,5 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
 import { requireServerAdmin } from "@/lib/serverAdminAuth";
+
+export const metadata: Metadata = {
+  title: "ZERRA Admin",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
+};
 
 export default async function AdminLayout({
   children,
@@ -11,7 +27,9 @@ export default async function AdminLayout({
   } catch {
     return (
       <main className="mx-auto max-w-4xl px-5 py-14 text-center text-white">
-        <h1 className="text-4xl font-black">Admin Access Required</h1>
+        <h1 className="text-4xl font-black">
+          Admin Access Required
+        </h1>
 
         <p className="mt-4 text-white/60">
           You do not have permission to view this page.
