@@ -17,6 +17,10 @@ import {
   evaluateDuplicateSimilarity,
   type SEODuplicateSimilarityResult,
 } from "@/lib/ai-ceo/duplicateSimilarity";
+import {
+  validateInternalLinks,
+  type InternalLinkStatus,
+} from "@/lib/ai-ceo/internalLinkValidation";
 
 type DraftResponse = {
   success: boolean;
@@ -478,6 +482,9 @@ export default function SEOPagePreviewPage() {
         allDrafts
       );
 
+  const internalLinkValidation =
+    validateInternalLinks(draft);
+
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 text-white">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -935,6 +942,116 @@ export default function SEOPagePreviewPage() {
           )}
       </section>
 
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Link Quality
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              Internal Link Validation
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Checks relative paths, locale prefixes,
+              duplicates, self-links, and approved
+              route sections before publishing.
+            </p>
+          </div>
+
+          <div className="min-w-[190px] rounded-3xl border border-white/10 bg-black/25 p-5 text-center">
+            <p className="text-5xl font-black text-[#D4AF37]">
+              {internalLinkValidation.score}
+              <span className="text-xl text-white/35">
+                %
+              </span>
+            </p>
+
+            <p className="mt-2 text-sm font-black uppercase tracking-wider text-white/70">
+              Link Health
+            </p>
+
+            <p className="mt-2 text-xs text-white/40">
+              {internalLinkValidation.validCount} valid,
+              {" "}
+              {internalLinkValidation.warningCount} warning,
+              {" "}
+              {internalLinkValidation.invalidCount} invalid
+            </p>
+          </div>
+        </div>
+
+        {internalLinkValidation.checks.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-5 text-sm leading-7 text-yellow-200/80">
+            No internal links are available for validation.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {internalLinkValidation.checks.map(
+              (check, index) => (
+                <article
+                  key={`${check.link}-${index}`}
+                  className="rounded-3xl border border-white/10 bg-black/25 p-5"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="break-all font-black text-[#D4AF37]">
+                        {check.link || "Empty link"}
+                      </p>
+
+                      {check.issues.length === 0 ? (
+                        <p className="mt-2 text-sm text-green-300">
+                          Valid internal link structure.
+                        </p>
+                      ) : (
+                        <ul className="mt-3 space-y-2 text-sm leading-6 text-white/55">
+                          {check.issues.map(
+                            (issue) => (
+                              <li key={issue}>
+                                • {issue}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      )}
+                    </div>
+
+                    <LinkStatusBadge
+                      status={check.status}
+                    />
+                  </div>
+                </article>
+              )
+            )}
+          </div>
+        )}
+
+        {(internalLinkValidation.invalidCount > 0 ||
+          internalLinkValidation.selfLinkCount > 0) && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-7 text-red-300">
+            Invalid or self-referencing internal links
+            were found. Fix them before approval.
+          </div>
+        )}
+
+        {internalLinkValidation.invalidCount === 0 &&
+          internalLinkValidation.warningCount > 0 && (
+            <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
+              Some internal links need human review
+              before approval.
+            </div>
+          )}
+
+        {internalLinkValidation.validCount > 0 &&
+          internalLinkValidation.warningCount === 0 &&
+          internalLinkValidation.invalidCount === 0 && (
+            <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-4 text-sm leading-7 text-green-300">
+              ✅ All internal links passed structural validation.
+            </div>
+          )}
+      </section>
+
       <section className="mt-8 space-y-6">
         {(draft.sections || []).length === 0 ? (
           <EmptyState text="No content sections available." />
@@ -1379,5 +1496,32 @@ function MetricCard({
         {detail}
       </p>
     </div>
+  );
+}
+
+
+function LinkStatusBadge({
+  status,
+}: {
+  status: InternalLinkStatus;
+}) {
+  const classes: Record<
+    InternalLinkStatus,
+    string
+  > = {
+    valid:
+      "border-green-500/30 bg-green-500/10 text-green-300",
+    warning:
+      "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
+    invalid:
+      "border-red-500/30 bg-red-500/10 text-red-300",
+  };
+
+  return (
+    <span
+      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black uppercase ${classes[status]}`}
+    >
+      {status}
+    </span>
   );
 }
