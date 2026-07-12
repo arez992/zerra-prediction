@@ -59,6 +59,36 @@ type DraftAction =
   | "unpublish"
   | "rollback";
 
+type BrokenLinkStatus =
+  | "healthy"
+  | "redirect"
+  | "broken"
+  | "error";
+
+type BrokenLinkCheck = {
+  link: string;
+  normalizedLink: string;
+  status: BrokenLinkStatus;
+  httpStatus: number | null;
+  finalUrl: string | null;
+  responseTimeMs: number;
+  message: string;
+};
+
+type BrokenLinksResponse = {
+  success: boolean;
+  checkedAt?: string;
+  summary?: {
+    total: number;
+    healthy: number;
+    redirects: number;
+    broken: number;
+    errors: number;
+  };
+  checks?: BrokenLinkCheck[];
+  error?: string;
+};
+
 export default function SEOPagePreviewPage() {
   const params = useParams<{
     locale: string;
@@ -85,6 +115,12 @@ export default function SEOPagePreviewPage() {
 
   const [similarityLoading, setSimilarityLoading] =
     useState(true);
+
+  const [brokenLinkChecking, setBrokenLinkChecking] =
+    useState(false);
+
+  const [brokenLinks, setBrokenLinks] =
+    useState<BrokenLinksResponse | null>(null);
 
   const [activeAction, setActiveAction] =
     useState<DraftAction | null>(null);
@@ -298,6 +334,62 @@ export default function SEOPagePreviewPage() {
       );
     } finally {
       setActiveAction(null);
+    }
+  }
+
+  async function handleBrokenLinkCheck() {
+    const links = draft?.internalLinks || [];
+
+    if (links.length === 0) {
+      window.alert(
+        "No internal links are available to check."
+      );
+      return;
+    }
+
+    try {
+      setBrokenLinkChecking(true);
+      setError("");
+      setBrokenLinks(null);
+
+      const response = await fetch(
+        `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
+          draftId
+        )}/broken-links`,
+        {
+          method: "POST",
+          cache: "no-store",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            links,
+          }),
+        }
+      );
+
+      const data =
+        await parseResponse<BrokenLinksResponse>(
+          response
+        );
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Unable to check broken links."
+        );
+      }
+
+      setBrokenLinks(data);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to check broken links."
+      );
+    } finally {
+      setBrokenLinkChecking(false);
     }
   }
 
@@ -1052,6 +1144,154 @@ export default function SEOPagePreviewPage() {
           )}
       </section>
 
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Live Route Check
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              Broken Link Check
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Sends server-side requests to the
+              internal routes and records successful,
+              redirected, broken, or timed-out links.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              void handleBrokenLinkCheck()
+            }
+            disabled={
+              brokenLinkChecking ||
+              (draft.internalLinks || []).length === 0
+            }
+            className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {brokenLinkChecking
+              ? "Checking Links..."
+              : "Run Broken Link Check"}
+          </button>
+        </div>
+
+        {!brokenLinks && !brokenLinkChecking && (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-5 text-sm leading-7 text-white/45">
+            This check runs only when requested, so it
+            does not generate network traffic every
+            time the preview page loads.
+          </div>
+        )}
+
+        {brokenLinkChecking && (
+          <div className="mt-6 rounded-2xl bg-black/25 p-6 text-center text-sm text-white/45">
+            Checking internal routes...
+          </div>
+        )}
+
+        {brokenLinks?.summary && (
+          <>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard
+                title="Healthy"
+                value={brokenLinks.summary.healthy}
+                detail="HTTP 2xx"
+              />
+
+              <MetricCard
+                title="Redirects"
+                value={brokenLinks.summary.redirects}
+                detail="HTTP 3xx"
+              />
+
+              <MetricCard
+                title="Broken"
+                value={brokenLinks.summary.broken}
+                detail="HTTP 4xx or 5xx"
+              />
+
+              <MetricCard
+                title="Errors"
+                value={brokenLinks.summary.errors}
+                detail="Timeout or request failure"
+              />
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {(brokenLinks.checks || []).map(
+                (check, index) => (
+                  <article
+                    key={`${check.link}-${index}`}
+                    className="rounded-3xl border border-white/10 bg-black/25 p-5"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-all font-black text-[#D4AF37]">
+                          {check.normalizedLink ||
+                            check.link}
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-white/55">
+                          {check.message}
+                        </p>
+
+                        <p className="mt-2 text-xs text-white/35">
+                          HTTP:{" "}
+                          {check.httpStatus ?? "—"} ·{" "}
+                          {check.responseTimeMs} ms
+                        </p>
+
+                        {check.finalUrl && (
+                          <p className="mt-2 break-all text-xs text-white/35">
+                            Redirect: {check.finalUrl}
+                          </p>
+                        )}
+                      </div>
+
+                      <BrokenLinkBadge
+                        status={check.status}
+                      />
+                    </div>
+                  </article>
+                )
+              )}
+            </div>
+
+            {(brokenLinks.summary.broken > 0 ||
+              brokenLinks.summary.errors > 0) && (
+              <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-7 text-red-300">
+                Broken or unreachable internal links
+                were detected. Fix them before
+                approval or publishing.
+              </div>
+            )}
+
+            {brokenLinks.summary.broken === 0 &&
+              brokenLinks.summary.errors === 0 &&
+              brokenLinks.summary.redirects > 0 && (
+                <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
+                  No broken links were found, but one
+                  or more routes redirect. Review
+                  whether each redirect is intentional.
+                </div>
+              )}
+
+            {brokenLinks.summary.broken === 0 &&
+              brokenLinks.summary.errors === 0 &&
+              brokenLinks.summary.redirects === 0 && (
+                <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-4 text-sm leading-7 text-green-300">
+                  ✅ Every checked internal route
+                  returned a successful response.
+                </div>
+              )}
+          </>
+        )}
+      </section>
+
       <section className="mt-8 space-y-6">
         {(draft.sections || []).length === 0 ? (
           <EmptyState text="No content sections available." />
@@ -1515,6 +1755,35 @@ function LinkStatusBadge({
       "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
     invalid:
       "border-red-500/30 bg-red-500/10 text-red-300",
+  };
+
+  return (
+    <span
+      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black uppercase ${classes[status]}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+
+function BrokenLinkBadge({
+  status,
+}: {
+  status: BrokenLinkStatus;
+}) {
+  const classes: Record<
+    BrokenLinkStatus,
+    string
+  > = {
+    healthy:
+      "border-green-500/30 bg-green-500/10 text-green-300",
+    redirect:
+      "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
+    broken:
+      "border-red-500/30 bg-red-500/10 text-red-300",
+    error:
+      "border-purple-500/30 bg-purple-500/10 text-purple-300",
   };
 
   return (
