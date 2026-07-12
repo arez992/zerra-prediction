@@ -13,6 +13,10 @@ import {
   evaluateSEOContentQuality,
   type SEOQualityCheckStatus,
 } from "@/lib/ai-ceo/contentQuality";
+import {
+  evaluateDuplicateSimilarity,
+  type SEODuplicateSimilarityResult,
+} from "@/lib/ai-ceo/duplicateSimilarity";
 
 type DraftResponse = {
   success: boolean;
@@ -35,6 +39,12 @@ type VersionItem = {
 type VersionsResponse = {
   success: boolean;
   versions?: VersionItem[];
+  error?: string;
+};
+
+type DraftsResponse = {
+  success: boolean;
+  drafts?: SEOPageDraftItem[];
   error?: string;
 };
 
@@ -61,8 +71,15 @@ export default function SEOPagePreviewPage() {
     VersionItem[]
   >([]);
 
+  const [allDrafts, setAllDrafts] = useState<
+    SEOPageDraftItem[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
   const [versionsLoading, setVersionsLoading] =
+    useState(true);
+
+  const [similarityLoading, setSimilarityLoading] =
     useState(true);
 
   const [activeAction, setActiveAction] =
@@ -122,6 +139,43 @@ export default function SEOPagePreviewPage() {
     }
   }, [draftId]);
 
+  const loadAllDrafts = useCallback(async () => {
+    try {
+      setSimilarityLoading(true);
+
+      const response = await fetch(
+        "/api/admin/ai-ceo/seo-pages",
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        }
+      );
+
+      const data =
+        await parseResponse<DraftsResponse>(
+          response
+        );
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Unable to load SEO drafts for similarity checking."
+        );
+      }
+
+      setAllDrafts(data.drafts || []);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to check duplicate similarity."
+      );
+    } finally {
+      setSimilarityLoading(false);
+    }
+  }, []);
+
   const loadVersions = useCallback(async () => {
     if (!draftId) {
       setVersionsLoading(false);
@@ -170,8 +224,13 @@ export default function SEOPagePreviewPage() {
     void Promise.all([
       loadDraft(),
       loadVersions(),
+      loadAllDrafts(),
     ]);
-  }, [loadDraft, loadVersions]);
+  }, [
+    loadDraft,
+    loadVersions,
+    loadAllDrafts,
+  ]);
 
   async function runDraftAction(
     action: Exclude<DraftAction, "rollback">,
@@ -214,6 +273,7 @@ export default function SEOPagePreviewPage() {
       await Promise.all([
         loadDraft(),
         loadVersions(),
+        loadAllDrafts(),
       ]);
 
       if (
@@ -342,6 +402,7 @@ export default function SEOPagePreviewPage() {
       await Promise.all([
         loadDraft(),
         loadVersions(),
+        loadAllDrafts(),
       ]);
     } catch (requestError) {
       setError(
@@ -409,6 +470,13 @@ export default function SEOPagePreviewPage() {
 
   const quality =
     evaluateSEOContentQuality(draft);
+
+  const duplicateSimilarity:
+    SEODuplicateSimilarityResult =
+      evaluateDuplicateSimilarity(
+        draft,
+        allDrafts
+      );
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 text-white">
@@ -743,6 +811,128 @@ export default function SEOPagePreviewPage() {
             not replace human editorial review.
           </div>
         )}
+      </section>
+
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Duplicate Protection
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              Similarity Check
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Compares this draft with other SEO
+              drafts using normalized three-word
+              phrase overlap. No external API is used.
+            </p>
+          </div>
+
+          <div className="min-w-[190px] rounded-3xl border border-white/10 bg-black/25 p-5 text-center">
+            <p className="text-5xl font-black text-[#D4AF37]">
+              {similarityLoading
+                ? "—"
+                : duplicateSimilarity.highestSimilarity}
+              {!similarityLoading && (
+                <span className="text-xl text-white/35">
+                  %
+                </span>
+              )}
+            </p>
+
+            <p className="mt-2 text-sm font-black uppercase tracking-wider text-white/70">
+              {similarityLoading
+                ? "Checking..."
+                : `${duplicateSimilarity.level} Similarity`}
+            </p>
+
+            <p className="mt-2 text-xs text-white/40">
+              Compared with{" "}
+              {duplicateSimilarity.comparedCount}{" "}
+              other draft(s)
+            </p>
+          </div>
+        </div>
+
+        {similarityLoading ? (
+          <div className="mt-6 rounded-2xl bg-black/25 p-6 text-center text-sm text-white/45">
+            Checking duplicate similarity...
+          </div>
+        ) : duplicateSimilarity.matches.length ===
+          0 ? (
+          <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-5 text-sm leading-7 text-green-300">
+            ✅ No meaningful phrase overlap was found
+            with other SEO drafts.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {duplicateSimilarity.matches.map(
+              (match) => (
+                <article
+                  key={match.id}
+                  className="rounded-3xl border border-white/10 bg-black/25 p-5"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <VersionBadge>
+                          {match.status}
+                        </VersionBadge>
+
+                        <VersionBadge>
+                          {match.similarity}% similar
+                        </VersionBadge>
+                      </div>
+
+                      <h3 className="mt-3 truncate font-black">
+                        {match.title}
+                      </h3>
+
+                      {match.canonicalPath && (
+                        <p className="mt-2 break-all text-xs text-[#D4AF37]/70">
+                          {match.canonicalPath}
+                        </p>
+                      )}
+                    </div>
+
+                    <Link
+                      href={`/${locale}/admin/ai-ceo/seo-pages/${encodeURIComponent(
+                        match.id
+                      )}/preview`}
+                      className="shrink-0 rounded-full border border-white/15 px-4 py-2 text-xs font-black text-white/70 transition hover:border-[#D4AF37]/50 hover:text-[#D4AF37]"
+                    >
+                      Review Match
+                    </Link>
+                  </div>
+                </article>
+              )
+            )}
+          </div>
+        )}
+
+        {!similarityLoading &&
+          duplicateSimilarity.highestSimilarity >=
+            60 && (
+            <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-7 text-red-300">
+              High duplicate similarity detected.
+              Review and rewrite this draft before
+              approval or publishing.
+            </div>
+          )}
+
+        {!similarityLoading &&
+          duplicateSimilarity.highestSimilarity >=
+            30 &&
+          duplicateSimilarity.highestSimilarity <
+            60 && (
+            <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
+              Moderate overlap detected. Human review
+              is recommended before approval.
+            </div>
+          )}
       </section>
 
       <section className="mt-8 space-y-6">
