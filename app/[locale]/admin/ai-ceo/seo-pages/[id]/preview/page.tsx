@@ -21,6 +21,10 @@ import {
   validateInternalLinks,
   type InternalLinkStatus,
 } from "@/lib/ai-ceo/internalLinkValidation";
+import {
+  evaluateFAQQuality,
+  type FAQQualityStatus,
+} from "@/lib/ai-ceo/faqQuality";
 
 type DraftResponse = {
   success: boolean;
@@ -576,6 +580,9 @@ export default function SEOPagePreviewPage() {
 
   const internalLinkValidation =
     validateInternalLinks(draft);
+
+  const faqQuality =
+    evaluateFAQQuality(draft);
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 text-white">
@@ -1292,6 +1299,154 @@ export default function SEOPagePreviewPage() {
         )}
       </section>
 
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              FAQ Review
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              FAQ Quality Check
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Reviews completeness, helpfulness,
+              duplicates, punctuation, keyword
+              stuffing, and overconfident wording.
+            </p>
+          </div>
+
+          <div className="min-w-[190px] rounded-3xl border border-white/10 bg-black/25 p-5 text-center">
+            <p className="text-5xl font-black text-[#D4AF37]">
+              {faqQuality.score}
+              <span className="text-xl text-white/35">
+                /100
+              </span>
+            </p>
+
+            <p className="mt-2 text-sm font-black uppercase tracking-wider text-white/70">
+              {faqQuality.label}
+            </p>
+
+            <p className="mt-2 text-xs text-white/40">
+              {faqQuality.total} FAQ item(s)
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Passed"
+            value={faqQuality.validCount}
+            detail="Strong FAQ items"
+          />
+
+          <MetricCard
+            title="Warnings"
+            value={faqQuality.warningCount}
+            detail="Needs review"
+          />
+
+          <MetricCard
+            title="Failed"
+            value={faqQuality.failedCount}
+            detail="Needs rewriting"
+          />
+
+          <MetricCard
+            title="Keyword Issues"
+            value={faqQuality.keywordStuffingCount}
+            detail="Possible stuffing"
+          />
+        </div>
+
+        {faqQuality.items.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm leading-7 text-red-300">
+            No FAQ items are available. Add at least
+            two useful questions before approval.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {faqQuality.items.map((item) => (
+              <article
+                key={`${item.question}-${item.index}`}
+                className="rounded-3xl border border-white/10 bg-black/25 p-5"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-black">
+                      {item.question ||
+                        `FAQ item ${
+                          item.index + 1
+                        }`}
+                    </h3>
+
+                    <p className="mt-3 text-sm leading-7 text-white/55">
+                      {item.answer ||
+                        "No answer provided."}
+                    </p>
+
+                    {item.issues.length > 0 ? (
+                      <ul className="mt-4 space-y-2 text-sm leading-6 text-white/50">
+                        {item.issues.map(
+                          (issue) => (
+                            <li key={issue}>
+                              • {issue}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    ) : (
+                      <p className="mt-4 text-sm text-green-300">
+                        This FAQ item passed all quality
+                        checks.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <FAQStatusBadge
+                      status={item.status}
+                    />
+
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-white/60">
+                      {item.score}/100
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {(faqQuality.failedCount > 0 ||
+          faqQuality.duplicateQuestionCount > 0 ||
+          faqQuality.duplicateAnswerCount > 0) && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-7 text-red-300">
+            FAQ quality problems were detected. Fix
+            failed or duplicate items before approval.
+          </div>
+        )}
+
+        {faqQuality.failedCount === 0 &&
+          faqQuality.warningCount > 0 && (
+            <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
+              Some FAQ items need human review before
+              approval.
+            </div>
+          )}
+
+        {faqQuality.total > 0 &&
+          faqQuality.failedCount === 0 &&
+          faqQuality.warningCount === 0 && (
+            <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-4 text-sm leading-7 text-green-300">
+              ✅ Every FAQ item passed the automated
+              quality checks.
+            </div>
+          )}
+      </section>
+
       <section className="mt-8 space-y-6">
         {(draft.sections || []).length === 0 ? (
           <EmptyState text="No content sections available." />
@@ -1789,6 +1944,33 @@ function BrokenLinkBadge({
   return (
     <span
       className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black uppercase ${classes[status]}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+
+function FAQStatusBadge({
+  status,
+}: {
+  status: FAQQualityStatus;
+}) {
+  const classes: Record<
+    FAQQualityStatus,
+    string
+  > = {
+    pass:
+      "border-green-500/30 bg-green-500/10 text-green-300",
+    warning:
+      "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
+    fail:
+      "border-red-500/30 bg-red-500/10 text-red-300",
+  };
+
+  return (
+    <span
+      className={`rounded-full border px-3 py-1 text-xs font-black uppercase ${classes[status]}`}
     >
       {status}
     </span>
