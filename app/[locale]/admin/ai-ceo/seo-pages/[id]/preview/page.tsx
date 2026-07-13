@@ -25,6 +25,10 @@ import {
   evaluateFAQQuality,
   type FAQQualityStatus,
 } from "@/lib/ai-ceo/faqQuality";
+import {
+  validateSEOPageSchema,
+  type SchemaValidationStatus,
+} from "@/lib/ai-ceo/schemaValidation";
 
 type DraftResponse = {
   success: boolean;
@@ -583,6 +587,9 @@ export default function SEOPagePreviewPage() {
 
   const faqQuality =
     evaluateFAQQuality(draft);
+
+  const schemaValidation =
+    validateSEOPageSchema(draft);
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-12 text-white">
@@ -1447,6 +1454,101 @@ export default function SEOPagePreviewPage() {
           )}
       </section>
 
+      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Structured Data
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              Schema Validation
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Validates the generated JSON-LD shape,
+              canonical path, language, SportsEvent
+              fields, and FAQ entities.
+            </p>
+          </div>
+
+          <div className="min-w-[190px] rounded-3xl border border-white/10 bg-black/25 p-5 text-center">
+            <p className="text-5xl font-black text-[#D4AF37]">
+              {schemaValidation.score}
+              <span className="text-xl text-white/35">
+                /100
+              </span>
+            </p>
+
+            <p className="mt-2 text-sm font-black uppercase tracking-wider text-white/70">
+              {schemaValidation.label}
+            </p>
+
+            <p className="mt-2 text-xs text-white/40">
+              {schemaValidation.valid
+                ? "Schema ready"
+                : "Review required"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          {schemaValidation.checks.map(
+            (check) => (
+              <article
+                key={check.id}
+                className="rounded-3xl border border-white/10 bg-black/25 p-5"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h3 className="font-black">
+                      {check.label}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-white/50">
+                      {check.detail}
+                    </p>
+                  </div>
+
+                  <SchemaStatusBadge
+                    status={check.status}
+                  />
+                </div>
+              </article>
+            )
+          )}
+        </div>
+
+        <details className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-5">
+          <summary className="cursor-pointer font-black text-[#D4AF37]">
+            Preview Generated JSON-LD
+          </summary>
+
+          <pre className="mt-4 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-black/40 p-4 text-xs leading-6 text-white/60">
+            {JSON.stringify(
+              schemaValidation.schema,
+              null,
+              2
+            )}
+          </pre>
+        </details>
+
+        {!schemaValidation.valid && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-7 text-red-300">
+            Schema validation found required fields
+            that need review before approval or
+            publishing.
+          </div>
+        )}
+
+        {schemaValidation.valid && (
+          <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-4 text-sm leading-7 text-green-300">
+            ✅ The generated schema passed all required
+            validation checks.
+          </div>
+        )}
+      </section>
+
       <section className="mt-8 space-y-6">
         {(draft.sections || []).length === 0 ? (
           <EmptyState text="No content sections available." />
@@ -1971,6 +2073,33 @@ function FAQStatusBadge({
   return (
     <span
       className={`rounded-full border px-3 py-1 text-xs font-black uppercase ${classes[status]}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+
+function SchemaStatusBadge({
+  status,
+}: {
+  status: SchemaValidationStatus;
+}) {
+  const classes: Record<
+    SchemaValidationStatus,
+    string
+  > = {
+    pass:
+      "border-green-500/30 bg-green-500/10 text-green-300",
+    warning:
+      "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
+    fail:
+      "border-red-500/30 bg-red-500/10 text-red-300",
+  };
+
+  return (
+    <span
+      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black uppercase ${classes[status]}`}
     >
       {status}
     </span>
