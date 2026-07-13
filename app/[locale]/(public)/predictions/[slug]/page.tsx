@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { adminDb } from "@/lib/firebaseAdmin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,208 +13,184 @@ type PageProps = {
   }>;
 };
 
-type SEOSection = {
-  heading?: string;
-  content?: string;
-};
-
-type SEOFAQ = {
-  question?: string;
-  answer?: string;
-};
-
-type SEOPublicContent = {
-  overview?: string;
-  recentForm?: string;
-  headToHead?: string;
-  homeAwayStats?: string;
-  injuries?: string;
-  aiSummary?: string;
-  riskLevel?: "Low" | "Medium" | "High";
-  keyInsights?: string[];
-};
-
-type PublishedSEOPage = {
+type PublicPrediction = {
   id: string;
-  keyword: string;
-  language: "en" | "ku";
-  country?: string | null;
+  fixtureId: string;
+  sport: "Football";
 
-  slug: string;
-  canonicalPath: string;
+  competition: {
+    name: string;
+    country: string | null;
+    round: string | null;
+    season: number | null;
+  };
 
-  title: string;
-  metaDescription: string;
+  teams: {
+    home: {
+      name: string;
+    };
+    away: {
+      name: string;
+    };
+  };
 
-  h1: string;
-  intro: string;
+  fixtureDate: string | null;
 
-  sections: SEOSection[];
-  faq: SEOFAQ[];
+  fixtureStatus: {
+    short: string | null;
+    long: string | null;
+  };
 
-  publicContent?: SEOPublicContent | null;
+  publicPrediction: {
+    overview: string;
+    risk: string;
+    riskScore: number | null;
+    keyInsights: string[];
+    teaser: string;
+  };
 
-  internalLinks: string[];
-  relatedKeywords: string[];
-
-  schemaType?: string;
-  status: "published";
-
-  createdAt?: string | null;
-  updatedAt?: string | null;
-  publishedAt?: string | null;
+  publishedAt: string | null;
+  updatedAt: string | null;
 };
 
-function serializeTimestamp(value: unknown): string | null {
-  if (
-    value &&
-    typeof value === "object" &&
-    "toDate" in value &&
-    typeof (value as { toDate?: unknown }).toDate === "function"
-  ) {
-    return (value as { toDate: () => Date })
-      .toDate()
-      .toISOString();
-  }
+type PublicPredictionResponse = {
+  success: boolean;
+  prediction?: PublicPrediction;
+  error?: string;
+};
 
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return null;
+function getSiteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://zerra-prediction.vercel.app"
+  ).replace(/\/+$/, "");
 }
 
-const getPublishedPage = cache(
+function normalizeLocale(
+  value: string
+): "en" | "ku" {
+  return value === "ku" ? "ku" : "en";
+}
+
+function getLocalizedText(
+  locale: "en" | "ku",
+  english: string,
+  kurdish: string
+): string {
+  return locale === "ku"
+    ? kurdish
+    : english;
+}
+
+function formatDateTime(
+  value: string | null,
+  locale: "en" | "ku"
+): string {
+  if (!value) {
+    return getLocalizedText(
+      locale,
+      "Kickoff TBD",
+      "کاتی یاری دیاری نەکراوە"
+    );
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return getLocalizedText(
+      locale,
+      "Kickoff TBD",
+      "کاتی یاری دیاری نەکراوە"
+    );
+  }
+
+  return new Intl.DateTimeFormat(
+    locale === "ku" ? "ckb-IQ" : "en",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  ).format(date);
+}
+
+function formatPublishedDate(
+  value: string | null,
+  locale: "en" | "ku"
+): string {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat(
+    locale === "ku" ? "ckb-IQ" : "en",
+    {
+      dateStyle: "medium",
+    }
+  ).format(date);
+}
+
+const getPrediction = cache(
   async (
-    locale: string,
     slug: string
-  ): Promise<PublishedSEOPage | null> => {
-    const cleanLocale = locale === "ku" ? "ku" : "en";
-    const cleanSlug = decodeURIComponent(slug).trim();
+  ): Promise<PublicPrediction | null> => {
+    const cleanSlug =
+      decodeURIComponent(slug).trim();
 
     if (!cleanSlug) {
       return null;
     }
 
-    const canonicalPath =
-      `/${cleanLocale}/predictions/${cleanSlug}`;
+    const response = await fetch(
+      `${getSiteUrl()}/api/predictions/${encodeURIComponent(
+        cleanSlug
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
 
-    const snapshot = await adminDb
-      .collection("seoPageDrafts")
-      .where("canonicalPath", "==", canonicalPath)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
+    if (response.status === 404) {
       return null;
     }
 
-    const document = snapshot.docs[0];
-    const data = document.data();
+    const raw = await response.text();
 
-    if (data.status !== "published") {
-      return null;
+    let data: PublicPredictionResponse;
+
+    try {
+      data = raw
+        ? (JSON.parse(
+            raw
+          ) as PublicPredictionResponse)
+        : {
+            success: false,
+            error:
+              "The prediction service returned an empty response.",
+          };
+    } catch {
+      throw new Error(
+        "The prediction service returned invalid JSON."
+      );
     }
 
-    return {
-      id: document.id,
+    if (
+      !response.ok ||
+      !data.success ||
+      !data.prediction
+    ) {
+      throw new Error(
+        data.error ||
+          "Unable to load the published prediction."
+      );
+    }
 
-      keyword: String(data.keyword || ""),
-      language: data.language === "ku" ? "ku" : "en",
-      country: data.country || null,
-
-      slug: String(data.slug || ""),
-      canonicalPath: String(data.canonicalPath || ""),
-
-      title: String(data.title || ""),
-      metaDescription: String(
-        data.metaDescription || ""
-      ),
-
-      h1: String(data.h1 || data.title || ""),
-      intro: String(data.intro || ""),
-
-      sections: Array.isArray(data.sections)
-        ? data.sections
-        : [],
-
-      faq: Array.isArray(data.faq)
-        ? data.faq
-        : [],
-
-      publicContent:
-        data.publicContent &&
-        typeof data.publicContent === "object"
-          ? {
-              overview:
-                typeof data.publicContent.overview ===
-                "string"
-                  ? data.publicContent.overview
-                  : "",
-              recentForm:
-                typeof data.publicContent.recentForm ===
-                "string"
-                  ? data.publicContent.recentForm
-                  : "",
-              headToHead:
-                typeof data.publicContent.headToHead ===
-                "string"
-                  ? data.publicContent.headToHead
-                  : "",
-              homeAwayStats:
-                typeof data.publicContent.homeAwayStats ===
-                "string"
-                  ? data.publicContent.homeAwayStats
-                  : "",
-              injuries:
-                typeof data.publicContent.injuries ===
-                "string"
-                  ? data.publicContent.injuries
-                  : "",
-              aiSummary:
-                typeof data.publicContent.aiSummary ===
-                "string"
-                  ? data.publicContent.aiSummary
-                  : "",
-              riskLevel:
-                data.publicContent.riskLevel === "Low" ||
-                data.publicContent.riskLevel === "High"
-                  ? data.publicContent.riskLevel
-                  : "Medium",
-              keyInsights: Array.isArray(
-                data.publicContent.keyInsights
-              )
-                ? data.publicContent.keyInsights
-                    .map((item: unknown) =>
-                      typeof item === "string"
-                        ? item.trim()
-                        : ""
-                    )
-                    .filter(Boolean)
-                    .slice(0, 5)
-                : [],
-            }
-          : null,
-
-      internalLinks: Array.isArray(data.internalLinks)
-        ? data.internalLinks
-        : [],
-
-      relatedKeywords: Array.isArray(
-        data.relatedKeywords
-      )
-        ? data.relatedKeywords
-        : [],
-
-      schemaType: data.schemaType || "WebPage",
-      status: "published",
-
-      createdAt: serializeTimestamp(data.createdAt),
-      updatedAt: serializeTimestamp(data.updatedAt),
-      publishedAt: serializeTimestamp(
-        data.publishedAt
-      ),
-    };
+    return data.prediction;
   }
 );
 
@@ -224,11 +199,15 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { locale, slug } = await params;
 
-  const page = await getPublishedPage(locale, slug);
+  const cleanLocale =
+    normalizeLocale(locale);
 
-  if (!page) {
+  const prediction =
+    await getPrediction(slug);
+
+  if (!prediction) {
     return {
-      title: "Page Not Found",
+      title: "Prediction Not Found",
       robots: {
         index: false,
         follow: false,
@@ -236,24 +215,36 @@ export async function generateMetadata({
     };
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://zerra-prediction.vercel.app";
+  const matchTitle =
+    `${prediction.teams.home.name} vs ${prediction.teams.away.name}`;
+
+  const title =
+    cleanLocale === "ku"
+      ? `${matchTitle} | شیکاری پێش یاری`
+      : `${matchTitle} | Public Match Analysis`;
+
+  const description =
+    prediction.publicPrediction.overview;
+
+  const canonicalPath =
+    `/${cleanLocale}/predictions/${encodeURIComponent(
+      slug
+    )}`;
 
   const canonicalUrl =
-    `${siteUrl}${page.canonicalPath}`;
+    `${getSiteUrl()}${canonicalPath}`;
 
   return {
-    title: page.title,
-    description: page.metaDescription,
+    title,
+    description,
 
     alternates: {
       canonical: canonicalUrl,
     },
 
     openGraph: {
-      title: page.title,
-      description: page.metaDescription,
+      title,
+      description,
       url: canonicalUrl,
       siteName: "ZERRA Prediction",
       type: "article",
@@ -261,8 +252,8 @@ export async function generateMetadata({
 
     twitter: {
       card: "summary_large_image",
-      title: page.title,
-      description: page.metaDescription,
+      title,
+      description,
     },
 
     robots: {
@@ -279,154 +270,119 @@ export async function generateMetadata({
   };
 }
 
-export default async function PublishedSEOPage({
+export default async function PredictionDetailPage({
   params,
 }: PageProps) {
   const { locale, slug } = await params;
 
-  const page = await getPublishedPage(locale, slug);
+  const cleanLocale =
+    normalizeLocale(locale);
 
-  if (!page) {
+  const prediction =
+    await getPrediction(slug);
+
+  if (!prediction) {
     notFound();
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://zerra-prediction.vercel.app";
+  const isKurdish =
+    cleanLocale === "ku";
+
+  const matchTitle =
+    `${prediction.teams.home.name} vs ${prediction.teams.away.name}`;
+
+  const canonicalPath =
+    `/${cleanLocale}/predictions/${encodeURIComponent(
+      slug
+    )}`;
 
   const canonicalUrl =
-    `${siteUrl}${page.canonicalPath}`;
-
-  const isKurdish = page.language === "ku";
-
-  const faqItems = page.faq.filter(
-    (item) =>
-      String(item.question || "").trim() &&
-      String(item.answer || "").trim()
-  );
-
-  const publicContent = page.publicContent;
-
-  const publicSections = publicContent
-    ? [
-        {
-          heading: isNonEmpty(publicContent.overview)
-            ? isKurdishLabel(page.language, "کورتەی یاری", "Match Overview")
-            : "",
-          content: publicContent.overview || "",
-        },
-        {
-          heading: isNonEmpty(publicContent.recentForm)
-            ? isKurdishLabel(page.language, "فۆڕمی نوێ", "Recent Form")
-            : "",
-          content: publicContent.recentForm || "",
-        },
-        {
-          heading: isNonEmpty(publicContent.headToHead)
-            ? isKurdishLabel(page.language, "ڕووبەڕووبوونەوە", "Head-to-Head")
-            : "",
-          content: publicContent.headToHead || "",
-        },
-        {
-          heading: isNonEmpty(publicContent.homeAwayStats)
-            ? isKurdishLabel(
-                page.language,
-                "ئاماری ماڵەوە و دەرەوە",
-                "Home & Away Statistics"
-              )
-            : "",
-          content: publicContent.homeAwayStats || "",
-        },
-        {
-          heading: isNonEmpty(publicContent.injuries)
-            ? isKurdishLabel(
-                page.language,
-                "برینداری و بەردەستبوون",
-                "Injuries & Availability"
-              )
-            : "",
-          content: publicContent.injuries || "",
-        },
-        {
-          heading: isNonEmpty(publicContent.aiSummary)
-            ? isKurdishLabel(
-                page.language,
-                "کورتەی شیکاری AI",
-                "AI Match Summary"
-              )
-            : "",
-          content: publicContent.aiSummary || "",
-        },
-      ].filter(
-        (item) =>
-          isNonEmpty(item.heading) &&
-          isNonEmpty(item.content)
-      )
-    : [];
-
-  const visibleSections =
-    publicSections.length > 0
-      ? publicSections
-      : page.sections;
+    `${getSiteUrl()}${canonicalPath}`;
 
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "WebPage",
+        "@type": "SportsEvent",
         "@id": canonicalUrl,
+        name: matchTitle,
+        description:
+          prediction.publicPrediction.overview,
         url: canonicalUrl,
-        name: page.title,
-        description: page.metaDescription,
-        inLanguage: page.language,
+        startDate:
+          prediction.fixtureDate || undefined,
+        eventStatus:
+          prediction.fixtureStatus.long ||
+          undefined,
+        sport: "Football",
+        homeTeam: {
+          "@type": "SportsTeam",
+          name:
+            prediction.teams.home.name,
+        },
+        awayTeam: {
+          "@type": "SportsTeam",
+          name:
+            prediction.teams.away.name,
+        },
+        organizer: {
+          "@type": "Organization",
+          name:
+            prediction.competition.name,
+        },
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${canonicalUrl}#webpage`,
+        url: canonicalUrl,
+        name: matchTitle,
+        description:
+          prediction.publicPrediction.overview,
+        inLanguage: cleanLocale,
         datePublished:
-          page.publishedAt || undefined,
+          prediction.publishedAt ||
+          undefined,
         dateModified:
-          page.updatedAt ||
-          page.publishedAt ||
+          prediction.updatedAt ||
+          prediction.publishedAt ||
           undefined,
         isPartOf: {
           "@type": "WebSite",
           name: "ZERRA Prediction",
-          url: siteUrl,
+          url: getSiteUrl(),
         },
       },
-
-      ...(faqItems.length > 0
-        ? [
-            {
-              "@type": "FAQPage",
-              mainEntity: faqItems.map((item) => ({
-                "@type": "Question",
-                name: item.question,
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: item.answer,
-                },
-              })),
-            },
-          ]
-        : []),
-
       {
         "@type": "BreadcrumbList",
         itemListElement: [
           {
             "@type": "ListItem",
             position: 1,
-            name: "Home",
-            item: `${siteUrl}/${page.language}`,
+            name:
+              getLocalizedText(
+                cleanLocale,
+                "Home",
+                "سەرەکی"
+              ),
+            item:
+              `${getSiteUrl()}/${cleanLocale}`,
           },
           {
             "@type": "ListItem",
             position: 2,
-            name: "Predictions",
-            item: `${siteUrl}/${page.language}/predictions`,
+            name:
+              getLocalizedText(
+                cleanLocale,
+                "Predictions",
+                "پێشبینییەکان"
+              ),
+            item:
+              `${getSiteUrl()}/${cleanLocale}/predictions`,
           },
           {
             "@type": "ListItem",
             position: 3,
-            name: page.h1,
+            name: matchTitle,
             item: canonicalUrl,
           },
         ],
@@ -436,7 +392,7 @@ export default async function PublishedSEOPage({
 
   return (
     <main
-      className="min-h-screen bg-[#07101d] text-white"
+      className="min-h-screen bg-[#07101D] text-white"
       dir={isKurdish ? "rtl" : "ltr"}
     >
       <script
@@ -451,25 +407,33 @@ export default async function PublishedSEOPage({
       <div className="mx-auto max-w-7xl px-5 py-10">
         <nav className="flex flex-wrap items-center gap-2 text-sm text-white/45">
           <Link
-            href={`/${page.language}`}
+            href={`/${cleanLocale}`}
             className="transition hover:text-[#D4AF37]"
           >
-            {isKurdish ? "سەرەکی" : "Home"}
+            {getLocalizedText(
+              cleanLocale,
+              "Home",
+              "سەرەکی"
+            )}
           </Link>
 
           <span>/</span>
 
           <Link
-            href={`/${page.language}/predictions`}
+            href={`/${cleanLocale}/predictions`}
             className="transition hover:text-[#D4AF37]"
           >
-            {isKurdish ? "پێشبینییەکان" : "Predictions"}
+            {getLocalizedText(
+              cleanLocale,
+              "Predictions",
+              "پێشبینییەکان"
+            )}
           </Link>
 
           <span>/</span>
 
           <span className="text-white/65">
-            {page.keyword}
+            {matchTitle}
           </span>
         </nav>
 
@@ -478,184 +442,267 @@ export default async function PublishedSEOPage({
             <header className="rounded-[2rem] border border-[#D4AF37]/20 bg-[#101827] p-7 shadow-2xl md:p-10">
               <div className="flex flex-wrap gap-2">
                 <Badge>
-                  {isKurdish
-                    ? "شیکاری AI"
-                    : "AI Analysis"}
+                  {getLocalizedText(
+                    cleanLocale,
+                    "Published Analysis",
+                    "شیکاری بڵاوکراوە"
+                  )}
                 </Badge>
-
-                {page.country && (
-                  <Badge>{page.country}</Badge>
-                )}
 
                 <Badge>
-                  {isKurdish
-                    ? "پەڕەی بڵاوکراوە"
-                    : "Published"}
+                  {prediction.competition.name}
                 </Badge>
+
+                {prediction.competition.country && (
+                  <Badge>
+                    {
+                      prediction
+                        .competition.country
+                    }
+                  </Badge>
+                )}
               </div>
 
               <h1 className="mt-6 text-4xl font-black leading-tight md:text-6xl">
-                {page.h1}
+                {matchTitle}
               </h1>
 
               <p className="mt-6 max-w-4xl text-lg leading-8 text-white/65">
-                {page.intro}
+                {
+                  prediction
+                    .publicPrediction.overview
+                }
               </p>
 
-              <div className="mt-8 flex flex-wrap gap-4 text-sm text-white/40">
+              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <InfoCard
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Kickoff",
+                    "کاتی یاری"
+                  )}
+                  value={formatDateTime(
+                    prediction.fixtureDate,
+                    cleanLocale
+                  )}
+                />
+
+                <InfoCard
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Status",
+                    "دۆخی یاری"
+                  )}
+                  value={
+                    prediction.fixtureStatus
+                      .long ||
+                    getLocalizedText(
+                      cleanLocale,
+                      "Scheduled",
+                      "دیاریکراو"
+                    )
+                  }
+                />
+
+                <InfoCard
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Risk",
+                    "ڕیسک"
+                  )}
+                  value={
+                    prediction
+                      .publicPrediction.risk
+                  }
+                />
+
+                <InfoCard
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Risk Score",
+                    "نمرەی ڕیسک"
+                  )}
+                  value={
+                    prediction
+                      .publicPrediction
+                      .riskScore !== null
+                      ? `${prediction.publicPrediction.riskScore}/100`
+                      : "—"
+                  }
+                />
+              </div>
+
+              <div className="mt-7 flex flex-wrap gap-4 text-sm text-white/40">
                 <span>
-                  {isKurdish
-                    ? "بڵاوکراوەتەوە:"
-                    : "Published:"}{" "}
-                  {formatDate(page.publishedAt)}
+                  {getLocalizedText(
+                    cleanLocale,
+                    "Published:",
+                    "بڵاوکراوەتەوە:"
+                  )}{" "}
+                  {formatPublishedDate(
+                    prediction.publishedAt,
+                    cleanLocale
+                  )}
                 </span>
 
                 <span>
-                  {isKurdish
-                    ? "نوێکراوەتەوە:"
-                    : "Updated:"}{" "}
-                  {formatDate(page.updatedAt)}
+                  {getLocalizedText(
+                    cleanLocale,
+                    "Updated:",
+                    "نوێکراوەتەوە:"
+                  )}{" "}
+                  {formatPublishedDate(
+                    prediction.updatedAt,
+                    cleanLocale
+                  )}
                 </span>
               </div>
             </header>
 
-            <section className="mt-8 space-y-6">
-              {visibleSections.map((section, index) => {
-                const heading = String(
-                  section.heading || ""
-                ).trim();
+            <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+                {getLocalizedText(
+                  cleanLocale,
+                  "Public Analysis",
+                  "شیکاری گشتی"
+                )}
+              </p>
 
-                const content = String(
-                  section.content || ""
-                ).trim();
+              <h2 className="mt-4 text-3xl font-black">
+                {getLocalizedText(
+                  cleanLocale,
+                  "Match Overview",
+                  "کورتەی یاری"
+                )}
+              </h2>
 
-                if (!heading || !content) {
-                  return null;
+              <p className="mt-5 whitespace-pre-line text-base leading-8 text-white/65">
+                {
+                  prediction
+                    .publicPrediction.overview
                 }
-
-                return (
-                  <section
-                    key={`${heading}-${index}`}
-                    className="rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9"
-                  >
-                    <h2 className="text-2xl font-black md:text-3xl">
-                      {heading}
-                    </h2>
-
-                    <p className="mt-5 whitespace-pre-line text-base leading-8 text-white/65">
-                      {content}
-                    </p>
-                  </section>
-                );
-              })}
+              </p>
             </section>
 
-            {publicContent &&
-              Array.isArray(publicContent.keyInsights) &&
-              publicContent.keyInsights.length > 0 && (
-                <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-                        {isKurdish
-                          ? "تێبینییە سەرەکییەکان"
-                          : "Key Insights"}
-                      </p>
-
-                      <h2 className="mt-4 text-3xl font-black">
-                        {isKurdish
-                          ? "ئەو خاڵانەی پێویستە بزانیت"
-                          : "What to Know Before Kickoff"}
-                      </h2>
-                    </div>
-
-                    <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-4 py-2 text-sm font-black text-yellow-200">
-                      {isKurdish
-                        ? `ئاستی ڕیسک: ${
-                            publicContent.riskLevel || "Medium"
-                          }`
-                        : `Risk level: ${
-                            publicContent.riskLevel || "Medium"
-                          }`}
-                    </span>
-                  </div>
-
-                  <div className="mt-7 grid gap-3">
-                    {publicContent.keyInsights.map(
-                      (insight, index) => (
-                        <div
-                          key={`${insight}-${index}`}
-                          className="flex gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
-                        >
-                          <span className="font-black text-[#D4AF37]">
-                            ✓
-                          </span>
-
-                          <p className="leading-7 text-white/65">
-                            {insight}
-                          </p>
-                        </div>
-                      )
+            <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+                    {getLocalizedText(
+                      cleanLocale,
+                      "Key Insights",
+                      "تێبینییە سەرەکییەکان"
                     )}
-                  </div>
-                </section>
-              )}
+                  </p>
 
-            <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D4AF37]/35 bg-gradient-to-br from-[#1b2230] via-[#111b2b] to-[#0b1422] shadow-2xl">
-              <div className="border-b border-white/10 p-7 md:p-9">
-                <div className="flex flex-wrap items-start justify-between gap-5">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.32em] text-[#D4AF37]">
-                      🔒 ZERRA VIP
-                    </p>
-
-                    <h2 className="mt-4 text-3xl font-black md:text-4xl">
-                      {isKurdish
-                        ? "پێشبینی کۆتایی AI بکەرەوە"
-                        : "Unlock the Final AI Prediction"}
-                    </h2>
-
-                    <p className="mt-4 max-w-3xl text-base leading-8 text-white/60">
-                      {isKurdish
-                        ? "AI ـی ZERRA شیکاری وردی یاری تەواو کردووە. زانیارییە کۆتایی و بەهای بەرزی پێشبینی تەنها بۆ ئەندامانی VIP پارێزراوە."
-                        : "ZERRA AI has completed a deeper match analysis. The final decision-grade insights remain protected for VIP members."}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-5 py-4 text-center">
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#D4AF37]">
-                      {isKurdish
-                        ? "پێشبینی ئامادەیە"
-                        : "Prediction Ready"}
-                    </p>
-
-                    <p className="mt-2 text-2xl">
-                      ★★★★☆
-                    </p>
-                  </div>
+                  <h2 className="mt-4 text-3xl font-black">
+                    {getLocalizedText(
+                      cleanLocale,
+                      "What to Know Before Kickoff",
+                      "پێش یاری چی بزانیت"
+                    )}
+                  </h2>
                 </div>
+
+                <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-4 py-2 text-sm font-black text-yellow-200">
+                  {getLocalizedText(
+                    cleanLocale,
+                    "Risk level",
+                    "ئاستی ڕیسک"
+                  )}
+                  :{" "}
+                  {
+                    prediction
+                      .publicPrediction.risk
+                  }
+                </span>
+              </div>
+
+              {prediction.publicPrediction
+                .keyInsights.length > 0 ? (
+                <div className="mt-7 grid gap-3">
+                  {prediction.publicPrediction.keyInsights.map(
+                    (insight, index) => (
+                      <div
+                        key={`${insight}-${index}`}
+                        className="flex gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
+                      >
+                        <span className="font-black text-[#D4AF37]">
+                          ✓
+                        </span>
+
+                        <p className="leading-7 text-white/65">
+                          {insight}
+                        </p>
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : (
+                <p className="mt-6 text-sm leading-7 text-white/45">
+                  {getLocalizedText(
+                    cleanLocale,
+                    "No additional public insights are available yet.",
+                    "هێشتا تێبینی گشتی زیاتر بەردەست نییە."
+                  )}
+                </p>
+              )}
+            </section>
+
+            <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D4AF37]/35 bg-gradient-to-br from-[#1B2230] via-[#111B2B] to-[#0B1422] shadow-2xl">
+              <div className="border-b border-white/10 p-7 md:p-9">
+                <p className="text-xs font-black uppercase tracking-[0.32em] text-[#D4AF37]">
+                  🔒 ZERRA VIP
+                </p>
+
+                <h2 className="mt-4 text-3xl font-black md:text-4xl">
+                  {getLocalizedText(
+                    cleanLocale,
+                    "Unlock the Final AI Prediction",
+                    "پێشبینی کۆتایی AI بکەرەوە"
+                  )}
+                </h2>
+
+                <p className="mt-4 max-w-3xl text-base leading-8 text-white/60">
+                  {
+                    prediction
+                      .publicPrediction.teaser
+                  }
+                </p>
               </div>
 
               <div className="grid gap-4 p-7 md:grid-cols-2 md:p-9">
                 {[
-                  isKurdish
-                    ? "پێشبینی کۆتایی یاری"
-                    : "Final match prediction",
-                  isKurdish
-                    ? "ڕێژەی متمانەی ورد"
-                    : "Exact confidence score",
-                  isKurdish
-                    ? "ئەنجامی تەخمینکراو"
-                    : "Estimated exact score",
-                  isKurdish
-                    ? "باشترین بازاڕی پێشبینی"
-                    : "Best prediction market",
-                  isKurdish
-                    ? "هەڵبژاردە جێگرەوەکان"
-                    : "Alternative selections",
-                  isKurdish
-                    ? "شیکاری تەواوی AI"
-                    : "Full AI reasoning",
+                  getLocalizedText(
+                    cleanLocale,
+                    "Final match prediction",
+                    "پێشبینی کۆتایی یاری"
+                  ),
+                  getLocalizedText(
+                    cleanLocale,
+                    "Exact confidence score",
+                    "ڕێژەی متمانەی ورد"
+                  ),
+                  getLocalizedText(
+                    cleanLocale,
+                    "Estimated exact score",
+                    "ئەنجامی تەخمینکراو"
+                  ),
+                  getLocalizedText(
+                    cleanLocale,
+                    "Best prediction market",
+                    "باشترین بازاڕی پێشبینی"
+                  ),
+                  getLocalizedText(
+                    cleanLocale,
+                    "Expected goals",
+                    "گۆڵی چاوەڕوانکراو"
+                  ),
+                  getLocalizedText(
+                    cleanLocale,
+                    "Full AI reasoning",
+                    "شیکاری تەواوی AI"
+                  ),
                 ].map((item) => (
                   <div
                     key={item}
@@ -674,136 +721,162 @@ export default async function PublishedSEOPage({
 
               <div className="border-t border-white/10 p-7 md:p-9">
                 <Link
-                  href={`/${page.language}/vip`}
+                  href={`/${cleanLocale}/vip`}
                   className="flex w-full items-center justify-center rounded-full bg-[#D4AF37] px-6 py-4 text-base font-black text-black transition hover:brightness-110"
                 >
-                  {isKurdish
-                    ? "پێشبینی VIP بکەرەوە"
-                    : "Unlock VIP Prediction"}
+                  {getLocalizedText(
+                    cleanLocale,
+                    "Unlock VIP Prediction",
+                    "پێشبینی VIP بکەرەوە"
+                  )}
                 </Link>
 
                 <p className="mt-4 text-center text-xs leading-6 text-white/35">
-                  {isKurdish
-                    ? "هیچ پێشبینییەکی وەرزشی گەرەنتی نییە. VIP شیکاری زیاتر دەدات، نەک دڵنیایی."
-                    : "No football prediction is guaranteed. VIP provides deeper analysis, not certainty."}
+                  {getLocalizedText(
+                    cleanLocale,
+                    "No football prediction is guaranteed. VIP provides deeper analysis, not certainty.",
+                    "هیچ پێشبینییەکی تۆپی پێ گەرەنتی نییە. VIP شیکاری زیاتر دەدات، نەک دڵنیایی."
+                  )}
                 </p>
               </div>
             </section>
 
-            {faqItems.length > 0 && (
-              <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9">
-                <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-                  FAQ
-                </p>
-
-                <h2 className="mt-4 text-3xl font-black">
-                  {isKurdish
-                    ? "پرسیارە باوەکان"
-                    : "Frequently Asked Questions"}
-                </h2>
-
-                <div className="mt-7 space-y-4">
-                  {faqItems.map((item, index) => (
-                    <details
-                      key={`${item.question}-${index}`}
-                      className="group rounded-3xl bg-black/25 p-5"
-                    >
-                      <summary className="cursor-pointer list-none pr-7 text-lg font-black">
-                        {item.question}
-                      </summary>
-
-                      <p className="mt-4 leading-7 text-white/60">
-                        {item.answer}
-                      </p>
-                    </details>
-                  ))}
-                </div>
-              </section>
-            )}
-
             <section className="mt-8 rounded-[2rem] border border-yellow-500/15 bg-yellow-500/5 p-6 text-sm leading-7 text-yellow-100/70">
-              {isKurdish
-                ? "ئەم ناوەڕۆکە بۆ زانیاری و شیکردنەوەیە. هیچ پێشبینییەکی وەرزشی گەرەنتی نییە."
-                : "This content is provided for information and analysis. No football prediction is guaranteed."}
+              {getLocalizedText(
+                cleanLocale,
+                "This content is provided for information and analysis. No football prediction is guaranteed.",
+                "ئەم ناوەڕۆکە بۆ زانیاری و شیکردنەوەیە. هیچ پێشبینییەکی تۆپی پێ گەرەنتی نییە."
+              )}
             </section>
           </article>
 
           <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
             <SidebarCard
-              title={
-                isKurdish
-                  ? "پێشبینییە پەیوەندیدارەکان"
-                  : "Related Predictions"
-              }
-            >
-              {page.relatedKeywords.length === 0 ? (
-                <p className="text-sm text-white/40">
-                  {isKurdish
-                    ? "هیچ وشەیەکی پەیوەندیدار زیاد نەکراوە."
-                    : "No related keywords added."}
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {page.relatedKeywords.map(
-                    (keyword) => (
-                      <span
-                        key={keyword}
-                        className="rounded-full border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/60"
-                      >
-                        {keyword}
-                      </span>
-                    )
-                  )}
-                </div>
+              title={getLocalizedText(
+                cleanLocale,
+                "Match Information",
+                "زانیاری یاری"
               )}
-            </SidebarCard>
-
-            <SidebarCard
-              title={
-                isKurdish
-                  ? "لینکە ناوخۆییەکان"
-                  : "Explore ZERRA"
-              }
             >
               <div className="grid gap-3">
-                {page.internalLinks.map((link) => (
-                  <Link
-                    key={link}
-                    href={link}
-                    className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-bold text-[#D4AF37] transition hover:border-[#D4AF37]/40"
-                  >
-                    {link}
-                  </Link>
-                ))}
+                <SidebarRow
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Competition",
+                    "خول"
+                  )}
+                  value={
+                    prediction
+                      .competition.name
+                  }
+                />
+
+                <SidebarRow
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Round",
+                    "قۆناغ"
+                  )}
+                  value={
+                    prediction
+                      .competition.round ||
+                    "—"
+                  }
+                />
+
+                <SidebarRow
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Season",
+                    "وەرز"
+                  )}
+                  value={
+                    prediction
+                      .competition.season !==
+                    null
+                      ? String(
+                          prediction
+                            .competition
+                            .season
+                        )
+                      : "—"
+                  }
+                />
+
+                <SidebarRow
+                  label="Fixture ID"
+                  value={
+                    prediction.fixtureId
+                  }
+                />
               </div>
             </SidebarCard>
 
-            <section className="rounded-[2rem] border border-[#D4AF37]/25 bg-gradient-to-br from-[#1b2230] to-[#101827] p-7 shadow-xl">
+            <section className="rounded-[2rem] border border-[#D4AF37]/25 bg-gradient-to-br from-[#1B2230] to-[#101827] p-7 shadow-xl">
               <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
                 ZERRA VIP
               </p>
 
               <h2 className="mt-4 text-2xl font-black">
-                {isKurdish
-                  ? "شیکاری تایبەت و پێشبینی VIP"
-                  : "Premium AI Analysis"}
+                {getLocalizedText(
+                  cleanLocale,
+                  "Premium AI Analysis",
+                  "شیکاری تایبەتی AI"
+                )}
               </h2>
 
               <p className="mt-4 text-sm leading-7 text-white/55">
-                {isKurdish
-                  ? "پێشبینی کۆتایی، ڕێژەی متمانە، ئەنجامی تەخمینکراو و شیکاری وردی AI بکەرەوە."
-                  : "Unlock the final prediction, confidence score, estimated score, and full AI reasoning."}
+                {getLocalizedText(
+                  cleanLocale,
+                  "Unlock the final prediction, confidence score, estimated score, expected goals, and full AI reasoning.",
+                  "پێشبینی کۆتایی، ڕێژەی متمانە، ئەنجامی تەخمینکراو، گۆڵی چاوەڕوانکراو و شیکاری تەواوی AI بکەرەوە."
+                )}
               </p>
 
               <Link
-                href={`/${page.language}/vip`}
+                href={`/${cleanLocale}/vip`}
                 className="mt-6 flex items-center justify-center rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black"
               >
-                {isKurdish
-                  ? "پێشبینی VIP بکەرەوە"
-                  : "Unlock VIP Prediction"}
+                {getLocalizedText(
+                  cleanLocale,
+                  "Unlock VIP Prediction",
+                  "پێشبینی VIP بکەرەوە"
+                )}
               </Link>
             </section>
+
+            <SidebarCard
+              title={getLocalizedText(
+                cleanLocale,
+                "Explore ZERRA",
+                "بەشەکانی ZERRA"
+              )}
+            >
+              <div className="grid gap-3">
+                <SidebarLink
+                  href={`/${cleanLocale}/predictions`}
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "All Predictions",
+                    "هەموو پێشبینییەکان"
+                  )}
+                />
+
+                <SidebarLink
+                  href={`/${cleanLocale}/dashboard`}
+                  label={getLocalizedText(
+                    cleanLocale,
+                    "Dashboard",
+                    "داشبۆرد"
+                  )}
+                />
+
+                <SidebarLink
+                  href={`/${cleanLocale}/vip`}
+                  label="VIP"
+                />
+              </div>
+            </SidebarCard>
           </aside>
         </div>
       </div>
@@ -823,6 +896,26 @@ function Badge({
   );
 }
 
+function InfoCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
+        {label}
+      </p>
+
+      <p className="mt-2 text-sm font-black text-[#D4AF37]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function SidebarCard({
   title,
   children,
@@ -836,38 +929,46 @@ function SidebarCard({
         {title}
       </h2>
 
-      <div className="mt-5">{children}</div>
+      <div className="mt-5">
+        {children}
+      </div>
     </section>
   );
 }
 
-function isNonEmpty(value: unknown): value is string {
+function SidebarRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
-    typeof value === "string" &&
-    value.trim().length > 0
+    <div className="flex items-start justify-between gap-4 border-b border-white/5 py-3 text-sm">
+      <span className="text-white/35">
+        {label}
+      </span>
+
+      <span className="break-all text-right font-bold text-white/70">
+        {value}
+      </span>
+    </div>
   );
 }
 
-function isKurdishLabel(
-  language: "en" | "ku",
-  kurdish: string,
-  english: string
-) {
-  return language === "ku"
-    ? kurdish
-    : english;
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleDateString("en", {
-    dateStyle: "medium",
-  });
+function SidebarLink({
+  href,
+  label,
+}: {
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-bold text-[#D4AF37] transition hover:border-[#D4AF37]/40"
+    >
+      {label}
+    </Link>
+  );
 }
