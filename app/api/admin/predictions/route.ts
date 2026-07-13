@@ -12,6 +12,12 @@ import { requireServerAdmin } from "@/lib/serverAdminAuth";
 import {
   runPredictionEngine,
 } from "@/lib/ai/engine";
+import {
+  getCompleteFixtureData,
+} from "@/lib/api-football/service";
+import {
+  toPredictionPipelineInput,
+} from "@/lib/api-football/mapper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,12 +28,18 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
 
 type GeneratePredictionBody = {
+  fixtureId?: string | number;
   fixture?: unknown;
   statistics?: unknown[];
   lineups?: unknown[];
   events?: unknown[];
   source?: string;
   overwrite?: boolean;
+
+  includeHeadToHead?: boolean;
+  includeInjuries?: boolean;
+  includeOdds?: boolean;
+  headToHeadLimit?: number;
 };
 
 function serializeTimestamp(
@@ -100,7 +112,7 @@ function getSafeLimit(
   );
 }
 
-function getFixtureId(
+function getFixtureIdFromFixture(
   fixture: unknown
 ): string {
   if (
@@ -124,6 +136,43 @@ function getFixtureId(
     fixtureId === null
     ? ""
     : String(fixtureId).trim();
+}
+
+function normalizeFixtureId(
+  value: unknown
+): string {
+  const fixtureId =
+    value === undefined ||
+    value === null
+      ? ""
+      : String(value).trim();
+
+  if (!fixtureId) {
+    return "";
+  }
+
+  if (!/^\d+$/.test(fixtureId)) {
+    throw new Error(
+      "A valid numeric fixture ID is required."
+    );
+  }
+
+  return fixtureId;
+}
+
+function getSafeHeadToHeadLimit(
+  value: unknown
+): number {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return 10;
+  }
+
+  return Math.min(
+    20,
+    Math.max(1, Math.floor(parsed))
+  );
 }
 
 function getErrorStatus(
@@ -154,6 +203,12 @@ function getErrorStatus(
   }
 
   if (
+    normalized.includes("not found")
+  ) {
+    return 404;
+  }
+
+  if (
     normalized.includes("required") ||
     normalized.includes("invalid")
   ) {
@@ -166,6 +221,22 @@ function getErrorStatus(
     )
   ) {
     return 409;
+  }
+
+  if (
+    normalized.includes(
+      "api_football_key"
+    )
+  ) {
+    return 500;
+  }
+
+  if (
+    normalized.includes(
+      "api-football"
+    )
+  ) {
+    return 502;
   }
 
   return 500;
@@ -264,8 +335,42 @@ export async function POST(
       );
     }
 
+    const requestedFixtureId =
+      normalizeFixtureId(
+        body.fixtureId
+      );
+
+    const embeddedFixtureId =
+      getFixtureIdFromFixture(
+        body.fixture
+      );
+
+    if (
+      requestedFixtureId &&
+      embeddedFixtureId &&
+      requestedFixtureId !==
+        embeddedFixtureId
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "fixtureId does not match the supplied fixture object.",
+        },
+        {
+          status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
+      );
+    }
+
     const fixtureId =
-      getFixtureId(body.fixture);
+      requestedFixtureId ||
+      normalizeFixtureId(
+        embeddedFixtureId
+      );
 
     if (!fixtureId) {
       return NextResponse.json(
@@ -314,8 +419,87 @@ export async function POST(
       );
     }
 
-    const engineResult =
-      await runPredictionEngine({
+    let pipelineInput: {
+      fixture: unknown;
+      statistics: unknown[];
+      lineups: unknown[];
+      events: unknown[];
+      source: string;
+    };
+
+    let sourceData:
+      | {
+          fetchedFromApiFootball: true;
+          fetchedAt: string;
+          availability: {
+            fixture: boolean;
+            statistics: boolean;
+            events: boolean;
+            lineups: boolean;
+            headToHead: boolean;
+            injuries: boolean;
+            odds: boolean;
+          };
+          headToHead: unknown[];
+          injuries: unknown[];
+          odds: unknown[];
+        }
+      | {
+          fetchedFromApiFootball: false;
+          fetchedAt: null;
+          availability: null;
+          headToHead: unknown[];
+          injuries: unknown[];
+          odds: unknown[];
+        };
+
+    if (requestedFixtureId) {
+      const completeFixtureData =
+        await getCompleteFixtureData(
+          fixtureId,
+          {
+            includeHeadToHead:
+              body.includeHeadToHead !==
+              false,
+            includeInjuries:
+              body.includeInjuries !==
+              false,
+            includeOdds:
+              body.includeOdds === true,
+            headToHeadLimit:
+              getSafeHeadToHeadLimit(
+                body.headToHeadLimit
+              ),
+          }
+        );
+
+      pipelineInput = {
+        ...toPredictionPipelineInput(
+          completeFixtureData
+        ),
+        source:
+          typeof body.source ===
+            "string" &&
+          body.source.trim()
+            ? body.source.trim()
+            : "api-football-admin",
+      };
+
+      sourceData = {
+        fetchedFromApiFootball: true,
+        fetchedAt:
+          completeFixtureData.fetchedAt,
+        availability:
+          completeFixtureData.availability,
+        headToHead:
+          completeFixtureData.headToHead,
+        injuries:
+          completeFixtureData.injuries,
+        odds:
+          completeFixtureData.odds,
+      };
+    } else {
+      pipelineInput = {
         fixture: body.fixture,
         statistics: Array.isArray(
           body.statistics
@@ -337,8 +521,23 @@ export async function POST(
             "string" &&
           body.source.trim()
             ? body.source.trim()
-            : "admin-api",
-      });
+            : "admin-api-manual",
+      };
+
+      sourceData = {
+        fetchedFromApiFootball: false,
+        fetchedAt: null,
+        availability: null,
+        headToHead: [],
+        injuries: [],
+        odds: [],
+      };
+    }
+
+    const engineResult =
+      await runPredictionEngine(
+        pipelineInput
+      );
 
     if (!engineResult.success) {
       throw new Error(
@@ -357,16 +556,11 @@ export async function POST(
     const documentData = {
       ...engineResult.data.document,
 
-      /*
-       * Backward-compatible nested object used by
-       * existing admin history and activity screens.
-       */
       prediction:
         engineResult.data.prediction,
 
-      /*
-       * Accuracy tracking fields.
-       */
+      sourceData,
+
       correct:
         engineResult.data.validation
           .correct,
@@ -421,6 +615,13 @@ export async function POST(
       predictionId:
         predictionRef.id,
       fixtureId,
+      source:
+        pipelineInput.source,
+      fetchedFromApiFootball:
+        sourceData
+          .fetchedFromApiFootball,
+      dataAvailability:
+        sourceData.availability,
       performedBy,
       modelVersion:
         engineResult.data.prediction
