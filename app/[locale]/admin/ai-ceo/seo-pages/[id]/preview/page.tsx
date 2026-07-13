@@ -512,6 +512,13 @@ export default function SEOPagePreviewPage() {
       );
 
     if (!completed) {
+      document
+        .getElementById("human-review-checklist")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+
       window.alert(
         "Complete every human review checklist item before approval."
       );
@@ -783,15 +790,14 @@ export default function SEOPagePreviewPage() {
                 onClick={() =>
                   void handleApprove()
                 }
-                disabled={
-                  activeAction !== null ||
-                  !humanReviewCompleted
-                }
+                disabled={activeAction !== null}
                 className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {activeAction === "approve"
                   ? "Approving..."
-                  : "Approve Draft"}
+                  : humanReviewCompleted
+                  ? "Approve Draft"
+                  : "Complete Review First"}
               </button>
             )}
 
@@ -1675,7 +1681,10 @@ export default function SEOPagePreviewPage() {
         )}
       </section>
 
-      <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/25 bg-[#101827] p-6 md:p-8">
+      <section
+        id="human-review-checklist"
+        className="mt-8 scroll-mt-24 rounded-[2rem] border border-[#D4AF37]/25 bg-[#101827] p-6 md:p-8"
+      >
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
