@@ -1,18 +1,61 @@
+import type { PredictionRisk } from "./prediction";
+
 export type RiskResult = {
-  risk: "Low" | "Medium" | "High";
+  risk: PredictionRisk;
   riskScore: number;
+  probabilityGap: number;
+  drawPressure: number;
 };
 
-export function calculateRisk(homeWin: number, draw: number, awayWin: number): RiskResult {
-  const gap = Math.abs(homeWin - awayWin);
+function clamp(
+  value: number,
+  minimum: number,
+  maximum: number
+): number {
+  return Math.min(
+    maximum,
+    Math.max(minimum, value)
+  );
+}
 
-  if (gap >= 25 && draw < 28) {
-    return { risk: "Low", riskScore: 25 };
+export function calculateRisk(
+  homeWin: number,
+  draw: number,
+  awayWin: number
+): RiskResult {
+  const probabilityGap = Math.abs(
+    homeWin - awayWin
+  );
+
+  const drawPressure = clamp(
+    Math.round(draw),
+    0,
+    100
+  );
+
+  let riskScore =
+    100 -
+    probabilityGap * 1.6 +
+    drawPressure * 0.45;
+
+  riskScore = clamp(
+    Math.round(riskScore),
+    10,
+    95
+  );
+
+  let risk: PredictionRisk = "High";
+
+  if (riskScore <= 35) {
+    risk = "Low";
+  } else if (riskScore <= 65) {
+    risk = "Medium";
   }
 
-  if (gap >= 12) {
-    return { risk: "Medium", riskScore: 55 };
-  }
-
-  return { risk: "High", riskScore: 82 };
+  return {
+    risk,
+    riskScore,
+    probabilityGap,
+    drawPressure,
+  };
 }

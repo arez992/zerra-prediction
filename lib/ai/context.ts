@@ -1,4 +1,8 @@
-import type { PredictionResult } from "./prediction";
+import type {
+  PredictionResult,
+  PublicPrediction,
+  VIPPrediction,
+} from "./prediction";
 
 export type AIContext = {
   matchInfo: {
@@ -11,54 +15,152 @@ export type AIContext = {
     score: string;
   };
   prediction: PredictionResult;
+  publicPrediction: PublicPrediction;
+  vipPrediction: VIPPrediction;
   statistics: {
     home: Record<string, string | number>;
     away: Record<string, string | number>;
   };
   lineupsAvailable: boolean;
   eventsAvailable: boolean;
-  contextSummary: string;
+  publicContextSummary: string;
+  vipContextSummary: string;
 };
 
-function normalizeStats(statistics: any[] = []) {
-  const homeStats: Record<string, string | number> = {};
-  const awayStats: Record<string, string | number> = {};
+type TeamStatisticsBlock = {
+  team?: {
+    id?: number;
+    name?: string;
+  };
+  statistics?: Array<{
+    type?: string;
+    value?: string | number | null;
+  }>;
+};
 
-  statistics.forEach((teamStats: any) => {
-    const teamName = teamStats?.team?.name || "";
-    const isHome = teamStats?.isHome || false;
+function normalizeStats(
+  statistics: TeamStatisticsBlock[] = [],
+  homeTeamId?: number,
+  awayTeamId?: number
+) {
+  const homeStats: Record<
+    string,
+    string | number
+  > = {};
 
-    teamStats?.statistics?.forEach((stat: any) => {
-      const key = stat.type;
-      const value = stat.value ?? "N/A";
+  const awayStats: Record<
+    string,
+    string | number
+  > = {};
 
-      if (isHome || teamName) {
-        if (Object.keys(homeStats).length <= Object.keys(awayStats).length) {
-          homeStats[key] = value;
-        } else {
-          awayStats[key] = value;
-        }
+  for (const teamStats of statistics) {
+    const teamId = teamStats?.team?.id;
+
+    const target =
+      teamId === homeTeamId
+        ? homeStats
+        : teamId === awayTeamId
+        ? awayStats
+        : Object.keys(homeStats).length === 0
+        ? homeStats
+        : awayStats;
+
+    for (const stat of teamStats.statistics || []) {
+      const key = stat.type?.trim();
+
+      if (!key) {
+        continue;
       }
-    });
-  });
 
-  return { homeStats, awayStats };
+      target[key] =
+        stat.value ?? "N/A";
+    }
+  }
+
+  return {
+    homeStats,
+    awayStats,
+  };
 }
 
-export function buildAIContext(match: any, prediction: PredictionResult): AIContext {
-  const fixture = match?.fixture;
+export function buildAIContext(
+  match: unknown,
+  prediction: PredictionResult
+): AIContext {
+  const source = match as {
+    fixture?: {
+      teams?: {
+        home?: {
+          id?: number;
+          name?: string;
+        };
+        away?: {
+          id?: number;
+          name?: string;
+        };
+      };
+      league?: {
+        name?: string;
+        country?: string;
+      };
+      fixture?: {
+        venue?: {
+          name?: string;
+        };
+        status?: {
+          long?: string;
+        };
+      };
+      goals?: {
+        home?: number | null;
+        away?: number | null;
+      };
+    };
+    statistics?: TeamStatisticsBlock[];
+    lineups?: unknown[];
+    events?: unknown[];
+  };
 
-  const homeTeam = fixture?.teams?.home?.name || "Home team";
-  const awayTeam = fixture?.teams?.away?.name || "Away team";
-  const league = fixture?.league?.name || "Football";
-  const country = fixture?.league?.country || "Unknown";
-  const venue = fixture?.fixture?.venue?.name || "Unknown venue";
-  const status = fixture?.fixture?.status?.long || "Unknown status";
+  const fixture = source.fixture;
 
-  const homeGoals = fixture?.goals?.home ?? "-";
-  const awayGoals = fixture?.goals?.away ?? "-";
+  const homeTeam =
+    fixture?.teams?.home?.name ||
+    "Home team";
 
-  const { homeStats, awayStats } = normalizeStats(match?.statistics || []);
+  const awayTeam =
+    fixture?.teams?.away?.name ||
+    "Away team";
+
+  const league =
+    fixture?.league?.name ||
+    "Football";
+
+  const country =
+    fixture?.league?.country ||
+    "Unknown";
+
+  const venue =
+    fixture?.fixture?.venue?.name ||
+    "Unknown venue";
+
+  const status =
+    fixture?.fixture?.status?.long ||
+    "Unknown status";
+
+  const homeGoals =
+    fixture?.goals?.home ?? "-";
+
+  const awayGoals =
+    fixture?.goals?.away ?? "-";
+
+  const {
+    homeStats,
+    awayStats,
+  } = normalizeStats(
+    source.statistics || [],
+    fixture?.teams?.home?.id,
+    fixture?.teams?.away?.id
+  );
 
   return {
     matchInfo: {
@@ -70,13 +172,36 @@ export function buildAIContext(match: any, prediction: PredictionResult): AICont
       status,
       score: `${homeGoals} - ${awayGoals}`,
     },
+
     prediction,
+    publicPrediction:
+      prediction.publicPrediction,
+    vipPrediction:
+      prediction.vipPrediction,
+
     statistics: {
       home: homeStats,
       away: awayStats,
     },
-    lineupsAvailable: Array.isArray(match?.lineups) && match.lineups.length > 0,
-    eventsAvailable: Array.isArray(match?.events) && match.events.length > 0,
-    contextSummary: `${homeTeam} vs ${awayTeam} in ${league}. Current status: ${status}. AI confidence: ${prediction.confidence}%. Value bet: ${prediction.valueBet}. Risk: ${prediction.risk}.`,
+
+    lineupsAvailable:
+      Array.isArray(source.lineups) &&
+      source.lineups.length > 0,
+
+    eventsAvailable:
+      Array.isArray(source.events) &&
+      source.events.length > 0,
+
+    publicContextSummary:
+      `${homeTeam} vs ${awayTeam} in ${league}. ` +
+      `Risk level: ${prediction.publicPrediction.risk}. ` +
+      `${prediction.publicPrediction.teaser}`,
+
+    vipContextSummary:
+      `${homeTeam} vs ${awayTeam} in ${league}. ` +
+      `Final prediction: ${prediction.vipPrediction.finalPrediction}. ` +
+      `Confidence: ${prediction.vipPrediction.confidence}%. ` +
+      `Value signal: ${prediction.vipPrediction.valueBet}. ` +
+      `Risk: ${prediction.risk} (${prediction.riskScore}/100).`,
   };
 }
