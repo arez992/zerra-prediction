@@ -51,6 +51,20 @@ type DashboardRow = {
     humanReview: "completed" | "required";
   };
 
+  humanReview: {
+    factsVerified: boolean;
+    noMisleadingClaims: boolean;
+    titleMetaReviewed: boolean;
+    faqReviewed: boolean;
+    linksChecked: boolean;
+    schemaChecked: boolean;
+    riskWordingReviewed: boolean;
+    finalEditorialApproval: boolean;
+    completed: boolean;
+    reviewedBy: string | null;
+    reviewedAt: string | null;
+  };
+
   recommendation: string;
   updatedAt: string | null;
   createdAt: string | null;
@@ -796,6 +810,45 @@ export async function GET(
               humanReviewCompleted
                 ? "completed"
                 : "required",
+          },
+
+          humanReview: {
+            factsVerified:
+              humanReview.factsVerified === true,
+
+            noMisleadingClaims:
+              humanReview.noMisleadingClaims === true,
+
+            titleMetaReviewed:
+              humanReview.titleMetaReviewed === true,
+
+            faqReviewed:
+              humanReview.faqReviewed === true,
+
+            linksChecked:
+              humanReview.linksChecked === true,
+
+            schemaChecked:
+              humanReview.schemaChecked === true,
+
+            riskWordingReviewed:
+              humanReview.riskWordingReviewed === true,
+
+            finalEditorialApproval:
+              humanReview.finalEditorialApproval === true,
+
+            completed:
+              humanReview.completed === true,
+
+            reviewedBy:
+              typeof humanReview.reviewedBy ===
+              "string"
+                ? humanReview.reviewedBy
+                : null,
+
+            reviewedAt: serializeTimestamp(
+              humanReview.reviewedAt
+            ),
           },
 
           recommendation:

@@ -44,6 +44,21 @@ type DashboardRow = {
     duplicate: QualityLabel;
     humanReview: QualityLabel;
   };
+
+  humanReview: {
+    factsVerified: boolean;
+    noMisleadingClaims: boolean;
+    titleMetaReviewed: boolean;
+    faqReviewed: boolean;
+    linksChecked: boolean;
+    schemaChecked: boolean;
+    riskWordingReviewed: boolean;
+    finalEditorialApproval: boolean;
+    completed: boolean;
+    reviewedBy: string | null;
+    reviewedAt: string | null;
+  };
+
   recommendation: string;
   updatedAt: string | null;
   createdAt: string | null;
@@ -225,6 +240,12 @@ export default function SEOQualityDashboardPage() {
     string | null
   >(null);
 
+  const [activeAction, setActiveAction] =
+    useState<string | null>(null);
+
+  const [actionMessage, setActionMessage] =
+    useState("");
+
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
 
@@ -281,6 +302,145 @@ export default function SEOQualityDashboardPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }
+
+  async function runDraftAction(
+    row: DashboardRow,
+    action:
+      | "approve"
+      | "reject"
+      | "publish"
+      | "unpublish"
+  ) {
+    setActionMessage("");
+    setError("");
+
+    let body: Record<string, unknown> = {};
+
+    if (action === "approve") {
+      if (!row.humanReview.completed) {
+        window.alert(
+          "Complete the human review checklist before approval."
+        );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "Approve this SEO draft?"
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      body = {
+        humanReview: {
+          factsVerified:
+            row.humanReview.factsVerified,
+
+          noMisleadingClaims:
+            row.humanReview.noMisleadingClaims,
+
+          titleMetaReviewed:
+            row.humanReview.titleMetaReviewed,
+
+          faqReviewed:
+            row.humanReview.faqReviewed,
+
+          linksChecked:
+            row.humanReview.linksChecked,
+
+          schemaChecked:
+            row.humanReview.schemaChecked,
+
+          riskWordingReviewed:
+            row.humanReview.riskWordingReviewed,
+
+          finalEditorialApproval:
+            row.humanReview.finalEditorialApproval,
+        },
+      };
+    }
+
+    if (action === "reject") {
+      const reason = window.prompt(
+        "Enter the rejection reason:"
+      );
+
+      if (!reason?.trim()) {
+        return;
+      }
+
+      body = {
+        reason: reason.trim(),
+      };
+    }
+
+    if (action === "publish") {
+      const confirmed = window.confirm(
+        "Publish this approved SEO page?"
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    if (action === "unpublish") {
+      const confirmed = window.confirm(
+        "Unpublish this SEO page?"
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setActiveAction(`${row.id}:${action}`);
+
+    try {
+      const response = await fetch(
+        `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
+          row.id
+        )}/${action}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      const data = (await response.json()) as {
+        success: boolean;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            `Unable to ${action} SEO draft.`
+        );
+      }
+
+      setActionMessage(
+        data.message ||
+          `SEO draft ${action} action completed.`
+      );
+
+      await loadDashboard(true);
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : `Unable to ${action} SEO draft.`
+      );
+    } finally {
+      setActiveAction(null);
     }
   }
 
@@ -343,6 +503,12 @@ export default function SEOQualityDashboardPage() {
         {error && (
           <div className="mt-6 rounded-3xl border border-rose-400/25 bg-rose-400/10 p-5 text-sm leading-7 text-rose-200">
             {error}
+          </div>
+        )}
+
+        {actionMessage && (
+          <div className="mt-6 rounded-3xl border border-emerald-400/25 bg-emerald-400/10 p-5 text-sm leading-7 text-emerald-200">
+            {actionMessage}
           </div>
         )}
 
@@ -647,14 +813,127 @@ export default function SEOQualityDashboardPage() {
                         </td>
 
                         <td className="px-5 py-5">
-                          <Link
-                            href={`../seo-pages/${encodeURIComponent(
-                              row.id
-                            )}/preview`}
-                            className="inline-flex rounded-full border border-[#D4AF37]/35 px-4 py-2 text-xs font-black text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-black"
-                          >
-                            Review
-                          </Link>
+                          <div className="flex min-w-[270px] flex-wrap gap-2">
+                            <Link
+                              href={`../seo-pages/${encodeURIComponent(
+                                row.id
+                              )}/preview`}
+                              className="rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white/75 transition hover:border-[#D4AF37]/45 hover:text-white"
+                            >
+                              Preview
+                            </Link>
+
+                            <Link
+                              href={`../seo-pages/${encodeURIComponent(
+                                row.id
+                              )}/edit`}
+                              className="rounded-full border border-sky-400/30 px-3 py-2 text-xs font-black text-sky-300 transition hover:bg-sky-400/10"
+                            >
+                              Edit
+                            </Link>
+
+                            {row.draftStatus !==
+                              "published" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void runDraftAction(
+                                      row,
+                                      "approve"
+                                    )
+                                  }
+                                  disabled={
+                                    activeAction !==
+                                      null ||
+                                    !row.humanReview
+                                      .completed ||
+                                    row.draftStatus ===
+                                      "approved"
+                                  }
+                                  className="rounded-full border border-emerald-400/30 px-3 py-2 text-xs font-black text-emerald-300 transition hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                >
+                                  {activeAction ===
+                                  `${row.id}:approve`
+                                    ? "Approving..."
+                                    : "Approve"}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void runDraftAction(
+                                      row,
+                                      "reject"
+                                    )
+                                  }
+                                  disabled={
+                                    activeAction !==
+                                    null
+                                  }
+                                  className="rounded-full border border-rose-400/30 px-3 py-2 text-xs font-black text-rose-300 transition hover:bg-rose-400/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                >
+                                  {activeAction ===
+                                  `${row.id}:reject`
+                                    ? "Rejecting..."
+                                    : "Reject"}
+                                </button>
+                              </>
+                            )}
+
+                            {row.draftStatus ===
+                              "approved" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runDraftAction(
+                                    row,
+                                    "publish"
+                                  )
+                                }
+                                disabled={
+                                  activeAction !== null
+                                }
+                                className="rounded-full bg-[#D4AF37] px-3 py-2 text-xs font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {activeAction ===
+                                `${row.id}:publish`
+                                  ? "Publishing..."
+                                  : "Publish"}
+                              </button>
+                            )}
+
+                            {row.draftStatus ===
+                              "published" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runDraftAction(
+                                    row,
+                                    "unpublish"
+                                  )
+                                }
+                                disabled={
+                                  activeAction !== null
+                                }
+                                className="rounded-full border border-orange-400/30 px-3 py-2 text-xs font-black text-orange-200 transition hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {activeAction ===
+                                `${row.id}:unpublish`
+                                  ? "Unpublishing..."
+                                  : "Unpublish"}
+                              </button>
+                            )}
+                          </div>
+
+                          {!row.humanReview.completed &&
+                            row.draftStatus !==
+                              "published" && (
+                              <p className="mt-2 text-[11px] leading-4 text-amber-200/65">
+                                Complete human review to
+                                unlock approval.
+                              </p>
+                            )}
                         </td>
                       </tr>
                     ))}
@@ -740,20 +1019,119 @@ export default function SEOQualityDashboardPage() {
                       {row.recommendation}
                     </p>
 
-                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-5">
                       <p className="text-xs text-white/35">
                         Updated:{" "}
                         {formatDate(row.updatedAt)}
                       </p>
 
-                      <Link
-                        href={`../seo-pages/${encodeURIComponent(
-                          row.id
-                        )}/preview`}
-                        className="rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-black text-black"
-                      >
-                        Review Draft
-                      </Link>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Link
+                          href={`../seo-pages/${encodeURIComponent(
+                            row.id
+                          )}/preview`}
+                          className="rounded-full border border-white/15 px-4 py-2 text-xs font-black text-white/75"
+                        >
+                          Preview
+                        </Link>
+
+                        <Link
+                          href={`../seo-pages/${encodeURIComponent(
+                            row.id
+                          )}/edit`}
+                          className="rounded-full border border-sky-400/30 px-4 py-2 text-xs font-black text-sky-300"
+                        >
+                          Edit
+                        </Link>
+
+                        {row.draftStatus !==
+                          "published" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void runDraftAction(
+                                  row,
+                                  "approve"
+                                )
+                              }
+                              disabled={
+                                activeAction !== null ||
+                                !row.humanReview
+                                  .completed ||
+                                row.draftStatus ===
+                                  "approved"
+                              }
+                              className="rounded-full border border-emerald-400/30 px-4 py-2 text-xs font-black text-emerald-300 disabled:opacity-35"
+                            >
+                              Approve
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void runDraftAction(
+                                  row,
+                                  "reject"
+                                )
+                              }
+                              disabled={
+                                activeAction !== null
+                              }
+                              className="rounded-full border border-rose-400/30 px-4 py-2 text-xs font-black text-rose-300 disabled:opacity-35"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+
+                        {row.draftStatus ===
+                          "approved" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void runDraftAction(
+                                row,
+                                "publish"
+                              )
+                            }
+                            disabled={
+                              activeAction !== null
+                            }
+                            className="rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-black text-black disabled:opacity-40"
+                          >
+                            Publish
+                          </button>
+                        )}
+
+                        {row.draftStatus ===
+                          "published" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void runDraftAction(
+                                row,
+                                "unpublish"
+                              )
+                            }
+                            disabled={
+                              activeAction !== null
+                            }
+                            className="rounded-full border border-orange-400/30 px-4 py-2 text-xs font-black text-orange-200 disabled:opacity-40"
+                          >
+                            Unpublish
+                          </button>
+                        )}
+                      </div>
+
+                      {!row.humanReview.completed &&
+                        row.draftStatus !==
+                          "published" && (
+                          <p className="mt-3 text-xs leading-5 text-amber-200/65">
+                            Complete human review to
+                            unlock approval.
+                          </p>
+                        )}
                     </div>
                   </article>
                 ))}
