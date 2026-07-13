@@ -159,6 +159,20 @@ export type SEOPageGeneration = {
   factualDataAvailable?: boolean;
 };
 
+export type SEOHumanReview = {
+  factsVerified: boolean;
+  noMisleadingClaims: boolean;
+  titleMetaReviewed: boolean;
+  faqReviewed: boolean;
+  linksChecked: boolean;
+  schemaChecked: boolean;
+  riskWordingReviewed: boolean;
+  finalEditorialApproval: boolean;
+  completed: boolean;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+};
+
 export type SEOPageDraftItem = {
   id: string;
   keyword: string;
@@ -195,6 +209,8 @@ export type SEOPageDraftItem = {
   publishedAt?: string | null;
 
   generation?: SEOPageGeneration;
+
+  humanReview?: SEOHumanReview | null;
 
   guardrails?: {
     peopleFirstContent: boolean;

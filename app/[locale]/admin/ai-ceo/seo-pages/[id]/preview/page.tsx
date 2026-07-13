@@ -67,6 +67,83 @@ type DraftAction =
   | "unpublish"
   | "rollback";
 
+type HumanReviewChecklist = {
+  factsVerified: boolean;
+  noMisleadingClaims: boolean;
+  titleMetaReviewed: boolean;
+  faqReviewed: boolean;
+  linksChecked: boolean;
+  schemaChecked: boolean;
+  riskWordingReviewed: boolean;
+  finalEditorialApproval: boolean;
+};
+
+const emptyHumanReview: HumanReviewChecklist = {
+  factsVerified: false,
+  noMisleadingClaims: false,
+  titleMetaReviewed: false,
+  faqReviewed: false,
+  linksChecked: false,
+  schemaChecked: false,
+  riskWordingReviewed: false,
+  finalEditorialApproval: false,
+};
+
+const humanReviewItems: Array<{
+  key: keyof HumanReviewChecklist;
+  title: string;
+  description: string;
+}> = [
+  {
+    key: "factsVerified",
+    title: "Facts verified",
+    description:
+      "Match details and factual claims were checked against trusted data.",
+  },
+  {
+    key: "noMisleadingClaims",
+    title: "No misleading claims",
+    description:
+      "The draft does not promise results or present uncertain claims as facts.",
+  },
+  {
+    key: "titleMetaReviewed",
+    title: "Title and metadata reviewed",
+    description:
+      "SEO title, H1, description, and canonical path are accurate.",
+  },
+  {
+    key: "faqReviewed",
+    title: "FAQ reviewed",
+    description:
+      "FAQ questions and answers are useful, complete, and non-duplicative.",
+  },
+  {
+    key: "linksChecked",
+    title: "Links checked",
+    description:
+      "Internal-link validation and broken-link checks were reviewed.",
+  },
+  {
+    key: "schemaChecked",
+    title: "Schema checked",
+    description:
+      "Generated structured data and required event fields were reviewed.",
+  },
+  {
+    key: "riskWordingReviewed",
+    title: "Risk wording reviewed",
+    description:
+      "Prediction uncertainty and responsible-risk wording are clear.",
+  },
+  {
+    key: "finalEditorialApproval",
+    title: "Final editorial approval",
+    description:
+      "The reviewer confirms the page is ready for approval.",
+  },
+];
+
 type BrokenLinkStatus =
   | "healthy"
   | "redirect"
@@ -139,6 +216,11 @@ export default function SEOPagePreviewPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const [humanReview, setHumanReview] =
+    useState<HumanReviewChecklist>(
+      emptyHumanReview
+    );
+
   const loadDraft = useCallback(async () => {
     if (!draftId) {
       setLoading(false);
@@ -176,6 +258,28 @@ export default function SEOPagePreviewPage() {
       }
 
       setDraft(data.draft);
+
+      const savedReview =
+        data.draft.humanReview;
+
+      setHumanReview({
+        factsVerified:
+          savedReview?.factsVerified === true,
+        noMisleadingClaims:
+          savedReview?.noMisleadingClaims === true,
+        titleMetaReviewed:
+          savedReview?.titleMetaReviewed === true,
+        faqReviewed:
+          savedReview?.faqReviewed === true,
+        linksChecked:
+          savedReview?.linksChecked === true,
+        schemaChecked:
+          savedReview?.schemaChecked === true,
+        riskWordingReviewed:
+          savedReview?.riskWordingReviewed === true,
+        finalEditorialApproval:
+          savedReview?.finalEditorialApproval === true,
+      });
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -402,13 +506,27 @@ export default function SEOPagePreviewPage() {
   }
 
   async function handleApprove() {
+    const completed =
+      Object.values(humanReview).every(
+        (value) => value === true
+      );
+
+    if (!completed) {
+      window.alert(
+        "Complete every human review checklist item before approval."
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Approve this SEO draft?"
+      "Approve this SEO draft after completing the human review?"
     );
 
     if (!confirmed) return;
 
-    await runDraftAction("approve");
+    await runDraftAction("approve", {
+      humanReview,
+    });
   }
 
   async function handleReject() {
@@ -572,6 +690,11 @@ export default function SEOPagePreviewPage() {
   const publicPath =
     draft.canonicalPath || "";
 
+  const humanReviewCompleted =
+    Object.values(humanReview).every(
+      (value) => value === true
+    );
+
   const quality =
     evaluateSEOContentQuality(draft);
 
@@ -660,7 +783,10 @@ export default function SEOPagePreviewPage() {
                 onClick={() =>
                   void handleApprove()
                 }
-                disabled={activeAction !== null}
+                disabled={
+                  activeAction !== null ||
+                  !humanReviewCompleted
+                }
                 className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {activeAction === "approve"
@@ -1545,6 +1671,103 @@ export default function SEOPagePreviewPage() {
           <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-4 text-sm leading-7 text-green-300">
             ✅ The generated schema passed all required
             validation checks.
+          </div>
+        )}
+      </section>
+
+      <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/25 bg-[#101827] p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Required Approval Gate
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black">
+              Human Review Checklist
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
+              Every item must be confirmed before the
+              server allows this draft to move into
+              approved status.
+            </p>
+          </div>
+
+          <div className="min-w-[190px] rounded-3xl border border-white/10 bg-black/25 p-5 text-center">
+            <p className="text-4xl font-black text-[#D4AF37]">
+              {
+                Object.values(humanReview).filter(
+                  Boolean
+                ).length
+              }
+              <span className="text-xl text-white/35">
+                /{humanReviewItems.length}
+              </span>
+            </p>
+
+            <p className="mt-2 text-sm font-black uppercase tracking-wider text-white/70">
+              {humanReviewCompleted
+                ? "Review Complete"
+                : "Review Required"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          {humanReviewItems.map((item) => (
+            <label
+              key={item.key}
+              className="flex cursor-pointer items-start gap-4 rounded-3xl border border-white/10 bg-black/25 p-5 transition hover:border-[#D4AF37]/30"
+            >
+              <input
+                type="checkbox"
+                checked={humanReview[item.key]}
+                disabled={
+                  activeAction !== null ||
+                  draft.status === "published"
+                }
+                onChange={(event) =>
+                  setHumanReview((current) => ({
+                    ...current,
+                    [item.key]:
+                      event.target.checked,
+                  }))
+                }
+                className="mt-1 h-5 w-5 accent-[#D4AF37]"
+              />
+
+              <span className="min-w-0">
+                <span className="block font-black">
+                  {item.title}
+                </span>
+
+                <span className="mt-1 block text-sm leading-6 text-white/50">
+                  {item.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {!humanReviewCompleted && canApprove && (
+          <div className="mt-6 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm leading-7 text-yellow-200/80">
+            Approval is locked until every review item
+            is confirmed.
+          </div>
+        )}
+
+        {draft.humanReview?.completed && (
+          <div className="mt-6 rounded-2xl border border-green-500/25 bg-green-500/10 p-4 text-sm leading-7 text-green-300">
+            ✅ Reviewed
+            {draft.humanReview.reviewedBy
+              ? ` by ${draft.humanReview.reviewedBy}`
+              : ""}
+            {draft.humanReview.reviewedAt
+              ? ` on ${formatDateTime(
+                  draft.humanReview.reviewedAt
+                )}`
+              : ""}
+            .
           </div>
         )}
       </section>

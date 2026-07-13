@@ -26,6 +26,21 @@ export type SEOContentGeneration = {
   factualDataAvailable?: boolean;
 };
 
+export type SEOHumanReview = {
+  factsVerified: boolean;
+  noMisleadingClaims: boolean;
+  titleMetaReviewed: boolean;
+  faqReviewed: boolean;
+  linksChecked: boolean;
+  schemaChecked: boolean;
+  riskWordingReviewed: boolean;
+  finalEditorialApproval: boolean;
+
+  completed: boolean;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+};
+
 export type SEOPageDraft = {
   id: string;
 
@@ -69,6 +84,8 @@ export type SEOPageDraft = {
 
   generation?: SEOContentGeneration;
 
+  humanReview?: SEOHumanReview | null;
+
   guardrails: {
     peopleFirstContent: boolean;
     uniqueHelpfulContent: boolean;
@@ -82,8 +99,10 @@ export type CreateSEOPageDraftInput = {
   keyword: string;
   country?: string | null;
   language?: SEOPageLanguage;
+
   fixtureId?: string | null;
   fixtureDate?: string | null;
+
   sourceRecommendationId?: string | null;
   createdBy: string;
 };
