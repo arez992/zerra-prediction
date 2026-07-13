@@ -24,6 +24,17 @@ type SEOFAQ = {
   answer?: string;
 };
 
+type SEOPublicContent = {
+  overview?: string;
+  recentForm?: string;
+  headToHead?: string;
+  homeAwayStats?: string;
+  injuries?: string;
+  aiSummary?: string;
+  riskLevel?: "Low" | "Medium" | "High";
+  keyInsights?: string[];
+};
+
 type PublishedSEOPage = {
   id: string;
   keyword: string;
@@ -41,6 +52,8 @@ type PublishedSEOPage = {
 
   sections: SEOSection[];
   faq: SEOFAQ[];
+
+  publicContent?: SEOPublicContent | null;
 
   internalLinks: string[];
   relatedKeywords: string[];
@@ -129,6 +142,60 @@ const getPublishedPage = cache(
       faq: Array.isArray(data.faq)
         ? data.faq
         : [],
+
+      publicContent:
+        data.publicContent &&
+        typeof data.publicContent === "object"
+          ? {
+              overview:
+                typeof data.publicContent.overview ===
+                "string"
+                  ? data.publicContent.overview
+                  : "",
+              recentForm:
+                typeof data.publicContent.recentForm ===
+                "string"
+                  ? data.publicContent.recentForm
+                  : "",
+              headToHead:
+                typeof data.publicContent.headToHead ===
+                "string"
+                  ? data.publicContent.headToHead
+                  : "",
+              homeAwayStats:
+                typeof data.publicContent.homeAwayStats ===
+                "string"
+                  ? data.publicContent.homeAwayStats
+                  : "",
+              injuries:
+                typeof data.publicContent.injuries ===
+                "string"
+                  ? data.publicContent.injuries
+                  : "",
+              aiSummary:
+                typeof data.publicContent.aiSummary ===
+                "string"
+                  ? data.publicContent.aiSummary
+                  : "",
+              riskLevel:
+                data.publicContent.riskLevel === "Low" ||
+                data.publicContent.riskLevel === "High"
+                  ? data.publicContent.riskLevel
+                  : "Medium",
+              keyInsights: Array.isArray(
+                data.publicContent.keyInsights
+              )
+                ? data.publicContent.keyInsights
+                    .map((item: unknown) =>
+                      typeof item === "string"
+                        ? item.trim()
+                        : ""
+                    )
+                    .filter(Boolean)
+                    .slice(0, 5)
+                : [],
+            }
+          : null,
 
       internalLinks: Array.isArray(data.internalLinks)
         ? data.internalLinks
@@ -230,11 +297,77 @@ export default async function PublishedSEOPage({
   const canonicalUrl =
     `${siteUrl}${page.canonicalPath}`;
 
+  const isKurdish = page.language === "ku";
+
   const faqItems = page.faq.filter(
     (item) =>
       String(item.question || "").trim() &&
       String(item.answer || "").trim()
   );
+
+  const publicContent = page.publicContent;
+
+  const publicSections = publicContent
+    ? [
+        {
+          heading: isNonEmpty(publicContent.overview)
+            ? isKurdishLabel(page.language, "کورتەی یاری", "Match Overview")
+            : "",
+          content: publicContent.overview || "",
+        },
+        {
+          heading: isNonEmpty(publicContent.recentForm)
+            ? isKurdishLabel(page.language, "فۆڕمی نوێ", "Recent Form")
+            : "",
+          content: publicContent.recentForm || "",
+        },
+        {
+          heading: isNonEmpty(publicContent.headToHead)
+            ? isKurdishLabel(page.language, "ڕووبەڕووبوونەوە", "Head-to-Head")
+            : "",
+          content: publicContent.headToHead || "",
+        },
+        {
+          heading: isNonEmpty(publicContent.homeAwayStats)
+            ? isKurdishLabel(
+                page.language,
+                "ئاماری ماڵەوە و دەرەوە",
+                "Home & Away Statistics"
+              )
+            : "",
+          content: publicContent.homeAwayStats || "",
+        },
+        {
+          heading: isNonEmpty(publicContent.injuries)
+            ? isKurdishLabel(
+                page.language,
+                "برینداری و بەردەستبوون",
+                "Injuries & Availability"
+              )
+            : "",
+          content: publicContent.injuries || "",
+        },
+        {
+          heading: isNonEmpty(publicContent.aiSummary)
+            ? isKurdishLabel(
+                page.language,
+                "کورتەی شیکاری AI",
+                "AI Match Summary"
+              )
+            : "",
+          content: publicContent.aiSummary || "",
+        },
+      ].filter(
+        (item) =>
+          isNonEmpty(item.heading) &&
+          isNonEmpty(item.content)
+      )
+    : [];
+
+  const visibleSections =
+    publicSections.length > 0
+      ? publicSections
+      : page.sections;
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -300,8 +433,6 @@ export default async function PublishedSEOPage({
       },
     ],
   };
-
-  const isKurdish = page.language === "ku";
 
   return (
     <main
@@ -389,7 +520,7 @@ export default async function PublishedSEOPage({
             </header>
 
             <section className="mt-8 space-y-6">
-              {page.sections.map((section, index) => {
+              {visibleSections.map((section, index) => {
                 const heading = String(
                   section.heading || ""
                 ).trim();
@@ -417,6 +548,146 @@ export default async function PublishedSEOPage({
                   </section>
                 );
               })}
+            </section>
+
+            {publicContent &&
+              Array.isArray(publicContent.keyInsights) &&
+              publicContent.keyInsights.length > 0 && (
+                <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+                        {isKurdish
+                          ? "تێبینییە سەرەکییەکان"
+                          : "Key Insights"}
+                      </p>
+
+                      <h2 className="mt-4 text-3xl font-black">
+                        {isKurdish
+                          ? "ئەو خاڵانەی پێویستە بزانیت"
+                          : "What to Know Before Kickoff"}
+                      </h2>
+                    </div>
+
+                    <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-4 py-2 text-sm font-black text-yellow-200">
+                      {isKurdish
+                        ? `ئاستی ڕیسک: ${
+                            publicContent.riskLevel || "Medium"
+                          }`
+                        : `Risk level: ${
+                            publicContent.riskLevel || "Medium"
+                          }`}
+                    </span>
+                  </div>
+
+                  <div className="mt-7 grid gap-3">
+                    {publicContent.keyInsights.map(
+                      (insight, index) => (
+                        <div
+                          key={`${insight}-${index}`}
+                          className="flex gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
+                        >
+                          <span className="font-black text-[#D4AF37]">
+                            ✓
+                          </span>
+
+                          <p className="leading-7 text-white/65">
+                            {insight}
+                          </p>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </section>
+              )}
+
+            <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D4AF37]/35 bg-gradient-to-br from-[#1b2230] via-[#111b2b] to-[#0b1422] shadow-2xl">
+              <div className="border-b border-white/10 p-7 md:p-9">
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.32em] text-[#D4AF37]">
+                      🔒 ZERRA VIP
+                    </p>
+
+                    <h2 className="mt-4 text-3xl font-black md:text-4xl">
+                      {isKurdish
+                        ? "پێشبینی کۆتایی AI بکەرەوە"
+                        : "Unlock the Final AI Prediction"}
+                    </h2>
+
+                    <p className="mt-4 max-w-3xl text-base leading-8 text-white/60">
+                      {isKurdish
+                        ? "AI ـی ZERRA شیکاری وردی یاری تەواو کردووە. زانیارییە کۆتایی و بەهای بەرزی پێشبینی تەنها بۆ ئەندامانی VIP پارێزراوە."
+                        : "ZERRA AI has completed a deeper match analysis. The final decision-grade insights remain protected for VIP members."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-5 py-4 text-center">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#D4AF37]">
+                      {isKurdish
+                        ? "پێشبینی ئامادەیە"
+                        : "Prediction Ready"}
+                    </p>
+
+                    <p className="mt-2 text-2xl">
+                      ★★★★☆
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-7 md:grid-cols-2 md:p-9">
+                {[
+                  isKurdish
+                    ? "پێشبینی کۆتایی یاری"
+                    : "Final match prediction",
+                  isKurdish
+                    ? "ڕێژەی متمانەی ورد"
+                    : "Exact confidence score",
+                  isKurdish
+                    ? "ئەنجامی تەخمینکراو"
+                    : "Estimated exact score",
+                  isKurdish
+                    ? "باشترین بازاڕی پێشبینی"
+                    : "Best prediction market",
+                  isKurdish
+                    ? "هەڵبژاردە جێگرەوەکان"
+                    : "Alternative selections",
+                  isKurdish
+                    ? "شیکاری تەواوی AI"
+                    : "Full AI reasoning",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
+                  >
+                    <span className="text-[#D4AF37]">
+                      🔒
+                    </span>
+
+                    <span className="font-bold text-white/70">
+                      {item}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-white/10 p-7 md:p-9">
+                <Link
+                  href={`/${page.language}/vip`}
+                  className="flex w-full items-center justify-center rounded-full bg-[#D4AF37] px-6 py-4 text-base font-black text-black transition hover:brightness-110"
+                >
+                  {isKurdish
+                    ? "پێشبینی VIP بکەرەوە"
+                    : "Unlock VIP Prediction"}
+                </Link>
+
+                <p className="mt-4 text-center text-xs leading-6 text-white/35">
+                  {isKurdish
+                    ? "هیچ پێشبینییەکی وەرزشی گەرەنتی نییە. VIP شیکاری زیاتر دەدات، نەک دڵنیایی."
+                    : "No football prediction is guaranteed. VIP provides deeper analysis, not certainty."}
+                </p>
+              </div>
             </section>
 
             {faqItems.length > 0 && (
@@ -520,8 +791,8 @@ export default async function PublishedSEOPage({
 
               <p className="mt-4 text-sm leading-7 text-white/55">
                 {isKurdish
-                  ? "دەستگەیشتن بە confidence، risk، value picks و شیکاری وردتر."
-                  : "Unlock confidence scores, risk analysis, value picks, and deeper match insights."}
+                  ? "پێشبینی کۆتایی، ڕێژەی متمانە، ئەنجامی تەخمینکراو و شیکاری وردی AI بکەرەوە."
+                  : "Unlock the final prediction, confidence score, estimated score, and full AI reasoning."}
               </p>
 
               <Link
@@ -529,8 +800,8 @@ export default async function PublishedSEOPage({
                 className="mt-6 flex items-center justify-center rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black"
               >
                 {isKurdish
-                  ? "بچۆ بۆ VIP"
-                  : "Unlock VIP"}
+                  ? "پێشبینی VIP بکەرەوە"
+                  : "Unlock VIP Prediction"}
               </Link>
             </section>
           </aside>
@@ -568,6 +839,23 @@ function SidebarCard({
       <div className="mt-5">{children}</div>
     </section>
   );
+}
+
+function isNonEmpty(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0
+  );
+}
+
+function isKurdishLabel(
+  language: "en" | "ku",
+  kurdish: string,
+  english: string
+) {
+  return language === "ku"
+    ? kurdish
+    : english;
 }
 
 function formatDate(value?: string | null) {
