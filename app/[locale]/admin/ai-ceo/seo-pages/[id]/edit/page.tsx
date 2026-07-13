@@ -2,53 +2,132 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import type {
-  SEOPageDraftItem,
-  SEOPageFAQItem,
-  SEOPageSectionItem,
-} from "@/lib/ai-ceo/client";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import type { SEOPageDraftItem } from "@/lib/ai-ceo/client";
+
+type SEOPageSection = {
+  heading: string;
+  content: string;
+};
+
+type SEOFAQItem = {
+  question: string;
+  answer: string;
+};
 
 type DraftResponse = {
   success: boolean;
   draft?: SEOPageDraftItem;
-  error?: string;
-};
-
-type UpdateDraftResponse = {
-  success: boolean;
   message?: string;
-  draft?: SEOPageDraftItem;
+  versionId?: string;
   error?: string;
 };
 
-type EditorState = {
+type EditorForm = {
   title: string;
   metaDescription: string;
   slug: string;
+  canonicalPath: string;
   h1: string;
   intro: string;
+  sections: SEOPageSection[];
+  faq: SEOFAQItem[];
+  internalLinks: string[];
+  relatedKeywords: string[];
   schemaType: string;
-  sections: SEOPageSectionItem[];
-  faq: SEOPageFAQItem[];
-  internalLinksText: string;
-  relatedKeywordsText: string;
 };
 
-const emptyEditorState: EditorState = {
-  title: "",
-  metaDescription: "",
-  slug: "",
-  h1: "",
-  intro: "",
-  schemaType: "WebPage",
-  sections: [],
-  faq: [],
-  internalLinksText: "",
-  relatedKeywordsText: "",
+const EMPTY_SECTION: SEOPageSection = {
+  heading: "",
+  content: "",
 };
 
-export default function SEOPageDraftEditPage() {
+const EMPTY_FAQ: SEOFAQItem = {
+  question: "",
+  answer: "",
+};
+
+function normalizeList(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function toTextList(value: string[]): string {
+  return value.join("\n");
+}
+
+function createForm(
+  draft: SEOPageDraftItem
+): EditorForm {
+  return {
+    title: draft.title || "",
+    metaDescription:
+      draft.metaDescription || "",
+    slug: draft.slug || "",
+    canonicalPath:
+      draft.canonicalPath || "",
+    h1: draft.h1 || "",
+    intro: draft.intro || "",
+    sections:
+      Array.isArray(draft.sections) &&
+      draft.sections.length > 0
+        ? draft.sections.map((item) => ({
+            heading: item.heading || "",
+            content: item.content || "",
+          }))
+        : [{ ...EMPTY_SECTION }],
+    faq:
+      Array.isArray(draft.faq) &&
+      draft.faq.length > 0
+        ? draft.faq.map((item) => ({
+            question: item.question || "",
+            answer: item.answer || "",
+          }))
+        : [{ ...EMPTY_FAQ }],
+    internalLinks: Array.isArray(
+      draft.internalLinks
+    )
+      ? draft.internalLinks
+      : [],
+    relatedKeywords: Array.isArray(
+      draft.relatedKeywords
+    )
+      ? draft.relatedKeywords
+      : [],
+    schemaType:
+      draft.schemaType || "WebPage",
+  };
+}
+
+function cleanSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
+function stableSerialize(
+  form: EditorForm
+): string {
+  return JSON.stringify(form);
+}
+
+export default function SEOPageEditPage() {
   const params = useParams<{
     locale: string;
     id: string;
@@ -63,196 +142,459 @@ export default function SEOPageDraftEditPage() {
     useState<SEOPageDraftItem | null>(null);
 
   const [form, setForm] =
-    useState<EditorState>(emptyEditorState);
+    useState<EditorForm | null>(null);
+
+  const [initialSnapshot, setInitialSnapshot] =
+    useState("");
+
+  const [internalLinksText, setInternalLinksText] =
+    useState("");
+
+  const [
+    relatedKeywordsText,
+    setRelatedKeywordsText,
+  ] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const previewHref = `/${locale}/admin/ai-ceo/seo-pages/${encodeURIComponent(
-    draftId
-  )}/preview`;
+  const previewPath = useMemo(
+    () =>
+      `/${locale}/admin/ai-ceo/seo-pages/${encodeURIComponent(
+        draftId
+      )}/preview`,
+    [locale, draftId]
+  );
 
-  const canonicalPreview = useMemo(() => {
-    const cleanSlug = form.slug
-      .toLowerCase()
-      .trim()
-      .replace(/['"]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+  const currentCanonicalPath = useMemo(() => {
+    if (!form) return "";
 
-    if (!cleanSlug) return "—";
-
-    const pageLocale =
+    const language =
       draft?.language === "ku" ? "ku" : "en";
 
-    return `/${pageLocale}/predictions/${cleanSlug}`;
-  }, [draft?.language, form.slug]);
+    return `/${language}/predictions/${cleanSlug(
+      form.slug
+    )}`;
+  }, [form, draft]);
 
-  useEffect(() => {
-    async function loadDraft() {
-      try {
-        setLoading(true);
-        setError("");
-        setMessage("");
-
-        const response = await fetch(
-          `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
-            draftId
-          )}`,
-          {
-            method: "GET",
-            cache: "no-store",
-            credentials: "include",
-          }
-        );
-
-        const data =
-          await parseResponse<DraftResponse>(response);
-
-        if (!response.ok || !data.success || !data.draft) {
-          throw new Error(
-            data.error || "Unable to load SEO draft."
-          );
-        }
-
-        const loadedDraft = data.draft;
-
-        setDraft(loadedDraft);
-
-        setForm({
-          title: loadedDraft.title || "",
-          metaDescription:
-            loadedDraft.metaDescription || "",
-          slug: loadedDraft.slug || "",
-          h1: loadedDraft.h1 || "",
-          intro: loadedDraft.intro || "",
-          schemaType:
-            loadedDraft.schemaType || "WebPage",
-          sections: loadedDraft.sections || [],
-          faq: loadedDraft.faq || [],
-          internalLinksText:
-            loadedDraft.internalLinks?.join("\n") || "",
-          relatedKeywordsText:
-            loadedDraft.relatedKeywords?.join("\n") || "",
-        });
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unable to load SEO draft."
-        );
-      } finally {
-        setLoading(false);
-      }
+  const hasUnsavedChanges = useMemo(() => {
+    if (!form || !initialSnapshot) {
+      return false;
     }
 
-    if (draftId) {
-      void loadDraft();
+    const currentForm: EditorForm = {
+      ...form,
+      canonicalPath: currentCanonicalPath,
+      internalLinks:
+        normalizeList(internalLinksText),
+      relatedKeywords:
+        normalizeList(relatedKeywordsText),
+    };
+
+    return (
+      stableSerialize(currentForm) !==
+      initialSnapshot
+    );
+  }, [
+    form,
+    currentCanonicalPath,
+    internalLinksText,
+    relatedKeywordsText,
+    initialSnapshot,
+  ]);
+
+  const loadDraft = useCallback(async () => {
+    if (!draftId) {
+      setLoading(false);
+      setError("SEO draft ID is missing.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(
+        `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
+          draftId
+        )}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        }
+      );
+
+      const data =
+        await parseResponse<DraftResponse>(
+          response
+        );
+
+      if (
+        !response.ok ||
+        !data.success ||
+        !data.draft
+      ) {
+        throw new Error(
+          data.error ||
+            "Unable to load SEO draft."
+        );
+      }
+
+      if (data.draft.status === "published") {
+        throw new Error(
+          "Published SEO pages cannot be edited directly. Unpublish the page first."
+        );
+      }
+
+      const nextForm = createForm(data.draft);
+
+      setDraft(data.draft);
+      setForm(nextForm);
+      setInternalLinksText(
+        toTextList(nextForm.internalLinks)
+      );
+      setRelatedKeywordsText(
+        toTextList(
+          nextForm.relatedKeywords
+        )
+      );
+      setInitialSnapshot(
+        stableSerialize(nextForm)
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load SEO draft."
+      );
+    } finally {
+      setLoading(false);
     }
   }, [draftId]);
 
-  function updateField<K extends keyof EditorState>(
-    key: K,
-    value: EditorState[K]
-  ) {
-    setForm((current) => ({
-      ...current,
-      [key]: value,
-    }));
-  }
+  useEffect(() => {
+    void loadDraft();
+  }, [loadDraft]);
 
-  function addSection() {
-    setForm((current) => ({
-      ...current,
-      sections: [
-        ...current.sections,
-        {
-          heading: "",
-          content: "",
-        },
-      ],
-    }));
+  useEffect(() => {
+    const handleBeforeUnload = (
+      event: BeforeUnloadEvent
+    ) => {
+      if (!hasUnsavedChanges) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener(
+      "beforeunload",
+      handleBeforeUnload
+    );
+
+    return () => {
+      window.removeEventListener(
+        "beforeunload",
+        handleBeforeUnload
+      );
+    };
+  }, [hasUnsavedChanges]);
+
+  function updateField<K extends keyof EditorForm>(
+    key: K,
+    value: EditorForm[K]
+  ) {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            [key]: value,
+          }
+        : current
+    );
   }
 
   function updateSection(
     index: number,
-    field: keyof SEOPageSectionItem,
+    key: keyof SEOPageSection,
     value: string
   ) {
-    setForm((current) => ({
-      ...current,
-      sections: current.sections.map((section, itemIndex) =>
-        itemIndex === index
+    if (!form) return;
+
+    const sections = form.sections.map(
+      (section, sectionIndex) =>
+        sectionIndex === index
           ? {
               ...section,
-              [field]: value,
+              [key]: value,
             }
           : section
-      ),
-    }));
+    );
+
+    updateField("sections", sections);
+  }
+
+  function addSection() {
+    if (!form) return;
+
+    updateField("sections", [
+      ...form.sections,
+      { ...EMPTY_SECTION },
+    ]);
   }
 
   function removeSection(index: number) {
-    setForm((current) => ({
-      ...current,
-      sections: current.sections.filter(
-        (_, itemIndex) => itemIndex !== index
-      ),
-    }));
+    if (!form) return;
+
+    if (form.sections.length === 1) {
+      window.alert(
+        "At least one content section must remain."
+      );
+      return;
+    }
+
+    updateField(
+      "sections",
+      form.sections.filter(
+        (_, sectionIndex) =>
+          sectionIndex !== index
+      )
+    );
   }
 
-  function addFAQ() {
-    setForm((current) => ({
-      ...current,
-      faq: [
-        ...current.faq,
-        {
-          question: "",
-          answer: "",
-        },
-      ],
-    }));
+  function moveSection(
+    index: number,
+    direction: "up" | "down"
+  ) {
+    if (!form) return;
+
+    const targetIndex =
+      direction === "up"
+        ? index - 1
+        : index + 1;
+
+    if (
+      targetIndex < 0 ||
+      targetIndex >= form.sections.length
+    ) {
+      return;
+    }
+
+    const sections = [...form.sections];
+    const [section] = sections.splice(
+      index,
+      1
+    );
+
+    sections.splice(
+      targetIndex,
+      0,
+      section
+    );
+
+    updateField("sections", sections);
   }
 
   function updateFAQ(
     index: number,
-    field: keyof SEOPageFAQItem,
+    key: keyof SEOFAQItem,
     value: string
   ) {
-    setForm((current) => ({
-      ...current,
-      faq: current.faq.map((item, itemIndex) =>
-        itemIndex === index
+    if (!form) return;
+
+    const faq = form.faq.map(
+      (item, faqIndex) =>
+        faqIndex === index
           ? {
               ...item,
-              [field]: value,
+              [key]: value,
             }
           : item
-      ),
-    }));
+    );
+
+    updateField("faq", faq);
+  }
+
+  function addFAQ() {
+    if (!form) return;
+
+    updateField("faq", [
+      ...form.faq,
+      { ...EMPTY_FAQ },
+    ]);
   }
 
   function removeFAQ(index: number) {
-    setForm((current) => ({
-      ...current,
-      faq: current.faq.filter(
-        (_, itemIndex) => itemIndex !== index
-      ),
-    }));
+    if (!form) return;
+
+    if (form.faq.length === 1) {
+      window.alert(
+        "At least one FAQ item must remain."
+      );
+      return;
+    }
+
+    updateField(
+      "faq",
+      form.faq.filter(
+        (_, faqIndex) => faqIndex !== index
+      )
+    );
   }
 
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>
+  function moveFAQ(
+    index: number,
+    direction: "up" | "down"
   ) {
-    event.preventDefault();
+    if (!form) return;
+
+    const targetIndex =
+      direction === "up"
+        ? index - 1
+        : index + 1;
+
+    if (
+      targetIndex < 0 ||
+      targetIndex >= form.faq.length
+    ) {
+      return;
+    }
+
+    const faq = [...form.faq];
+    const [item] = faq.splice(index, 1);
+
+    faq.splice(targetIndex, 0, item);
+
+    updateField("faq", faq);
+  }
+
+  function validateForm(): string | null {
+    if (!form) {
+      return "Editor data is unavailable.";
+    }
+
+    if (!form.title.trim()) {
+      return "SEO title is required.";
+    }
+
+    if (!form.metaDescription.trim()) {
+      return "Meta description is required.";
+    }
+
+    if (!cleanSlug(form.slug)) {
+      return "A valid slug is required.";
+    }
+
+    if (!form.h1.trim()) {
+      return "H1 is required.";
+    }
+
+    if (!form.intro.trim()) {
+      return "Intro is required.";
+    }
+
+    const validSections =
+      form.sections.filter(
+        (section) =>
+          section.heading.trim() &&
+          section.content.trim()
+      );
+
+    if (validSections.length === 0) {
+      return "Add at least one complete content section.";
+    }
+
+    const validFAQ = form.faq.filter(
+      (item) =>
+        item.question.trim() &&
+        item.answer.trim()
+    );
+
+    if (validFAQ.length === 0) {
+      return "Add at least one complete FAQ item.";
+    }
+
+    if (
+      form.metaDescription.trim().length >
+      320
+    ) {
+      return "Meta description must be 320 characters or fewer.";
+    }
+
+    return null;
+  }
+
+  async function handleSave() {
+    if (!form) return;
+
+    const validationError =
+      validateForm();
+
+    if (validationError) {
+      setError(validationError);
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Save these SEO draft changes? The current version will be backed up, approval will be reset, and human review must be completed again."
+    );
+
+    if (!confirmed) return;
 
     try {
       setSaving(true);
       setError("");
       setMessage("");
+
+      const payload = {
+        title: form.title.trim(),
+        metaDescription:
+          form.metaDescription.trim(),
+        slug: cleanSlug(form.slug),
+        canonicalPath:
+          currentCanonicalPath,
+        h1: form.h1.trim(),
+        intro: form.intro.trim(),
+        sections: form.sections
+          .map((section) => ({
+            heading:
+              section.heading.trim(),
+            content:
+              section.content.trim(),
+          }))
+          .filter(
+            (section) =>
+              section.heading &&
+              section.content
+          ),
+        faq: form.faq
+          .map((item) => ({
+            question:
+              item.question.trim(),
+            answer: item.answer.trim(),
+          }))
+          .filter(
+            (item) =>
+              item.question &&
+              item.answer
+          ),
+        internalLinks:
+          normalizeList(internalLinksText),
+        relatedKeywords:
+          normalizeList(
+            relatedKeywordsText
+          ),
+        schemaType:
+          form.schemaType || "WebPage",
+      };
 
       const response = await fetch(
         `/api/admin/ai-ceo/seo-pages/${encodeURIComponent(
@@ -264,458 +606,623 @@ export default function SEOPageDraftEditPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            title: form.title,
-            metaDescription: form.metaDescription,
-            slug: form.slug,
-            h1: form.h1,
-            intro: form.intro,
-            schemaType: form.schemaType,
-
-            sections: form.sections
-              .map((section) => ({
-                heading: section.heading.trim(),
-                content: section.content.trim(),
-              }))
-              .filter(
-                (section) =>
-                  section.heading && section.content
-              ),
-
-            faq: form.faq
-              .map((item) => ({
-                question: item.question.trim(),
-                answer: item.answer.trim(),
-              }))
-              .filter(
-                (item) => item.question && item.answer
-              ),
-
-            internalLinks: splitLines(
-              form.internalLinksText
-            ),
-
-            relatedKeywords: splitLines(
-              form.relatedKeywordsText
-            ),
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
       const data =
-        await parseResponse<UpdateDraftResponse>(
+        await parseResponse<DraftResponse>(
           response
         );
 
       if (!response.ok || !data.success) {
         throw new Error(
-          data.error || "Unable to update SEO draft."
+          data.error ||
+            "Unable to save SEO draft."
+        );
+      }
+
+      const nextDraft =
+        data.draft || draft;
+
+      if (nextDraft) {
+        const nextForm =
+          createForm(nextDraft);
+
+        setDraft(nextDraft);
+        setForm(nextForm);
+        setInternalLinksText(
+          toTextList(
+            nextForm.internalLinks
+          )
+        );
+        setRelatedKeywordsText(
+          toTextList(
+            nextForm.relatedKeywords
+          )
+        );
+        setInitialSnapshot(
+          stableSerialize(nextForm)
         );
       }
 
       setMessage(
         data.message ||
-          "SEO draft updated successfully."
+          "SEO draft saved successfully."
       );
 
-      if (data.draft) {
-        setDraft(data.draft);
-      }
-    } catch (requestError) {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (saveError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to update SEO draft."
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save SEO draft."
       );
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     } finally {
       setSaving(false);
     }
   }
 
+  function handleBackToPreview() {
+    if (
+      hasUnsavedChanges &&
+      !window.confirm(
+        "You have unsaved changes. Leave this page without saving?"
+      )
+    ) {
+      return;
+    }
+
+    router.push(previewPath);
+  }
+
   if (loading) {
     return (
-      <main className="mx-auto max-w-6xl px-5 py-12 text-white">
-        <div className="rounded-[2rem] border border-white/10 bg-[#101827] p-10 text-center text-white/50">
+      <main className="min-h-screen bg-[#07101E] px-5 py-12 text-white">
+        <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/10 bg-[#101827] p-10 text-center text-white/50">
           Loading SEO draft editor...
         </div>
       </main>
     );
   }
 
-  if (error && !draft) {
+  if (error && !form) {
     return (
-      <main className="mx-auto max-w-6xl px-5 py-12 text-white">
-        <Link
-          href={`/${locale}/admin/ai-ceo`}
-          className="text-sm font-bold text-[#D4AF37]"
-        >
-          ← Back to AI CEO
-        </Link>
+      <main className="min-h-screen bg-[#07101E] px-5 py-12 text-white">
+        <div className="mx-auto max-w-6xl">
+          <Link
+            href={`/${locale}/admin/ai-ceo`}
+            className="text-sm font-black text-[#D4AF37]"
+          >
+            ← Back to AI CEO
+          </Link>
 
-        <div className="mt-8 rounded-[2rem] border border-red-500/30 bg-red-500/10 p-8 text-red-300">
-          {error}
+          <div className="mt-8 rounded-[2rem] border border-red-500/30 bg-red-500/10 p-8 text-red-300">
+            {error}
+          </div>
         </div>
       </main>
     );
   }
 
+  if (!form || !draft) {
+    return null;
+  }
+
   return (
-    <main className="mx-auto max-w-6xl px-5 py-12 text-white">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href={previewHref}
-          className="text-sm font-bold text-[#D4AF37]"
-        >
-          ← Back to Preview
-        </Link>
+    <main className="min-h-screen bg-[#07101E] px-4 py-8 text-white md:px-8">
+      <div className="mx-auto max-w-6xl">
+        <header className="rounded-[2rem] border border-[#D4AF37]/20 bg-gradient-to-br from-[#101827] to-[#0A1220] p-6 shadow-2xl md:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+                SEO CMS · Draft Editor
+              </p>
 
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge>
-            {draft?.status || "draft"}
-          </StatusBadge>
+              <h1 className="mt-3 text-3xl font-black md:text-5xl">
+                Edit SEO Draft
+              </h1>
 
-          <StatusBadge>
-            {draft?.language || "en"}
-          </StatusBadge>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-white/55 md:text-base">
+                Update public SEO content, metadata,
+                FAQ, internal links, related keywords,
+                and schema settings. Saving creates a
+                backup version and resets human review.
+              </p>
+            </div>
 
-          {draft?.country && (
-            <StatusBadge>{draft.country}</StatusBadge>
-          )}
-        </div>
-      </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleBackToPreview}
+                className="rounded-full border border-white/15 px-5 py-3 text-sm font-black text-white/75 transition hover:border-[#D4AF37]/45 hover:text-white"
+              >
+                Back to Preview
+              </button>
 
-      <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-6 shadow-xl md:p-8">
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-          SEO Draft Editor
-        </p>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleSave()
+                }
+                disabled={
+                  saving ||
+                  !hasUnsavedChanges
+                }
+                className="rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {saving
+                  ? "Saving..."
+                  : hasUnsavedChanges
+                  ? "Save Changes"
+                  : "No Changes"}
+              </button>
+            </div>
+          </div>
 
-        <h1 className="mt-4 text-4xl font-black">
-          Edit SEO Draft
-        </h1>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Badge>
+              Status: {draft.status}
+            </Badge>
 
-        <p className="mt-4 max-w-3xl leading-7 text-white/55">
-          Edit the SEO metadata, page content, FAQ,
-          internal links, and structured-data type before
-          approval and publishing.
-        </p>
+            <Badge>
+              Language: {draft.language}
+            </Badge>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <Info
-            title="Draft ID"
-            value={draftId || "—"}
+            {draft.country && (
+              <Badge>
+                Country: {draft.country}
+              </Badge>
+            )}
+
+            {hasUnsavedChanges && (
+              <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase text-amber-200">
+                Unsaved changes
+              </span>
+            )}
+          </div>
+        </header>
+
+        {error && (
+          <div className="mt-6 rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-sm leading-7 text-red-300">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="mt-6 rounded-3xl border border-green-500/30 bg-green-500/10 p-5 text-sm leading-7 text-green-300">
+            {message}
+          </div>
+        )}
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+          <SectionHeading
+            eyebrow="Basic SEO"
+            title="Metadata and Routing"
+            description="These fields control search snippets, page headings, and the public URL."
           />
 
-          <Info
-            title="Canonical Preview"
-            value={canonicalPreview}
-          />
-        </div>
-      </section>
-
-      {error && (
-        <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      {message && (
-        <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-300">
-          {message}
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        className="mt-8 space-y-8"
-      >
-        <EditorSection title="SEO Metadata">
-          <div className="grid gap-5">
-            <TextInput
+          <div className="mt-6 grid gap-5 lg:grid-cols-2">
+            <Field
               label="SEO Title"
+              required
               value={form.title}
               onChange={(value) =>
                 updateField("title", value)
               }
-              maxLength={180}
+              maximumLength={180}
+            />
+
+            <Field
+              label="H1"
               required
+              value={form.h1}
+              onChange={(value) =>
+                updateField("h1", value)
+              }
+              maximumLength={200}
             />
 
             <TextArea
               label="Meta Description"
-              value={form.metaDescription}
+              required
+              value={
+                form.metaDescription
+              }
               onChange={(value) =>
                 updateField(
                   "metaDescription",
                   value
                 )
               }
-              maxLength={320}
+              maximumLength={320}
               rows={4}
-              required
             />
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <TextInput
+            <div>
+              <Field
                 label="Slug"
+                required
                 value={form.slug}
                 onChange={(value) =>
-                  updateField("slug", value)
+                  updateField(
+                    "slug",
+                    cleanSlug(value)
+                  )
                 }
-                maxLength={120}
-                required
+                maximumLength={120}
               />
 
-              <SelectInput
-                label="Schema Type"
-                value={form.schemaType}
+              <p className="mt-2 break-all text-xs text-white/35">
+                Public path:{" "}
+                <span className="text-[#D4AF37]">
+                  {currentCanonicalPath}
+                </span>
+              </p>
+            </div>
+
+            <div className="lg:col-span-2">
+              <TextArea
+                label="Intro"
+                required
+                value={form.intro}
                 onChange={(value) =>
-                  updateField("schemaType", value)
+                  updateField(
+                    "intro",
+                    value
+                  )
                 }
-                options={[
-                  "WebPage",
-                  "Article",
-                  "SportsEvent",
-                  "FAQPage",
-                ]}
+                maximumLength={5000}
+                rows={6}
               />
             </div>
-          </div>
-        </EditorSection>
 
-        <EditorSection title="Main Content">
-          <div className="grid gap-5">
-            <TextInput
-              label="H1"
-              value={form.h1}
-              onChange={(value) =>
-                updateField("h1", value)
-              }
-              maxLength={200}
-              required
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-white/40">
+                Schema Type
+              </span>
+
+              <select
+                value={form.schemaType}
+                onChange={(event) =>
+                  updateField(
+                    "schemaType",
+                    event.target.value
+                  )
+                }
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-bold text-white outline-none transition focus:border-[#D4AF37]/60"
+              >
+                <option value="SportsEvent">
+                  SportsEvent
+                </option>
+                <option value="Article">
+                  Article
+                </option>
+                <option value="FAQPage">
+                  FAQPage
+                </option>
+                <option value="WebPage">
+                  WebPage
+                </option>
+              </select>
+            </label>
+
+            <InfoCard
+              title="Canonical Path"
+              value={currentCanonicalPath}
+            />
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <SectionHeading
+              eyebrow="Content"
+              title="Page Sections"
+              description="Edit, add, remove, and reorder public SEO sections."
             />
 
-            <TextArea
-              label="Introduction"
-              value={form.intro}
-              onChange={(value) =>
-                updateField("intro", value)
-              }
-              maxLength={5000}
-              rows={8}
-            />
-          </div>
-        </EditorSection>
-
-        <EditorSection
-          title="Content Sections"
-          action={
             <button
               type="button"
               onClick={addSection}
-              className="rounded-full border border-[#D4AF37]/40 px-4 py-2 text-sm font-black text-[#D4AF37]"
+              className="rounded-full border border-[#D4AF37]/35 px-5 py-3 text-sm font-black text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
             >
               + Add Section
             </button>
-          }
-        >
-          {form.sections.length === 0 ? (
-            <EmptyState text="No content sections added." />
-          ) : (
-            <div className="space-y-5">
-              {form.sections.map(
-                (section, index) => (
-                  <div
-                    key={`section-${index}`}
-                    className="rounded-3xl bg-black/25 p-5"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="font-black text-[#D4AF37]">
-                        Section {index + 1}
-                      </p>
+          </div>
 
-                      <button
-                        type="button"
+          <div className="mt-6 space-y-5">
+            {form.sections.map(
+              (section, index) => (
+                <article
+                  key={`section-${index}`}
+                  className="rounded-3xl border border-white/10 bg-black/20 p-5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-black text-white/70">
+                      Section {index + 1}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      <SmallButton
+                        label="↑"
+                        onClick={() =>
+                          moveSection(
+                            index,
+                            "up"
+                          )
+                        }
+                        disabled={index === 0}
+                      />
+
+                      <SmallButton
+                        label="↓"
+                        onClick={() =>
+                          moveSection(
+                            index,
+                            "down"
+                          )
+                        }
+                        disabled={
+                          index ===
+                          form.sections.length - 1
+                        }
+                      />
+
+                      <SmallButton
+                        label="Remove"
+                        danger
                         onClick={() =>
                           removeSection(index)
                         }
-                        className="text-sm font-bold text-red-300"
-                      >
-                        Remove
-                      </button>
-                    </div>
-
-                    <div className="mt-4 grid gap-4">
-                      <TextInput
-                        label="Heading"
-                        value={section.heading}
-                        onChange={(value) =>
-                          updateSection(
-                            index,
-                            "heading",
-                            value
-                          )
-                        }
-                        maxLength={180}
-                      />
-
-                      <TextArea
-                        label="Content"
-                        value={section.content}
-                        onChange={(value) =>
-                          updateSection(
-                            index,
-                            "content",
-                            value
-                          )
-                        }
-                        maxLength={8000}
-                        rows={8}
                       />
                     </div>
                   </div>
-                )
-              )}
-            </div>
-          )}
-        </EditorSection>
 
-        <EditorSection
-          title="Frequently Asked Questions"
-          action={
-            <button
-              type="button"
-              onClick={addFAQ}
-              className="rounded-full border border-[#D4AF37]/40 px-4 py-2 text-sm font-black text-[#D4AF37]"
-            >
-              + Add FAQ
-            </button>
-          }
-        >
-          {form.faq.length === 0 ? (
-            <EmptyState text="No FAQ items added." />
-          ) : (
-            <div className="space-y-5">
-              {form.faq.map((item, index) => (
-                <div
-                  key={`faq-${index}`}
-                  className="rounded-3xl bg-black/25 p-5"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="font-black text-[#D4AF37]">
-                      FAQ {index + 1}
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() => removeFAQ(index)}
-                      className="text-sm font-bold text-red-300"
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="mt-4 grid gap-4">
-                    <TextInput
-                      label="Question"
-                      value={item.question}
+                  <div className="mt-5 grid gap-4">
+                    <Field
+                      label="Heading"
+                      required
+                      value={section.heading}
                       onChange={(value) =>
-                        updateFAQ(
+                        updateSection(
                           index,
-                          "question",
+                          "heading",
                           value
                         )
                       }
-                      maxLength={300}
+                      maximumLength={180}
                     />
 
                     <TextArea
-                      label="Answer"
-                      value={item.answer}
+                      label="Content"
+                      required
+                      value={section.content}
                       onChange={(value) =>
-                        updateFAQ(
+                        updateSection(
                           index,
-                          "answer",
+                          "content",
                           value
                         )
                       }
-                      maxLength={3000}
-                      rows={5}
+                      maximumLength={8000}
+                      rows={8}
+                    />
+                  </div>
+                </article>
+              )
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <SectionHeading
+              eyebrow="FAQ"
+              title="Frequently Asked Questions"
+              description="Keep questions helpful, public-safe, and free from hidden VIP answers."
+            />
+
+            <button
+              type="button"
+              onClick={addFAQ}
+              className="rounded-full border border-[#D4AF37]/35 px-5 py-3 text-sm font-black text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+            >
+              + Add FAQ
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-5">
+            {form.faq.map((item, index) => (
+              <article
+                key={`faq-${index}`}
+                className="rounded-3xl border border-white/10 bg-black/20 p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-black text-white/70">
+                    FAQ {index + 1}
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    <SmallButton
+                      label="↑"
+                      onClick={() =>
+                        moveFAQ(index, "up")
+                      }
+                      disabled={index === 0}
+                    />
+
+                    <SmallButton
+                      label="↓"
+                      onClick={() =>
+                        moveFAQ(
+                          index,
+                          "down"
+                        )
+                      }
+                      disabled={
+                        index ===
+                        form.faq.length - 1
+                      }
+                    />
+
+                    <SmallButton
+                      label="Remove"
+                      danger
+                      onClick={() =>
+                        removeFAQ(index)
+                      }
                     />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </EditorSection>
 
-        <EditorSection title="Links and Keywords">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <TextArea
-              label="Internal Links"
-              helperText="Add one internal link per line."
-              value={form.internalLinksText}
-              onChange={(value) =>
-                updateField(
-                  "internalLinksText",
-                  value
-                )
-              }
-              rows={8}
-            />
+                <div className="mt-5 grid gap-4">
+                  <Field
+                    label="Question"
+                    required
+                    value={item.question}
+                    onChange={(value) =>
+                      updateFAQ(
+                        index,
+                        "question",
+                        value
+                      )
+                    }
+                    maximumLength={300}
+                  />
 
-            <TextArea
-              label="Related Keywords"
-              helperText="Add one related keyword per line."
-              value={form.relatedKeywordsText}
-              onChange={(value) =>
-                updateField(
-                  "relatedKeywordsText",
-                  value
-                )
-              }
-              rows={8}
-            />
+                  <TextArea
+                    label="Answer"
+                    required
+                    value={item.answer}
+                    onChange={(value) =>
+                      updateFAQ(
+                        index,
+                        "answer",
+                        value
+                      )
+                    }
+                    maximumLength={3000}
+                    rows={5}
+                  />
+                </div>
+              </article>
+            ))}
           </div>
-        </EditorSection>
+        </section>
 
-        <div className="sticky bottom-4 flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-[#101827]/95 p-4 shadow-2xl backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-white/45">
-            Editing an approved draft returns it to draft
-            status for another review.
-          </p>
+        <section className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+            <SectionHeading
+              eyebrow="Navigation"
+              title="Internal Links"
+              description="Add one route per line or separate values with commas."
+            />
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={previewHref}
-              className="rounded-full border border-white/15 px-6 py-3 text-sm font-black"
-            >
-              Cancel
-            </Link>
+            <textarea
+              value={internalLinksText}
+              onChange={(event) =>
+                setInternalLinksText(
+                  event.target.value
+                )
+              }
+              rows={10}
+              className="mt-6 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-7 text-white outline-none transition focus:border-[#D4AF37]/60"
+              placeholder="/en/predictions&#10;/en/vip&#10;/en/ai-accuracy"
+            />
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-full bg-[#D4AF37] px-7 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving
-                ? "Saving Changes..."
-                : "Save Changes"}
-            </button>
+            <p className="mt-3 text-xs text-white/35">
+              {
+                normalizeList(
+                  internalLinksText
+                ).length
+              }{" "}
+              unique link(s)
+            </p>
+          </div>
 
-            {message && (
+          <div className="rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+            <SectionHeading
+              eyebrow="SEO"
+              title="Related Keywords"
+              description="Add one keyword per line or separate values with commas."
+            />
+
+            <textarea
+              value={relatedKeywordsText}
+              onChange={(event) =>
+                setRelatedKeywordsText(
+                  event.target.value
+                )
+              }
+              rows={10}
+              className="mt-6 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-7 text-white outline-none transition focus:border-[#D4AF37]/60"
+              placeholder="match analysis&#10;football preview&#10;team news"
+            />
+
+            <p className="mt-3 text-xs text-white/35">
+              {
+                normalizeList(
+                  relatedKeywordsText
+                ).length
+              }{" "}
+              unique keyword(s)
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-amber-400/20 bg-amber-400/5 p-6 text-sm leading-7 text-amber-100/75">
+          Saving this draft creates a version backup,
+          invalidates any previous approval, resets the
+          human-review checklist, and requires the
+          draft to pass editorial review again before
+          publishing.
+        </section>
+
+        <div className="sticky bottom-4 mt-6 rounded-[2rem] border border-white/10 bg-[#0B1422]/95 p-4 shadow-2xl backdrop-blur">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-white/45">
+              {hasUnsavedChanges
+                ? "You have unsaved changes."
+                : "All changes are saved."}
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleBackToPreview}
+                className="rounded-full border border-white/15 px-5 py-3 text-sm font-black text-white/75"
+              >
+                Cancel
+              </button>
+
               <button
                 type="button"
                 onClick={() =>
-                  router.push(previewHref)
+                  void handleSave()
                 }
-                className="rounded-full border border-green-500/30 px-6 py-3 text-sm font-black text-green-300"
+                disabled={
+                  saving ||
+                  !hasUnsavedChanges
+                }
+                className="rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
               >
-                View Preview
+                {saving
+                  ? "Saving..."
+                  : "Save Changes"}
               </button>
-            )}
+            </div>
           </div>
         </div>
-      </form>
+      </div>
     </main>
   );
 }
@@ -735,173 +1242,15 @@ async function parseResponse<T>(
     return JSON.parse(raw) as T;
   } catch {
     throw new Error(
-      `Invalid server response: ${raw.slice(0, 200)}`
+      `Invalid server response: ${raw.slice(
+        0,
+        200
+      )}`
     );
   }
 }
 
-function splitLines(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    )
-  );
-}
-
-function EditorSection({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-[2rem] border border-white/10 bg-[#101827] p-6 shadow-xl md:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-2xl font-black">
-          {title}
-        </h2>
-
-        {action}
-      </div>
-
-      <div className="mt-6">{children}</div>
-    </section>
-  );
-}
-
-function TextInput({
-  label,
-  value,
-  onChange,
-  maxLength,
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  maxLength?: number;
-  required?: boolean;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <span className="text-sm font-bold text-white/65">
-          {label}
-        </span>
-
-        {maxLength && (
-          <span className="text-xs text-white/30">
-            {value.length}/{maxLength}
-          </span>
-        )}
-      </div>
-
-      <input
-        type="text"
-        value={value}
-        required={required}
-        maxLength={maxLength}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none placeholder:text-white/25 focus:border-[#D4AF37]/50"
-      />
-    </label>
-  );
-}
-
-function TextArea({
-  label,
-  value,
-  onChange,
-  rows,
-  maxLength,
-  required = false,
-  helperText,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  rows: number;
-  maxLength?: number;
-  required?: boolean;
-  helperText?: string;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <span className="text-sm font-bold text-white/65">
-          {label}
-        </span>
-
-        {maxLength && (
-          <span className="text-xs text-white/30">
-            {value.length}/{maxLength}
-          </span>
-        )}
-      </div>
-
-      {helperText && (
-        <p className="mb-3 text-xs text-white/35">
-          {helperText}
-        </p>
-      )}
-
-      <textarea
-        value={value}
-        required={required}
-        rows={rows}
-        maxLength={maxLength}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 leading-7 text-white outline-none placeholder:text-white/25 focus:border-[#D4AF37]/50"
-      />
-    </label>
-  );
-}
-
-function SelectInput({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-bold text-white/65">
-        {label}
-      </span>
-
-      <select
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-[#D4AF37]/50"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function StatusBadge({
+function Badge({
   children,
 }: {
   children: React.ReactNode;
@@ -913,30 +1262,151 @@ function StatusBadge({
   );
 }
 
-function Info({
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+        {eyebrow}
+      </p>
+
+      <h2 className="mt-3 text-2xl font-black md:text-3xl">
+        {title}
+      </h2>
+
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-white/50">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  required = false,
+  maximumLength,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  maximumLength: number;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-black uppercase tracking-[0.18em] text-white/40">
+        {label}
+        {required ? " *" : ""}
+      </span>
+
+      <input
+        type="text"
+        value={value}
+        maxLength={maximumLength}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]/60"
+      />
+
+      <p className="mt-2 text-right text-xs text-white/30">
+        {value.length}/{maximumLength}
+      </p>
+    </label>
+  );
+}
+
+function TextArea({
+  label,
+  value,
+  onChange,
+  required = false,
+  maximumLength,
+  rows,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  maximumLength: number;
+  rows: number;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-black uppercase tracking-[0.18em] text-white/40">
+        {label}
+        {required ? " *" : ""}
+      </span>
+
+      <textarea
+        value={value}
+        maxLength={maximumLength}
+        rows={rows}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-7 text-white outline-none transition focus:border-[#D4AF37]/60"
+      />
+
+      <p className="mt-2 text-right text-xs text-white/30">
+        {value.length}/{maximumLength}
+      </p>
+    </label>
+  );
+}
+
+function InfoCard({
   title,
   value,
 }: {
   title: string;
-  value: string | number;
+  value: string;
 }) {
   return (
-    <div className="rounded-3xl bg-black/25 p-5">
-      <p className="text-xs uppercase text-white/40">
+    <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-white/40">
         {title}
       </p>
 
-      <p className="mt-3 break-all text-sm font-bold text-[#D4AF37]">
+      <p className="mt-3 break-all text-sm leading-7 text-[#D4AF37]">
         {value}
       </p>
     </div>
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function SmallButton({
+  label,
+  onClick,
+  disabled = false,
+  danger = false,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
   return (
-    <div className="rounded-3xl bg-black/20 p-7 text-center text-sm text-white/40">
-      {text}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-full border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-30 ${
+        danger
+          ? "border-red-500/30 text-red-300 hover:bg-red-500/10"
+          : "border-white/15 text-white/65 hover:bg-white/5"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
