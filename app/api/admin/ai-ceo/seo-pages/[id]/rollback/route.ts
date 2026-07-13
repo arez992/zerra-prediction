@@ -83,6 +83,27 @@ function buildRestoreData(
   return restoreData;
 }
 
+function serializeHumanReview(
+  value: unknown
+): Record<string, unknown> | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  const review = value as Record<string, unknown>;
+
+  return {
+    ...review,
+    reviewedAt: serializeTimestamp(
+      review.reviewedAt
+    ),
+  };
+}
+
 function getErrorStatus(message: string): number {
   const normalizedMessage = message.toLowerCase();
 
@@ -354,6 +375,20 @@ export async function POST(
         updatedAt: FieldValue.serverTimestamp(),
         lastEditedBy: performedBy,
 
+        humanReview: {
+          factsVerified: false,
+          noMisleadingClaims: false,
+          titleMetaReviewed: false,
+          faqReviewed: false,
+          linksChecked: false,
+          schemaChecked: false,
+          riskWordingReviewed: false,
+          finalEditorialApproval: false,
+          completed: false,
+          reviewedBy: null,
+          reviewedAt: null,
+        },
+
         guardrails: {
           ...(
             restoreData.guardrails &&
@@ -379,6 +414,7 @@ export async function POST(
         ),
         newStatus: "draft",
         performedBy,
+        humanReviewInvalidated: true,
         createdAt: FieldValue.serverTimestamp(),
       });
     });
@@ -417,6 +453,9 @@ export async function POST(
           ),
           rolledBackAt: serializeTimestamp(
             rolledBackData.rolledBackAt
+          ),
+          humanReview: serializeHumanReview(
+            rolledBackData.humanReview
           ),
         },
       },

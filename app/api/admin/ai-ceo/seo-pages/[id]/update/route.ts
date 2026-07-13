@@ -152,6 +152,27 @@ function serializeTimestamp(value: unknown): string | null {
   return null;
 }
 
+function serializeHumanReview(
+  value: unknown
+): Record<string, unknown> | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  const review = value as Record<string, unknown>;
+
+  return {
+    ...review,
+    reviewedAt: serializeTimestamp(
+      review.reviewedAt
+    ),
+  };
+}
+
 function getErrorStatus(message: string): number {
   const normalizedMessage = message.toLowerCase();
 
@@ -422,6 +443,20 @@ export async function PATCH(
         lastEditedBy: performedBy,
         updatedAt: FieldValue.serverTimestamp(),
 
+        humanReview: {
+          factsVerified: false,
+          noMisleadingClaims: false,
+          titleMetaReviewed: false,
+          faqReviewed: false,
+          linksChecked: false,
+          schemaChecked: false,
+          riskWordingReviewed: false,
+          finalEditorialApproval: false,
+          completed: false,
+          reviewedBy: null,
+          reviewedAt: null,
+        },
+
         guardrails: {
           ...(existingDraft.guardrails || {}),
           peopleFirstContent: true,
@@ -442,6 +477,7 @@ export async function PATCH(
             ? "draft"
             : status,
         performedBy,
+        humanReviewInvalidated: true,
         createdAt: FieldValue.serverTimestamp(),
       });
     });
@@ -478,6 +514,9 @@ export async function PATCH(
           ),
           rolledBackAt: serializeTimestamp(
             updatedData.rolledBackAt
+          ),
+          humanReview: serializeHumanReview(
+            updatedData.humanReview
           ),
         },
       },
