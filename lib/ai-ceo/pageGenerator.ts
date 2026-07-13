@@ -12,6 +12,8 @@ import type {
   SEOPageDraft,
   SEOPageLanguage,
   SEOPageSection,
+  SEOPublicContent,
+  SEOVIPContent,
 } from "@/types/seo-page";
 
 function normalizeKeyword(value: string) {
@@ -54,8 +56,8 @@ function buildTitle(
   language: SEOPageLanguage
 ) {
   return language === "ku"
-    ? `${keyword} | پێشبینی و شیکاری AI`
-    : `${keyword} | AI Prediction and Match Analysis`;
+    ? `${keyword} | شیکاری یاری بە AI`
+    : `${keyword} | AI Match Analysis`;
 }
 
 function buildMetaDescription(
@@ -63,8 +65,8 @@ function buildMetaDescription(
   language: SEOPageLanguage
 ) {
   return language === "ku"
-    ? `پێشبینی و شیکاری AI بۆ ${keyword} لەگەڵ confidence، risk، form، stats و هەڵسەنگاندنی یاری.`
-    : `Get an AI-powered prediction for ${keyword}, including confidence, risk, recent form, match insights, and key statistics.`;
+    ? `شیکاری گشتی یاری ${keyword}، داتای بەردەست، هۆکارەکانی ڕیسک و تێڕوانینی AI، بەبێ ئاشکراکردنی پێشبینی VIP.`
+    : `Explore public match analysis for ${keyword}, including available facts, risk factors, and AI-assisted insights without revealing the VIP prediction.`;
 }
 
 function buildIntro(
@@ -72,8 +74,8 @@ function buildIntro(
   language: SEOPageLanguage
 ) {
   return language === "ku"
-    ? `ئەم پەڕەیە شیکاری AI بۆ ${keyword} پیشان دەدات و هیچ ئەنجامێک گەرەنتی ناکات.`
-    : `This page provides an AI-assisted analysis for ${keyword} without presenting uncertain outcomes as guaranteed facts.`;
+    ? `ئەم پەڕەیە شیکاری گشتی بۆ ${keyword} پیشان دەدات. پێشبینی کۆتایی و وردەکارییە premium ـەکان تەنها بۆ VIP پارێزراون.`
+    : `This page provides a public analysis of ${keyword}. The final prediction and premium match intelligence remain reserved for VIP members.`;
 }
 
 function buildSections(
@@ -84,43 +86,43 @@ function buildSections(
     ? [
         {
           heading: "کورتەی یاری",
-          content: `کورتەیەکی ڕوون دەربارەی ${keyword}.`,
+          content: `کورتەیەکی گشتی دەربارەی ${keyword} بەبێ ئاشکراکردنی پێشبینی کۆتایی.`,
         },
         {
-          heading: "شیکاری AI",
+          heading: "داتای بەردەست",
           content:
-            "شیکاری rule-based و AI بەبێ گەرەنتیکردنی ئەنجام.",
+            "تەنها داتای پشتڕاستکراو لەم بەشەدا پیشان دەدرێت.",
         },
         {
-          heading: "داتا و ئامار",
+          heading: "تێڕوانینی گشتی AI",
           content:
-            "تەنها داتای پشتڕاستکراو لێرە پیشان دەدرێت.",
+            "کورتە شیکارییەکی ناڕوونکەرەوە کە پێشبینی VIP ئاشکرا ناکات.",
         },
         {
-          heading: "ڕیسکی پێشبینی",
+          heading: "هۆکارەکانی ڕیسک",
           content:
-            "ڕوونکردنەوەی ئەو هۆکارانەی دەتوانن ئەنجامەکە بگۆڕن.",
+            "ڕوونکردنەوەی ئەو هۆکارانەی دەتوانن ڕەوتی یاری بگۆڕن، بەبێ گەرەنتیکردنی ئەنجام.",
         },
       ]
     : [
         {
           heading: "Match Overview",
-          content: `A clear overview of ${keyword}.`,
-        },
-        {
-          heading: "AI Analysis",
-          content:
-            "A cautious AI-assisted interpretation without guaranteed outcomes.",
+          content: `A public overview of ${keyword} without revealing the final prediction.`,
         },
         {
           heading: "Available Match Data",
           content:
-            "Only verified data should be presented here.",
+            "Only verified and available match data should be presented here.",
         },
         {
-          heading: "Prediction Risks",
+          heading: "General AI Insight",
           content:
-            "A transparent explanation of factors that may affect the expected result.",
+            "A non-conclusive AI-assisted summary that preserves the value of the VIP prediction.",
+        },
+        {
+          heading: "Risk Factors",
+          content:
+            "A transparent explanation of factors that could affect the match without guaranteeing an outcome.",
         },
       ];
 }
@@ -132,28 +134,103 @@ function buildFAQ(
   return language === "ku"
     ? [
         {
-          question: `پێشبینی AI بۆ ${keyword} چییە؟`,
+          question: `ئەم پەڕەیە چی دەربارەی ${keyword} پیشان دەدات؟`,
           answer:
-            "پێشبینییەکە شیکارییە و هیچ ئەنجامێک گەرەنتی ناکات.",
+            "داتای گشتی، کورتە شیکاری و هۆکارەکانی ڕیسک پیشان دەدات، بەڵام پێشبینی کۆتایی VIP ئاشکرا ناکات.",
         },
         {
-          question: "ئایا پێشبینییەکە دەتوانێت هەڵە بێت؟",
+          question:
+            "ئایا پێشبینی کۆتایی لەم پەڕەیەدا هەیە؟",
           answer:
-            "بەڵێ. هەموو پێشبینییە وەرزشییەکان risk ـیان هەیە.",
+            "نەخێر. پێشبینی کۆتایی و وردەکارییە premium ـەکان تەنها بۆ ئەندامانی VIP پارێزراون.",
         },
       ]
     : [
         {
-          question: `What is the AI prediction for ${keyword}?`,
+          question: `What does this page show about ${keyword}?`,
           answer:
-            "It is an analytical estimate and should not be treated as a guaranteed result.",
+            "It provides public facts, general analysis, and risk context without revealing the final VIP prediction.",
         },
         {
-          question: "Can the prediction be wrong?",
+          question:
+            "Is the final prediction shown on this page?",
           answer:
-            "Yes. Football predictions always carry uncertainty and risk.",
+            "No. The final prediction and premium match intelligence are reserved for VIP members.",
         },
       ];
+}
+
+function buildPublicContent(
+  keyword: string,
+  language: SEOPageLanguage
+): SEOPublicContent {
+  return language === "ku"
+    ? {
+        overview: `کورتەیەکی گشتی بۆ ${keyword}.`,
+        recentForm:
+          "داتای فۆڕمی نوێ لە template mode ـدا بەردەست نییە.",
+        headToHead:
+          "داتای head-to-head لە template mode ـدا بەردەست نییە.",
+        homeAwayStats:
+          "ئاماری home/away لە template mode ـدا بەردەست نییە.",
+        injuries:
+          "داتای برینداری یان lineup لە template mode ـدا بەردەست نییە.",
+        aiSummary:
+          "ئەم کورتە شیکارییە هیچ پێشبینی کۆتایی یان بازاڕی VIP ئاشکرا ناکات.",
+        riskLevel: "Medium",
+        keyInsights: [
+          "پێش بڕیاردان داتای نوێی یاری پشکنین بکە.",
+          "پێشبینییە وەرزشییەکان هەمیشە نادڵنیاییان هەیە.",
+        ],
+      }
+    : {
+        overview: `A general public overview of ${keyword}.`,
+        recentForm:
+          "Recent-form data is unavailable in template mode.",
+        headToHead:
+          "Head-to-head data is unavailable in template mode.",
+        homeAwayStats:
+          "Home and away statistics are unavailable in template mode.",
+        injuries:
+          "Injury and lineup information is unavailable in template mode.",
+        aiSummary:
+          "This general summary does not reveal the final prediction or any VIP market selection.",
+        riskLevel: "Medium",
+        keyInsights: [
+          "Review the latest verified match data before making decisions.",
+          "Football predictions always involve uncertainty.",
+        ],
+      };
+}
+
+function buildVIPContent(
+  language: SEOPageLanguage
+): SEOVIPContent {
+  return language === "ku"
+    ? {
+        finalPrediction:
+          "لە template mode ـدا بەردەست نییە.",
+        confidence: 0,
+        exactScore: "Unavailable",
+        bestMarket:
+          "لە template mode ـدا بەردەست نییە.",
+        alternativeMarkets: [],
+        valuePick: "Unavailable",
+        reasoning:
+          "بۆ دروستکردنی شیکاری VIP، fixture ID و داتای پشتڕاستکراوی یاری پێویستە.",
+      }
+    : {
+        finalPrediction:
+          "Unavailable in template mode.",
+        confidence: 0,
+        exactScore: "Unavailable",
+        bestMarket:
+          "Unavailable in template mode.",
+        alternativeMarkets: [],
+        valuePick: "Unavailable",
+        reasoning:
+          "A fixture ID and verified match data are required to generate VIP analysis.",
+      };
 }
 
 function buildInternalLinks(
@@ -175,8 +252,8 @@ function buildRelatedKeywords(keyword: string) {
     `${keyword} prediction`,
     `${keyword} AI prediction`,
     `${keyword} match analysis`,
-    `${keyword} betting tips`,
-    `${keyword} correct score prediction`,
+    `${keyword} football preview`,
+    `${keyword} team news`,
   ];
 }
 
@@ -242,6 +319,12 @@ export async function createSEOPageDraft(
   let relatedKeywords =
     buildRelatedKeywords(keyword);
 
+  let publicContent =
+    buildPublicContent(keyword, language);
+
+  let vipContent =
+    buildVIPContent(language);
+
   let generation: SEOPageDraft["generation"] = {
     mode: "template",
     model: null,
@@ -270,6 +353,13 @@ export async function createSEOPageDraft(
     intro = generated.content.intro;
     sections = generated.content.sections;
     faq = generated.content.faq;
+
+    publicContent =
+      generated.content.publicContent;
+
+    vipContent =
+      generated.content.vipContent;
+
     relatedKeywords =
       generated.content.relatedKeywords.length > 0
         ? generated.content.relatedKeywords
@@ -309,6 +399,9 @@ export async function createSEOPageDraft(
 
     sections,
     faq,
+
+    publicContent,
+    vipContent,
 
     internalLinks: buildInternalLinks(language),
     relatedKeywords,

@@ -2,6 +2,8 @@ import type {
   SEOFAQItem,
   SEOPageLanguage,
   SEOPageSection,
+  SEOPublicContent,
+  SEOVIPContent,
 } from "@/types/seo-page";
 
 const OPENAI_RESPONSES_URL =
@@ -60,6 +62,8 @@ export type GeneratedSEOContent = {
   sections: SEOPageSection[];
   faq: SEOFAQItem[];
   relatedKeywords: string[];
+  publicContent: SEOPublicContent;
+  vipContent: SEOVIPContent;
   schemaType: "SportsEvent";
   factualDataAvailable: boolean;
   model: string;
@@ -297,6 +301,44 @@ function cleanText(
     : "";
 }
 
+function cleanNumber(
+  value: unknown,
+  minimum: number,
+  maximum: number
+): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return minimum;
+  }
+
+  return Math.min(
+    maximum,
+    Math.max(minimum, Math.round(parsed))
+  );
+}
+
+function validateStringList(
+  value: unknown,
+  maximumItems: number,
+  maximumLength: number
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => cleanText(item, maximumLength))
+        .filter(Boolean)
+    )
+  ).slice(0, maximumItems);
+}
+
 function validateSections(
   value: unknown
 ): SEOPageSection[] {
@@ -349,18 +391,107 @@ function validateFAQ(value: unknown): SEOFAQItem[] {
   return faq;
 }
 
-function validateKeywords(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
+function validateRiskLevel(
+  value: unknown
+): SEOPublicContent["riskLevel"] {
+  if (value === "Low") {
+    return "Low";
   }
 
-  return Array.from(
-    new Set(
-      value
-        .map((item) => cleanText(item, 120))
-        .filter(Boolean)
-    )
-  ).slice(0, 12);
+  if (value === "High") {
+    return "High";
+  }
+
+  return "Medium";
+}
+
+function validatePublicContent(
+  value: unknown
+): SEOPublicContent {
+  if (!value || typeof value !== "object") {
+    throw new Error(
+      "OpenAI content is missing publicContent."
+    );
+  }
+
+  const source = value as Record<string, unknown>;
+
+  const publicContent: SEOPublicContent = {
+    overview: cleanText(source.overview, 5000),
+    recentForm: cleanText(source.recentForm, 5000),
+    headToHead: cleanText(source.headToHead, 5000),
+    homeAwayStats: cleanText(
+      source.homeAwayStats,
+      5000
+    ),
+    injuries: cleanText(source.injuries, 5000),
+    aiSummary: cleanText(source.aiSummary, 2500),
+    riskLevel: validateRiskLevel(
+      source.riskLevel
+    ),
+    keyInsights: validateStringList(
+      source.keyInsights,
+      5,
+      500
+    ),
+  };
+
+  if (
+    !publicContent.overview ||
+    !publicContent.aiSummary ||
+    publicContent.keyInsights.length < 1
+  ) {
+    throw new Error(
+      "OpenAI public content is incomplete."
+    );
+  }
+
+  return publicContent;
+}
+
+function validateVIPContent(
+  value: unknown
+): SEOVIPContent {
+  if (!value || typeof value !== "object") {
+    throw new Error(
+      "OpenAI content is missing vipContent."
+    );
+  }
+
+  const source = value as Record<string, unknown>;
+
+  const vipContent: SEOVIPContent = {
+    finalPrediction: cleanText(
+      source.finalPrediction,
+      500
+    ),
+    confidence: cleanNumber(
+      source.confidence,
+      0,
+      100
+    ),
+    exactScore: cleanText(source.exactScore, 100),
+    bestMarket: cleanText(source.bestMarket, 300),
+    alternativeMarkets: validateStringList(
+      source.alternativeMarkets,
+      5,
+      300
+    ),
+    valuePick: cleanText(source.valuePick, 500),
+    reasoning: cleanText(source.reasoning, 7000),
+  };
+
+  if (
+    !vipContent.finalPrediction ||
+    !vipContent.bestMarket ||
+    !vipContent.reasoning
+  ) {
+    throw new Error(
+      "OpenAI VIP content is incomplete."
+    );
+  }
+
+  return vipContent;
 }
 
 function validateGeneratedContent(
@@ -396,8 +527,16 @@ function validateGeneratedContent(
     intro,
     sections: validateSections(source.sections),
     faq: validateFAQ(source.faq),
-    relatedKeywords: validateKeywords(
-      source.relatedKeywords
+    relatedKeywords: validateStringList(
+      source.relatedKeywords,
+      12,
+      120
+    ),
+    publicContent: validatePublicContent(
+      source.publicContent
+    ),
+    vipContent: validateVIPContent(
+      source.vipContent
     ),
     schemaType: "SportsEvent",
     factualDataAvailable: true,
@@ -428,18 +567,63 @@ export async function generateFixtureSEOContent(input: {
   const prompt = `
 You are the ZERRA SEO Content Writer for a football-only prediction platform.
 
-Create a people-first match analysis draft from the supplied factual football data.
+Create one private draft with TWO strictly separated layers:
 
-STRICT RULES:
+1. PUBLIC SEO CONTENT
+Useful, factual, people-first content that can be indexed publicly.
+It must build trust and curiosity but MUST NOT reveal the paid prediction.
+
+2. VIP CONTENT
+Premium match intelligence stored privately for authenticated VIP users only.
+
+STRICT FACTUAL RULES:
 - Use only facts present in FACTUAL_DATA.
-- Never invent injuries, form, head-to-head records, lineups, statistics, odds, probabilities, or historical results.
-- If a fact is unavailable, say it is unavailable or omit it.
-- Do not promise a result.
-- Do not present betting advice as guaranteed.
-- Do not claim certainty.
-- Keep the content useful, readable, and original.
-- The output remains a private draft requiring human approval.
+- Never invent injuries, form, head-to-head records, lineups, statistics, odds, or historical results.
+- If factual data is unavailable, say it is unavailable or omit it.
+- Any prediction is an AI interpretation, not a verified fact.
+- Never promise or guarantee a result.
+- Never claim certainty.
+- Do not manufacture bookmaker odds or market value.
+- The entire result remains a private draft requiring human approval.
 - ${languageInstruction}
+
+PUBLIC CONTENT MUST NOT REVEAL:
+- final prediction or winning team
+- exact score
+- confidence percentage
+- BTTS yes/no
+- over/under selection
+- handicap selection
+- best betting market
+- value pick
+- alternative picks
+- full prediction reasoning
+
+PUBLIC CONTENT MAY INCLUDE:
+- match overview
+- available recent-form context
+- available head-to-head context
+- available home/away statistics
+- available injury or lineup context
+- short non-conclusive AI summary
+- transparent Low/Medium/High risk level
+- one to five general key insights
+- FAQ that does not reveal premium answers
+
+VIP CONTENT MAY INCLUDE:
+- final AI prediction
+- confidence percentage
+- exact-score estimate
+- best market
+- alternative markets
+- value-pick interpretation
+- full AI reasoning
+
+When data is insufficient for a confident VIP field:
+- use cautious wording
+- use "Unavailable" for exactScore or valuePick when appropriate
+- keep confidence conservative
+- explain the limitation in reasoning
 
 SEO keyword:
 ${input.keyword}
@@ -452,31 +636,51 @@ ${JSON.stringify(facts, null, 2)}
 
 Return ONLY valid JSON with this exact shape:
 {
-  "title": "SEO title",
-  "metaDescription": "meta description",
-  "h1": "page heading",
-  "intro": "introductory paragraph",
+  "title": "SEO title that does not reveal the final pick",
+  "metaDescription": "public meta description without premium prediction details",
+  "h1": "public page heading",
+  "intro": "public introductory paragraph",
   "sections": [
     {
-      "heading": "section heading",
-      "content": "section content"
+      "heading": "public section heading",
+      "content": "public content without premium prediction details"
     }
   ],
   "faq": [
     {
-      "question": "question",
-      "answer": "answer"
+      "question": "public question",
+      "answer": "public answer without revealing VIP details"
     }
   ],
-  "relatedKeywords": ["keyword"]
+  "relatedKeywords": ["keyword"],
+  "publicContent": {
+    "overview": "public overview",
+    "recentForm": "public factual form context or an availability notice",
+    "headToHead": "public factual H2H context or an availability notice",
+    "homeAwayStats": "public factual stats context or an availability notice",
+    "injuries": "public injury or lineup context or an availability notice",
+    "aiSummary": "short non-conclusive summary that preserves VIP value",
+    "riskLevel": "Low | Medium | High",
+    "keyInsights": ["general public insight"]
+  },
+  "vipContent": {
+    "finalPrediction": "private AI interpretation",
+    "confidence": 0,
+    "exactScore": "private estimate or Unavailable",
+    "bestMarket": "private market interpretation",
+    "alternativeMarkets": ["private alternative"],
+    "valuePick": "private value interpretation or Unavailable",
+    "reasoning": "private full reasoning with limitations"
+  }
 }
 
 Requirements:
-- Include 4 to 7 sections.
-- Include 2 to 5 FAQ items.
-- Make the meta description concise.
-- Include a transparent risk section.
+- Include 4 to 7 PUBLIC sections.
+- Include 2 to 5 PUBLIC FAQ items.
+- Keep the public meta description concise.
+- Include transparent risk language.
 - Clearly distinguish factual match details from AI interpretation.
+- Never place any vipContent field or answer inside title, metaDescription, h1, intro, sections, faq, or publicContent.
 `;
 
   const response = await fetch(
