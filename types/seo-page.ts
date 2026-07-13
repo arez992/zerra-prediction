@@ -7,6 +7,11 @@ export type SEOPageStatus =
 
 export type SEOPageLanguage = "en" | "ku";
 
+export type SEORiskLevel =
+  | "Low"
+  | "Medium"
+  | "High";
+
 export type SEOFAQItem = {
   question: string;
   answer: string;
@@ -39,6 +44,35 @@ export type SEOHumanReview = {
   completed: boolean;
   reviewedBy?: string | null;
   reviewedAt?: string | null;
+};
+
+export type SEOPublicContent = {
+  overview: string;
+  recentForm: string;
+  headToHead: string;
+  homeAwayStats: string;
+  injuries: string;
+  aiSummary: string;
+  riskLevel: SEORiskLevel;
+  keyInsights: string[];
+};
+
+export type SEOVIPContent = {
+  finalPrediction: string;
+  confidence: number;
+  exactScore: string;
+  bestMarket: string;
+  alternativeMarkets: string[];
+  valuePick: string;
+  reasoning: string;
+};
+
+export type SEOPageGuardrails = {
+  peopleFirstContent: boolean;
+  uniqueHelpfulContent: boolean;
+  duplicateChecked: boolean;
+  humanApprovalRequired: boolean;
+  autoPublishDisabled: boolean;
 };
 
 export type SEOPageDraft = {
@@ -86,13 +120,10 @@ export type SEOPageDraft = {
 
   humanReview?: SEOHumanReview | null;
 
-  guardrails: {
-    peopleFirstContent: boolean;
-    uniqueHelpfulContent: boolean;
-    duplicateChecked: boolean;
-    humanApprovalRequired: boolean;
-    autoPublishDisabled: boolean;
-  };
+  publicContent?: SEOPublicContent | null;
+  vipContent?: SEOVIPContent | null;
+
+  guardrails: SEOPageGuardrails;
 };
 
 export type CreateSEOPageDraftInput = {
