@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
+
 import {
   runDecisionOrchestrator,
   type DecisionOrchestratorOptions,
@@ -19,15 +21,18 @@ export type ZAOSCEOExecutionResult = {
   orchestration: OrchestratorResult;
 };
 
+const DEFAULT_OPTIONS: DecisionOrchestratorOptions = {
+  autoExecuteAllowedDelegations: false,
+  stopAfterPolicyReview: false,
+};
+
 export async function runCEOThroughZAOS(
   input: CEOEngineInput,
-  options: DecisionOrchestratorOptions = {
-    autoExecuteAllowedDelegations: false,
-    stopAfterPolicyReview: false,
-  }
+  options: DecisionOrchestratorOptions =
+    DEFAULT_OPTIONS
 ): Promise<ZAOSCEOExecutionResult> {
   const context: AIRoleContext = {
-    runId: crypto.randomUUID(),
+    runId: randomUUID(),
     roleId: "zerra-ai-ceo",
     startedAt: new Date().toISOString(),
     requestedBy: "zaos-adapter",
