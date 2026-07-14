@@ -13,6 +13,13 @@ import {
   getCEOShadowConfig,
 } from "@/lib/ai/ceo/shadow/ShadowConfig";
 import {
+  mapShadowRunToHistoryRecord,
+} from "@/lib/ai/ceo/shadow/storage/ShadowHistory";
+import {
+  createFirestoreShadowHistoryStore,
+  isFirestoreShadowPersistenceEnabled,
+} from "@/lib/ai/ceo/shadow/storage/FirestoreShadowHistoryStore";
+import {
   requireServerAdmin,
 } from "@/lib/serverAdminAuth";
 
@@ -77,12 +84,19 @@ export async function POST(
     const metrics =
       await collectCEOMetrics();
 
+    const baseConfig =
+      getCEOShadowConfig();
+
+    const persistenceEnabled =
+      isFirestoreShadowPersistenceEnabled();
+
     const config = {
-      ...getCEOShadowConfig(),
+      ...baseConfig,
       mode: "enabled" as const,
       enabled: true,
       forceRuleBasedZAOS: true,
-      persistComparisons: false,
+      persistComparisons:
+        persistenceEnabled,
       sampleRatePercent: 100,
     };
 
@@ -97,18 +111,85 @@ export async function POST(
         config
       );
 
+    let persisted = false;
+    let persistenceError:
+      | string
+      | null = null;
+    let historyRecordId:
+      | string
+      | null = null;
+
+    if (persistenceEnabled) {
+      try {
+        const actor =
+          admin.email ||
+          admin.uid;
+
+        const historyRecord =
+          mapShadowRunToHistoryRecord(
+            result,
+            {
+              requestedBy: actor,
+              source:
+                "admin-shadow-test",
+              safety: {
+                userVisibleResultChanged:
+                  false,
+                autoExecutionEnabled:
+                  false,
+                zaosForcedRuleBased:
+                  true,
+              },
+            }
+          );
+
+        const store =
+          createFirestoreShadowHistoryStore();
+
+        await store.save(
+          historyRecord
+        );
+
+        persisted = true;
+        historyRecordId =
+          historyRecord.id;
+      } catch (error) {
+        persistenceError =
+          error instanceof Error
+            ? error.message
+            : "Unable to persist AI CEO shadow history.";
+
+        console.error(
+          "[AI_CEO_SHADOW_PERSIST_ERROR]",
+          error
+        );
+      }
+    }
+
     return NextResponse.json(
       {
         ...result,
         requestedBy:
           admin.email ||
           admin.uid,
+        persistence: {
+          enabled:
+            persistenceEnabled,
+          persisted,
+          historyRecordId,
+          error:
+            persistenceError,
+        },
         safety: {
-          userVisibleResultChanged: false,
-          autoExecutionEnabled: false,
-          persistenceEnabled: false,
-          zaosForcedRuleBased: true,
-          productionWritesExpected: false,
+          userVisibleResultChanged:
+            false,
+          autoExecutionEnabled:
+            false,
+          persistenceEnabled,
+          zaosForcedRuleBased:
+            true,
+          productionWritesExpected:
+            persistenceEnabled,
         },
       },
       {
