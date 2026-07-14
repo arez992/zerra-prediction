@@ -17,6 +17,9 @@ import {
   evaluateCEODecisionPolicy,
 } from "@/lib/ai/ceo/policy";
 import {
+  runAutomaticCEOShadow,
+} from "@/lib/ai/ceo/shadow/service/AutomaticShadowService";
+import {
   getLatestCEODecision,
   listCEODecisions,
   saveCEODecision,
@@ -190,11 +193,15 @@ export async function POST(
     const metrics =
       await collectCEOMetrics();
 
+    const engineInput = {
+      metrics,
+      instruction,
+    };
+
     const result =
-      await runCEOBrain({
-        metrics,
-        instruction,
-      });
+      await runCEOBrain(
+        engineInput
+      );
 
     if (!result.success) {
       throw new Error(
@@ -254,6 +261,59 @@ export async function POST(
         );
     }
 
+    /*
+     * Automatic ZAOS shadow validation.
+     *
+     * This call never changes the legacy decision returned to the user.
+     * The service catches its own execution and persistence errors, so a
+     * shadow failure cannot fail this production decision request.
+     *
+     * It is awaited to make Firestore persistence reliable in serverless
+     * deployments. The feature flag and sampling configuration determine
+     * whether a shadow run actually occurs.
+     */
+    const shadow =
+      await runAutomaticCEOShadow(
+        engineInput,
+        {
+          source:
+            "ai-ceo-decisions-api",
+          requestId:
+            decisionId,
+          actorId:
+            admin.uid,
+          actorEmail:
+            admin.email ||
+            undefined,
+          route:
+            "/api/admin/ai-ceo/decisions",
+          legacyDecisionId:
+            decisionId,
+          legacySource:
+            result.source,
+          autoApproveRequested:
+            autoApprove,
+          policyAutoApprovalEligible:
+            policy.eligibleForAutoApproval,
+        }
+      );
+
+    if (
+      shadow.error ||
+      shadow.persistenceError
+    ) {
+      console.warn(
+        "[AI_CEO_AUTOMATIC_SHADOW_WARNING]",
+        {
+          decisionId,
+          error:
+            shadow.error,
+          persistenceError:
+            shadow.persistenceError,
+        }
+      );
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -269,6 +329,31 @@ export async function POST(
           result.decision,
         policy,
         approval,
+
+        /*
+         * Only operational status is returned.
+         * The legacy response remains the source of truth.
+         */
+        shadow: {
+          attempted:
+            shadow.attempted,
+          skipped:
+            shadow.skipped,
+          persisted:
+            shadow.persisted,
+          historyRecordId:
+            shadow.historyRecordId,
+          acceptable:
+            shadow.shadow?.acceptable ??
+            null,
+          score:
+            shadow.shadow?.comparison
+              ?.overallScore ??
+            null,
+          error:
+            shadow.error ||
+            shadow.persistenceError,
+        },
       },
       {
         status: 201,
