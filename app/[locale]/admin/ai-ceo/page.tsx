@@ -8,6 +8,7 @@ import CEOStats from "@/components/admin/ceo/CEOStats";
 import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList";
 import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
+import CEOShadowHistoryCard from "@/components/admin/ceo/CEOShadowHistoryCard";
 import SEODirectorCard from "@/components/admin/ceo/SEODirectorCard";
 import SEOPageDraftsCard from "@/components/admin/ceo/SEOPageDraftsCard";
 import SEOAuditLogCard from "@/components/admin/ceo/SEOAuditLogCard";
@@ -56,12 +57,18 @@ export default function AICEODashboardPage() {
         <CEODecisionCenter />
       </section>
 
+      <section className="mt-12">
+        <CEOShadowHistoryCard />
+      </section>
+
       <div className="mt-12">
         <CEOHeader
           loading={loading}
           generating={generating}
           onRefresh={() => void loadCEOData()}
-          onGenerate={() => void generateRecommendations()}
+          onGenerate={() =>
+            void generateRecommendations()
+          }
         />
       </div>
 
@@ -96,13 +103,20 @@ export default function AICEODashboardPage() {
           drafts={seoDrafts}
           loading={draftsLoading}
           creating={draftCreating}
-          onRefresh={() => void loadSEODrafts()}
-          onCreate={(input) => createDraft(input)}
+          onRefresh={() =>
+            void loadSEODrafts()
+          }
+          onCreate={(input) =>
+            createDraft(input)
+          }
         />
       </section>
 
       <section className="mt-12">
-        <SEOAuditLogCard pageSize={10} showActivityLink />
+        <SEOAuditLogCard
+          pageSize={10}
+          showActivityLink
+        />
       </section>
 
       <section className="mt-12">
@@ -118,7 +132,8 @@ export default function AICEODashboardPage() {
           </div>
 
           <p className="text-sm text-white/40">
-            Last checked: {formatDate(checkedAt)}
+            Last checked:{" "}
+            {formatDate(checkedAt)}
           </p>
         </div>
 
@@ -126,31 +141,55 @@ export default function AICEODashboardPage() {
           recommendations={recommendations}
           loading={loading}
           activeActionId={activeActionId}
-          onApprove={(id) => void approve(id)}
-          onReject={(id, reason) => void reject(id, reason)}
-          onExecute={(id) => void execute(id)}
+          onApprove={(id) =>
+            void approve(id)
+          }
+          onReject={(id, reason) =>
+            void reject(id, reason)
+          }
+          onExecute={(id) =>
+            void execute(id)
+          }
         />
       </section>
 
       <section className="mt-12 grid gap-6 xl:grid-cols-2">
-        <CEOMemoryCard memories={memory} loading={loading} />
-        <CEOTaskCard tasks={tasks} loading={loading} />
+        <CEOMemoryCard
+          memories={memory}
+          loading={loading}
+        />
+
+        <CEOTaskCard
+          tasks={tasks}
+          loading={loading}
+        />
       </section>
     </main>
   );
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
+function formatDate(
+  value?: string | null
+) {
+  if (!value) {
     return "—";
   }
 
-  return date.toLocaleString("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const date = new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "—";
+  }
+
+  return date.toLocaleString(
+    "en",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  );
 }
