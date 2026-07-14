@@ -1,132 +1,405 @@
 import crypto from "crypto";
-import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
-  doc,
-  getDoc,
-  increment,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
+  NextResponse,
+} from "next/server";
+import {
+  FieldValue,
+  Timestamp,
+} from "firebase-admin/firestore";
 
-function sortObject(obj: any): any {
-  return Object.keys(obj)
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
+import {
+  getPlanDays,
+  normalizePurchasablePlan,
+} from "@/lib/nowPaymentsBilling";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function sortObject(
+  value: unknown
+): unknown {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return value;
+  }
+
+  return Object.keys(
+    value as Record<string, unknown>
+  )
     .sort()
-    .reduce((result: any, key) => {
-      result[key] =
-        obj[key] && typeof obj[key] === "object" && !Array.isArray(obj[key])
-          ? sortObject(obj[key])
-          : obj[key];
-      return result;
-    }, {});
+    .reduce(
+      (
+        result: Record<
+          string,
+          unknown
+        >,
+        key
+      ) => {
+        result[key] = sortObject(
+          (
+            value as Record<
+              string,
+              unknown
+            >
+          )[key]
+        );
+
+        return result;
+      },
+      {}
+    );
 }
 
-function verifyNowPaymentsSignature(body: any, signature: string | null) {
-  const secret = process.env.NOWPAYMENTS_IPN_SECRET;
+function verifySignature(
+  body: unknown,
+  signature: string | null
+): boolean {
+  const secret =
+    process.env.NOWPAYMENTS_IPN_SECRET;
 
-  if (!secret || !signature) return false;
+  if (!secret || !signature) {
+    return false;
+  }
 
-  const sortedBody = sortObject(body);
-
-  const hmac = crypto
+  const expected = crypto
     .createHmac("sha512", secret)
-    .update(JSON.stringify(sortedBody))
+    .update(
+      JSON.stringify(
+        sortObject(body)
+      )
+    )
     .digest("hex");
 
-  return hmac === signature;
+  const expectedBuffer =
+    Buffer.from(expected, "hex");
+
+  const signatureBuffer =
+    Buffer.from(signature, "hex");
+
+  return (
+    expectedBuffer.length ===
+      signatureBuffer.length &&
+    crypto.timingSafeEqual(
+      expectedBuffer,
+      signatureBuffer
+    )
+  );
 }
 
-function getPlanDays(plan: string) {
-  if (plan === "Monthly") return 30;
-  if (plan === "Quarterly") return 90;
-  if (plan === "Lifetime") return 36500;
-  return 30;
+function isPaidStatus(
+  value: unknown
+): boolean {
+  return (
+    value === "finished" ||
+    value === "confirmed"
+  );
 }
 
-function isPaidStatus(status: string) {
-  return ["finished", "confirmed"].includes(status);
+function timestampToMillis(
+  value: unknown
+): number | null {
+  if (
+    value &&
+    typeof value === "object" &&
+    "toMillis" in value &&
+    typeof (value as {
+      toMillis?: unknown;
+    }).toMillis === "function"
+  ) {
+    return (value as {
+      toMillis: () => number;
+    }).toMillis();
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === "string") {
+    const parsed =
+      new Date(value).getTime();
+
+    return Number.isFinite(parsed)
+      ? parsed
+      : null;
+  }
+
+  return null;
 }
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request
+) {
   try {
-    const body = await request.json();
-    const signature = request.headers.get("x-nowpayments-sig");
+    const body =
+      (await request.json()) as Record<
+        string,
+        unknown
+      >;
 
-    if (!verifyNowPaymentsSignature(body, signature)) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    }
-
-    const orderId = body.order_id;
-    const paymentStatus = body.payment_status;
-
-    if (!orderId) {
-      return NextResponse.json({ error: "Missing order_id" }, { status: 400 });
-    }
-
-    const paymentRef = doc(db, "payments", orderId);
-    const paymentSnap = await getDoc(paymentRef);
-
-    await setDoc(
-      paymentRef,
-      {
-        nowpayments: body,
-        paymentStatus,
-        nowpaymentsUpdatedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    if (!paymentSnap.exists()) {
-      return NextResponse.json({ received: true });
-    }
-
-    const payment = paymentSnap.data();
-
-    if (payment.status === "completed") {
-      return NextResponse.json({
-        received: true,
-        duplicate: true,
-      });
-    }
-
-    if (isPaidStatus(paymentStatus)) {
-      const plan = payment.plan || "Monthly";
-      const days = payment.days || getPlanDays(plan);
-
-      const vipExpireAt = new Date(
-        Date.now() + days * 24 * 60 * 60 * 1000
-      ).toISOString();
-
-      await setDoc(
-        doc(db, "users", payment.uid),
-        {
-          email: payment.email,
-          isVip: true,
-          plan,
-          vipExpireAt,
-          vipActivatedAt: serverTimestamp(),
-          lastPaymentId: orderId,
-          totalPayments: increment(1),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+    const signature =
+      request.headers.get(
+        "x-nowpayments-sig"
       );
 
-      await updateDoc(paymentRef, {
-        status: "completed",
-        completedAt: serverTimestamp(),
-        confirmedAt: serverTimestamp(),
-        paidAmount: body.actually_paid || body.pay_amount || null,
-        payCurrency: body.pay_currency || null,
-        paymentId: body.payment_id || null,
-        updatedAt: serverTimestamp(),
-      });
+    if (
+      !verifySignature(
+        body,
+        signature
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid signature",
+        },
+        {
+          status: 401,
+        }
+      );
     }
 
-    return NextResponse.json({ received: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const orderId =
+      typeof body.order_id === "string"
+        ? body.order_id.trim()
+        : "";
+
+    if (!orderId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Missing order_id",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const paymentStatus =
+      typeof body.payment_status ===
+      "string"
+        ? body.payment_status
+        : "unknown";
+
+    const paymentRef =
+      adminDb
+        .collection("payments")
+        .doc(orderId);
+
+    await adminDb.runTransaction(
+      async (transaction) => {
+        const paymentSnapshot =
+          await transaction.get(
+            paymentRef
+          );
+
+        if (
+          !paymentSnapshot.exists
+        ) {
+          transaction.set(
+            paymentRef,
+            {
+              orderId,
+              status: "orphaned",
+              paymentStatus,
+              nowpayments: body,
+              nowpaymentsUpdatedAt:
+                FieldValue.serverTimestamp(),
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            }
+          );
+
+          return;
+        }
+
+        const payment =
+          paymentSnapshot.data() || {};
+
+        transaction.set(
+          paymentRef,
+          {
+            paymentStatus,
+            nowpayments: body,
+            nowpaymentsUpdatedAt:
+              FieldValue.serverTimestamp(),
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+
+        if (
+          payment.status ===
+          "completed"
+        ) {
+          return;
+        }
+
+        if (
+          !isPaidStatus(
+            paymentStatus
+          )
+        ) {
+          return;
+        }
+
+        const plan =
+          normalizePurchasablePlan(
+            payment.plan
+          );
+
+        if (!plan) {
+          throw new Error(
+            "Invalid payment plan"
+          );
+        }
+
+        const uid =
+          typeof payment.uid ===
+            "string"
+            ? payment.uid
+            : "";
+
+        if (!uid) {
+          throw new Error(
+            "Payment user is missing"
+          );
+        }
+
+        const userRef =
+          adminDb
+            .collection("users")
+            .doc(uid);
+
+        const userSnapshot =
+          await transaction.get(
+            userRef
+          );
+
+        const user =
+          userSnapshot.data() || {};
+
+        let expiresAt:
+          | Timestamp
+          | null = null;
+
+        if (
+          plan !== "Lifetime"
+        ) {
+          const days =
+            getPlanDays(plan);
+
+          if (!days) {
+            throw new Error(
+              "Invalid plan duration"
+            );
+          }
+
+          const currentExpiry =
+            timestampToMillis(
+              user.expiresAt
+            );
+
+          const baseTime =
+            currentExpiry &&
+            currentExpiry > Date.now()
+              ? currentExpiry
+              : Date.now();
+
+          expiresAt =
+            Timestamp.fromMillis(
+              baseTime +
+                days *
+                  24 *
+                  60 *
+                  60 *
+                  1000
+            );
+        }
+
+        transaction.set(
+          userRef,
+          {
+            email:
+              payment.email || null,
+            isVip: true,
+            plan,
+            expiresAt,
+            vipActivatedAt:
+              FieldValue.serverTimestamp(),
+            lastPaymentId:
+              orderId,
+            totalPayments:
+              FieldValue.increment(1),
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+
+        transaction.set(
+          paymentRef,
+          {
+            status: "completed",
+            completedAt:
+              FieldValue.serverTimestamp(),
+            confirmedAt:
+              FieldValue.serverTimestamp(),
+            paidAmount:
+              body.actually_paid ||
+              body.pay_amount ||
+              null,
+            payCurrency:
+              body.pay_currency ||
+              null,
+            paymentId:
+              body.payment_id ||
+              null,
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      }
+    );
+
+    return NextResponse.json({
+      received: true,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Webhook processing failed";
+
+    console.error(
+      "[NOWPAYMENTS_WEBHOOK_ERROR]",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: message,
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }

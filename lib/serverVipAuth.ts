@@ -4,6 +4,9 @@ import {
   adminAuth,
   adminDb,
 } from "@/lib/firebaseAdmin";
+import type {
+  VipPlan,
+} from "@/lib/vip";
 
 export type ServerVipUser = {
   uid: string;
@@ -11,11 +14,7 @@ export type ServerVipUser = {
   role: "admin" | "user";
   isAdmin: boolean;
   isVip: boolean;
-  plan:
-    | "Free"
-    | "Weekly"
-    | "Monthly"
-    | "Quarterly";
+  plan: VipPlan;
   expiresAt: string | null;
 };
 
@@ -42,20 +41,18 @@ function serializeDate(
     return value.toISOString();
   }
 
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return null;
+  return typeof value === "string"
+    ? value
+    : null;
 }
 
 function normalizePlan(
   value: unknown
-): ServerVipUser["plan"] {
+): VipPlan {
   if (
-    value === "Weekly" ||
     value === "Monthly" ||
-    value === "Quarterly"
+    value === "Quarterly" ||
+    value === "Lifetime"
   ) {
     return value;
   }
@@ -65,18 +62,27 @@ function normalizePlan(
 
 function isActiveVip(
   isVip: unknown,
+  plan: VipPlan,
   expiresAt: string | null
 ): boolean {
-  if (isVip !== true || !expiresAt) {
+  if (isVip !== true) {
     return false;
   }
 
-  const expiresAtMs =
+  if (plan === "Lifetime") {
+    return true;
+  }
+
+  if (!expiresAt) {
+    return false;
+  }
+
+  const expiry =
     new Date(expiresAt).getTime();
 
   return (
-    Number.isFinite(expiresAtMs) &&
-    expiresAtMs > Date.now()
+    Number.isFinite(expiry) &&
+    expiry > Date.now()
   );
 }
 
@@ -116,6 +122,9 @@ export async function getServerVipUser(): Promise<ServerVipUser | null> {
     const isAdmin =
       user.role === "admin";
 
+    const plan =
+      normalizePlan(user.plan);
+
     const expiresAt =
       serializeDate(user.expiresAt);
 
@@ -123,6 +132,7 @@ export async function getServerVipUser(): Promise<ServerVipUser | null> {
       isAdmin ||
       isActiveVip(
         user.isVip,
+        plan,
         expiresAt
       );
 
@@ -135,16 +145,14 @@ export async function getServerVipUser(): Promise<ServerVipUser | null> {
       isAdmin,
       isVip,
       plan: isAdmin
-        ? normalizePlan(user.plan)
+        ? plan
         : isVip
-        ? normalizePlan(user.plan)
+        ? plan
         : "Free",
       expiresAt:
-        isAdmin
-          ? expiresAt
-          : isVip
-          ? expiresAt
-          : null,
+        plan === "Lifetime"
+          ? null
+          : expiresAt,
     };
   } catch (error) {
     console.error(

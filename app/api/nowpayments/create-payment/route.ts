@@ -1,74 +1,210 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  NextResponse,
+} from "next/server";
+import {
+  FieldValue,
+} from "firebase-admin/firestore";
 
-const planDays: Record<string, number> = {
-  Monthly: 30,
-  Quarterly: 90,
-  Lifetime: 36500,
-};
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
+import {
+  createNowPaymentsInvoice,
+  createOrderId,
+  getPlanDays,
+  getPlanPrice,
+  getVipBillingSettings,
+  normalizeLocale,
+  normalizePurchasablePlan,
+  requireBillingUser,
+} from "@/lib/nowPaymentsBilling";
 
-export async function POST(request: Request) {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function getErrorStatus(
+  message: string
+): number {
+  const normalized =
+    message.toLowerCase();
+
+  if (
+    normalized.includes(
+      "authentication required"
+    )
+  ) {
+    return 401;
+  }
+
+  if (
+    normalized.includes("invalid") ||
+    normalized.includes("required")
+  ) {
+    return 400;
+  }
+
+  if (
+    normalized.includes("disabled")
+  ) {
+    return 503;
+  }
+
+  return 500;
+}
+
+export async function POST(
+  request: Request
+) {
+  let orderId: string | null = null;
+
   try {
-    const { price, plan, email, uid } = await request.json();
+    const user =
+      await requireBillingUser();
 
-    if (!price || !plan || !email || !uid) {
-      return NextResponse.json(
-        { error: "Missing payment information" },
-        { status: 400 }
+    const body =
+      (await request.json()) as {
+        plan?: unknown;
+        locale?: unknown;
+      };
+
+    const plan =
+      normalizePurchasablePlan(
+        body.plan
+      );
+
+    if (!plan) {
+      throw new Error(
+        "Invalid VIP plan"
       );
     }
 
-    if (!planDays[plan]) {
-      return NextResponse.json(
-        { error: "Invalid VIP plan" },
-        { status: 400 }
+    const locale =
+      normalizeLocale(body.locale);
+
+    const settings =
+      await getVipBillingSettings();
+
+    if (!settings.vipEnabled) {
+      throw new Error(
+        "VIP subscriptions are disabled"
       );
     }
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+    if (
+      !settings.paymentsEnabled
+    ) {
+      throw new Error(
+        "Payments are disabled"
+      );
+    }
 
-    const orderId = `zerra-${Date.now()}`;
+    const price =
+      getPlanPrice(
+        settings,
+        plan
+      );
 
-    await setDoc(doc(db, "payments", orderId), {
+    orderId = createOrderId();
+
+    const paymentRef =
+      adminDb
+        .collection("payments")
+        .doc(orderId);
+
+    await paymentRef.set({
       orderId,
-      uid,
-      email,
+      uid: user.uid,
+      email: user.email,
       plan,
       price,
-      days: planDays[plan],
+      priceCurrency: "usd",
+      payCurrency: "usdttrc20",
+      days: getPlanDays(plan),
       status: "pending",
-      createdAt: serverTimestamp(),
+      paymentStatus: "waiting",
+      locale,
+      createdAt:
+        FieldValue.serverTimestamp(),
+      updatedAt:
+        FieldValue.serverTimestamp(),
     });
 
-    const response = await fetch("https://api.nowpayments.io/v1/invoice", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.NOWPAYMENTS_API_KEY || "",
-        "Content-Type": "application/json",
+    const invoice =
+      await createNowPaymentsInvoice({
+        orderId,
+        plan,
+        price,
+        email: user.email,
+        locale,
+      });
+
+    await paymentRef.set(
+      {
+        invoiceId:
+          invoice.id || null,
+        invoiceUrl:
+          invoice.invoice_url ||
+          null,
+        nowpaymentsInvoice:
+          invoice,
+        updatedAt:
+          FieldValue.serverTimestamp(),
       },
-      body: JSON.stringify({
-        price_amount: price,
-        price_currency: "usd",
-        pay_currency: "usdttrc20",
-        order_id: orderId,
-        order_description: `ZERRA VIP ${plan}`,
-        ipn_callback_url: `${siteUrl}/api/nowpayments/webhook`,
-        success_url: `${siteUrl}/en/dashboard`,
-        cancel_url: `${siteUrl}/en/vip`,
-        customer_email: email,
-      }),
-    });
+      {
+        merge: true,
+      }
+    );
 
-    const data = await response.json();
+    return NextResponse.json(
+      {
+        success: true,
+        orderId,
+        ...invoice,
+      },
+      {
+        status: 201,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Payment request failed";
 
-    if (!response.ok) {
-      return NextResponse.json({ error: data }, { status: 400 });
+    if (orderId) {
+      await adminDb
+        .collection("payments")
+        .doc(orderId)
+        .set(
+          {
+            status: "failed",
+            failureReason: message,
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        )
+        .catch(() => undefined);
     }
 
-    return NextResponse.json(data);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: message,
+      },
+      {
+        status:
+          getErrorStatus(message),
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   }
 }

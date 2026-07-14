@@ -1,9 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
+import {
+  requireServerAdmin,
+} from "@/lib/serverAdminAuth";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const defaultSettings = {
   siteName: "ZERRA Prediction",
-  heroTitle: "Smarter football predictions powered by AI.",
+  heroTitle:
+    "Smarter football predictions powered by AI.",
   heroSubtitle:
     "AI-powered football predictions, VIP picks, confidence scores, and premium match analysis.",
 
@@ -21,15 +35,26 @@ const defaultSettings = {
 
 export async function GET() {
   try {
-    const ref = adminDb.collection("settings").doc("site");
-    const snap = await ref.get();
+    const ref =
+      adminDb
+        .collection("settings")
+        .doc("site");
 
-    if (!snap.exists) {
-      await ref.set(defaultSettings, { merge: true });
+    const snapshot =
+      await ref.get();
+
+    if (!snapshot.exists) {
+      await ref.set(
+        defaultSettings,
+        {
+          merge: true,
+        }
+      );
 
       return NextResponse.json({
         success: true,
-        settings: defaultSettings,
+        settings:
+          defaultSettings,
       });
     }
 
@@ -37,53 +62,110 @@ export async function GET() {
       success: true,
       settings: {
         ...defaultSettings,
-        ...snap.data(),
+        ...snapshot.data(),
       },
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to load settings";
+
     return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
+      {
+        success: false,
+        error: message,
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest
+) {
   try {
-    const settings = await request.json();
-    const now = new Date().toISOString();
+    const admin =
+      await requireServerAdmin();
 
-    const ref = adminDb.collection("settings").doc("site");
-    const oldSnap = await ref.get();
-    const oldSettings = oldSnap.exists ? oldSnap.data() : null;
+    const settings =
+      (await request.json()) as Record<
+        string,
+        unknown
+      >;
+
+    const now =
+      new Date().toISOString();
+
+    const ref =
+      adminDb
+        .collection("settings")
+        .doc("site");
+
+    const oldSnapshot =
+      await ref.get();
+
+    const oldSettings =
+      oldSnapshot.exists
+        ? oldSnapshot.data()
+        : null;
 
     await ref.set(
       {
         ...settings,
         updatedAt: now,
+        updatedBy:
+          admin.email ||
+          admin.uid,
       },
-      { merge: true }
+      {
+        merge: true,
+      }
     );
 
-    await adminDb.collection("activityLogs").add({
-      type: "settings",
-      actor: "admin",
-      message: "Admin updated site settings",
-      targetId: "settings/site",
-      metadata: {
-        before: oldSettings,
-        after: settings,
-      },
-      createdAt: now,
-    });
+    await adminDb
+      .collection(
+        "activityLogs"
+      )
+      .add({
+        type: "settings",
+        actor:
+          admin.email ||
+          admin.uid,
+        message:
+          "Admin updated site settings",
+        targetId:
+          "settings/site",
+        metadata: {
+          before: oldSettings,
+          after: settings,
+        },
+        createdAt: now,
+      });
 
     return NextResponse.json({
       success: true,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to update settings";
+
     return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
+      {
+        success: false,
+        error: message,
+      },
+      {
+        status:
+          message ===
+          "Unauthorized admin access"
+            ? 401
+            : 500,
+      }
     );
   }
 }

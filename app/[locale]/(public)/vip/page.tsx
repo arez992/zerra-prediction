@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { auth } from "@/lib/firebase";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 const features = [
   "Premium AI predictions",
@@ -12,74 +14,141 @@ const features = [
   "Early access to premium picks",
 ];
 
+type VipPlan = {
+  name:
+    | "Monthly"
+    | "Quarterly"
+    | "Lifetime";
+  price: number;
+  description: string;
+  badge: string;
+};
+
 export default function VipPage() {
-  const [loading, setLoading] = useState("");
-  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] =
+    useState("");
+  const [settings, setSettings] =
+    useState<any>(null);
 
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch("/api/admin/settings", { cache: "no-store" });
-        const data = await res.json();
+        const response = await fetch(
+          "/api/admin/settings",
+          {
+            cache: "no-store",
+          }
+        );
 
-        if (data?.success) setSettings(data.settings);
+        const data =
+          await response.json();
+
+        if (data?.success) {
+          setSettings(
+            data.settings
+          );
+        }
       } catch {
         setSettings(null);
       }
     }
 
-    loadSettings();
+    void loadSettings();
   }, []);
 
-  const currency = settings?.currency || "USDT";
+  const currency =
+    settings?.currency || "USDT";
 
-  const plans = [
+  const plans: VipPlan[] = [
     {
       name: "Monthly",
-      price: settings?.monthlyPrice ?? 14.99,
-      description: "30 Days Premium Access",
+      price:
+        settings?.monthlyPrice ??
+        14.99,
+      description:
+        "30 Days Premium Access",
       badge: "Most Popular",
     },
     {
       name: "Quarterly",
-      price: settings?.quarterlyPrice ?? 39.99,
-      description: "90 Days Premium Access",
+      price:
+        settings?.quarterlyPrice ??
+        39.99,
+      description:
+        "90 Days Premium Access",
       badge: "Best Value",
     },
     {
       name: "Lifetime",
-      price: settings?.lifetimePrice ?? 129,
-      description: "Lifetime Premium Access",
+      price:
+        settings?.lifetimePrice ??
+        129,
+      description:
+        "Lifetime Premium Access",
       badge: "Lifetime",
     },
   ];
 
-  async function buyPlan(plan: string, price: number) {
+  async function buyPlan(
+    plan: VipPlan["name"]
+  ) {
     setLoading(plan);
 
     try {
-      const res = await fetch("/api/nowpayments/create-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan,
-          price,
-          email: auth.currentUser?.email || "guest@zerra.com",
-          uid: auth.currentUser?.uid || "guest",
-        }),
-      });
+      const locale =
+        window.location.pathname
+          .split("/")
+          .filter(Boolean)[0] ===
+        "ku"
+          ? "ku"
+          : "en";
 
-      const data = await res.json();
+      const response = await fetch(
+        "/api/nowpayments/create-payment",
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            plan,
+            locale,
+          }),
+        }
+      );
 
-      if (data.invoice_url) {
-        window.location.href = data.invoice_url;
-      } else {
-        alert(data.error || "Payment error. Check NOWPayments settings.");
-        console.log(data);
+      const data =
+        await response.json();
+
+      if (
+        response.status === 401
+      ) {
+        window.location.href =
+          `/${locale}/login`;
+        return;
       }
+
+      if (
+        response.ok &&
+        data.invoice_url
+      ) {
+        window.location.href =
+          data.invoice_url;
+        return;
+      }
+
+      alert(
+        typeof data.error === "string"
+          ? data.error
+          : "Payment error. Check NOWPayments settings."
+      );
     } catch (error) {
       console.error(error);
-      alert("Payment request failed.");
+      alert(
+        "Payment request failed."
+      );
     } finally {
       setLoading("");
     }
@@ -97,9 +166,11 @@ export default function VipPage() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-3xl text-white/60">
-          Get access to VIP football predictions, confidence scores, risk
-          analysis, value bets, and premium AI insights powered by the ZERRA AI
-          Engine.
+          Get access to VIP football
+          predictions, confidence scores,
+          risk analysis, value bets, and
+          premium AI insights powered by
+          the ZERRA AI Engine.
         </p>
       </section>
 
@@ -119,7 +190,8 @@ export default function VipPage() {
           <div
             key={plan.name}
             className={`rounded-[2rem] border p-8 shadow-xl ${
-              plan.name === "Quarterly"
+              plan.name ===
+              "Quarterly"
                 ? "border-[#D4AF37] bg-[#101827]"
                 : "border-white/10 bg-white/5"
             }`}
@@ -128,20 +200,34 @@ export default function VipPage() {
               {plan.badge}
             </div>
 
-            <h2 className="text-3xl font-black text-white">{plan.name}</h2>
+            <h2 className="text-3xl font-black text-white">
+              {plan.name}
+            </h2>
 
             <p className="mt-4 text-5xl font-black text-[#D4AF37]">
-              {plan.price} {currency}
+              {plan.price}{" "}
+              {currency}
             </p>
 
-            <p className="mt-4 text-white/60">{plan.description}</p>
+            <p className="mt-4 text-white/60">
+              {plan.description}
+            </p>
 
             <button
-              onClick={() => buyPlan(plan.name, plan.price)}
-              disabled={loading === plan.name}
+              type="button"
+              onClick={() =>
+                void buyPlan(
+                  plan.name
+                )
+              }
+              disabled={
+                loading ===
+                plan.name
+              }
               className="mt-8 w-full rounded-full bg-[#D4AF37] py-4 font-black text-black transition hover:scale-[1.02] disabled:opacity-60"
             >
-              {loading === plan.name
+              {loading ===
+              plan.name
                 ? "Creating invoice..."
                 : `Buy with ${currency}`}
             </button>
