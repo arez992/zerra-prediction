@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import CEODecisionCenter from "@/components/admin/ceo/CEODecisionCenter";
 import CEOHeader from "@/components/admin/ceo/CEOHeader";
 import CEOStats from "@/components/admin/ceo/CEOStats";
 import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList";
@@ -51,7 +52,11 @@ export default function AICEODashboardPage() {
         ← Back to Admin
       </Link>
 
-      <div className="mt-8">
+      <section className="mt-8">
+        <CEODecisionCenter />
+      </section>
+
+      <div className="mt-12">
         <CEOHeader
           loading={loading}
           generating={generating}
