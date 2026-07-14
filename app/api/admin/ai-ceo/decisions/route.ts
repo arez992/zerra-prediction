@@ -7,8 +7,15 @@ import {
   runCEOBrain,
 } from "@/lib/ai/ceo/brain";
 import {
+  approveCEODecision,
+  applyCEODecisionPolicy,
+} from "@/lib/ai/ceo/decisionWorkflow";
+import {
   collectCEOMetrics,
 } from "@/lib/ai/ceo/metrics";
+import {
+  evaluateCEODecisionPolicy,
+} from "@/lib/ai/ceo/policy";
 import {
   getLatestCEODecision,
   listCEODecisions,
@@ -19,28 +26,21 @@ import {
 } from "@/lib/serverAdminAuth";
 
 export const runtime = "nodejs";
-export const dynamic =
-  "force-dynamic";
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function getSafeLimit(
   value: string | null
 ): number {
-  const parsed =
-    Number(value);
+  const parsed = Number(value);
 
-  if (
-    !Number.isFinite(parsed)
-  ) {
+  if (!Number.isFinite(parsed)) {
     return 20;
   }
 
   return Math.min(
     100,
-    Math.max(
-      1,
-      Math.floor(parsed)
-    )
+    Math.max(1, Math.floor(parsed))
   );
 }
 
@@ -51,9 +51,7 @@ function getErrorStatus(
     message.toLowerCase();
 
   if (
-    normalized.includes(
-      "unauthorized"
-    ) ||
+    normalized.includes("unauthorized") ||
     normalized.includes(
       "authentication required"
     )
@@ -65,20 +63,14 @@ function getErrorStatus(
     normalized.includes(
       "admin access required"
     ) ||
-    normalized.includes(
-      "forbidden"
-    )
+    normalized.includes("forbidden")
   ) {
     return 403;
   }
 
   if (
-    normalized.includes(
-      "invalid"
-    ) ||
-    normalized.includes(
-      "required"
-    )
+    normalized.includes("invalid") ||
+    normalized.includes("required")
   ) {
     return 400;
   }
@@ -172,10 +164,13 @@ export async function POST(
       | string
       | undefined;
 
+    let autoApprove = false;
+
     try {
       const body =
         (await request.json()) as {
           instruction?: unknown;
+          autoApprove?: unknown;
         };
 
       instruction =
@@ -184,9 +179,12 @@ export async function POST(
         body.instruction.trim()
           ? body.instruction.trim()
           : undefined;
+
+      autoApprove =
+        body.autoApprove === true;
     } catch {
-      instruction =
-        undefined;
+      instruction = undefined;
+      autoApprove = false;
     }
 
     const metrics =
@@ -221,17 +219,56 @@ export async function POST(
           result.rawResponse,
       });
 
+    const policy =
+      await evaluateCEODecisionPolicy(
+        result.decision,
+        autoApprove
+      );
+
+    await applyCEODecisionPolicy(
+      decisionId,
+      policy
+    );
+
+    let approval:
+      | Awaited<
+          ReturnType<
+            typeof approveCEODecision
+          >
+        >
+      | null = null;
+
+    if (
+      policy.eligibleForAutoApproval
+    ) {
+      approval =
+        await approveCEODecision(
+          decisionId,
+          {
+            uid:
+              "ai-ceo-policy",
+            email:
+              "ai-ceo@system.local",
+          },
+          "auto_low_risk"
+        );
+    }
+
     return NextResponse.json(
       {
         success: true,
         message:
-          "AI CEO decision generated and saved.",
+          approval
+            ? "AI CEO decision generated, policy-approved, and converted into approved tasks."
+            : "AI CEO decision generated and saved for human review.",
         decisionId,
         source:
           result.source,
         metrics,
         decision:
           result.decision,
+        policy,
+        approval,
       },
       {
         status: 201,
