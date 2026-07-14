@@ -721,7 +721,7 @@ export default async function PredictionDetailPage({
 
               <div className="border-t border-white/10 p-7 md:p-9">
                 <Link
-                  href={`/${cleanLocale}/vip`}
+                  href={`/${cleanLocale}/vip/predictions/${prediction.id}`}
                   className="flex w-full items-center justify-center rounded-full bg-[#D4AF37] px-6 py-4 text-base font-black text-black transition hover:brightness-110"
                 >
                   {getLocalizedText(
@@ -834,7 +834,7 @@ export default async function PredictionDetailPage({
               </p>
 
               <Link
-                href={`/${cleanLocale}/vip`}
+                href={`/${cleanLocale}/vip/predictions/${prediction.id}`}
                 className="mt-6 flex items-center justify-center rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-black text-black"
               >
                 {getLocalizedText(
