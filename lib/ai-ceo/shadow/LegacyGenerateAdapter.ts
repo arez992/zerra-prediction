@@ -467,6 +467,12 @@ function convertSnapshotToCEOMetrics(
         snapshot.internal.completedPayments,
       paymentSuccessRate:
         snapshot.internal.paymentSuccessRate,
+      googleAnalyticsConnected:
+        snapshot.googleAnalytics.connected,
+      totalActiveUsers:
+        snapshot.googleAnalytics.totalActiveUsers,
+      registeredUsers:
+        snapshot.internal.totalUsers,
       searchCtr:
         snapshot.searchConsole.totals.ctr,
       searchAveragePosition:

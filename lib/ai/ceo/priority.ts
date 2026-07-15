@@ -47,6 +47,63 @@ function getCustomNumber(
   return value;
 }
 
+function getCustomBoolean(
+  metrics: CEOMetrics,
+  key: string
+): boolean | null {
+  const value = metrics.custom?.[key];
+
+  return typeof value === "boolean"
+    ? value
+    : null;
+}
+
+function getGrowthSignals(
+  metrics: CEOMetrics
+) {
+  const analyticsConnected =
+    getCustomBoolean(
+      metrics,
+      "googleAnalyticsConnected"
+    ) ?? false;
+
+  const activeUsers =
+    getCustomNumber(
+      metrics,
+      "totalActiveUsers"
+    ) ?? 0;
+
+  const registeredUsers =
+    getCustomNumber(
+      metrics,
+      "registeredUsers"
+    ) ??
+    metrics.users.total ??
+    0;
+
+  const vipConversionRate =
+    metrics.vip.conversionRate ?? 0;
+
+  const increaseEarlyTraffic =
+    analyticsConnected &&
+    activeUsers < 5 &&
+    registeredUsers < 10;
+
+  const scaleUserAcquisition =
+    registeredUsers > 0 &&
+    registeredUsers < 20 &&
+    vipConversionRate >= 20;
+
+  return {
+    analyticsConnected,
+    activeUsers,
+    registeredUsers,
+    vipConversionRate,
+    increaseEarlyTraffic,
+    scaleUserAcquisition,
+  };
+}
+
 function getPaymentSignals(
   metrics: CEOMetrics
 ) {
@@ -163,6 +220,9 @@ export function buildRuleBasedPriorities(
   const payments =
     getPaymentSignals(metrics);
 
+  const growth =
+    getGrowthSignals(metrics);
+
   if (payments.needsInvestigation) {
     priorities.push({
       id: "investigate-failed-payments",
@@ -243,6 +303,34 @@ export function buildRuleBasedPriorities(
     });
   }
 
+  if (growth.increaseEarlyTraffic) {
+    priorities.push({
+      id: "increase-early-traffic",
+      title:
+        "Increase Early Traffic Acquisition",
+      reason:
+        "Current traffic and registered user volume are still low. Focus on SEO foundations, targeted country testing, and content distribution before scaling paid advertising.",
+      impact: "Medium",
+      urgency: "Medium",
+      requiresApproval: true,
+      actionKey: "publishArticles",
+    });
+  }
+
+  if (growth.scaleUserAcquisition) {
+    priorities.push({
+      id: "scale-user-acquisition",
+      title:
+        "Scale User Acquisition Carefully",
+      reason:
+        "VIP conversion is strong, but total user volume is still low. Increase traffic gradually while monitoring payment success and retention.",
+      impact: "Medium",
+      urgency: "Medium",
+      requiresApproval: true,
+      actionKey: "promoteVip",
+    });
+  }
+
   if (
     (metrics.predictions.pendingReview ?? 0) > 0
   ) {
@@ -281,6 +369,9 @@ export function buildRuleBasedActions(
   const payments =
     getPaymentSignals(metrics);
 
+  const growth =
+    getGrowthSignals(metrics);
+
   const hasPredictionDrafts =
     (metrics.predictions.pendingReview ?? 0) > 0;
 
@@ -296,20 +387,30 @@ export function buildRuleBasedActions(
     (metrics.seo.pagesNeedingReview ?? 0) > 0;
 
   actions.publishArticles = action(
-    false,
+    growth.increaseEarlyTraffic,
     true,
-    seoNeedsWork
-      ? "SEO pages require review before publication."
-      : "No approved article publication request is available."
+    growth.increaseEarlyTraffic
+      ? "Early traffic acquisition requires SEO foundations, targeted country testing, and content distribution."
+      : seoNeedsWork
+        ? "SEO pages require review before publication."
+        : "No early traffic content campaign is currently required."
   );
 
-  actions.promoteVip = action(
+  const vipConversionNeedsReview =
     metrics.vip.conversionRate !== null &&
-      metrics.vip.conversionRate < 2,
+    metrics.vip.conversionRate < 2;
+
+  actions.promoteVip = action(
+    vipConversionNeedsReview ||
+      growth.scaleUserAcquisition,
     true,
-    metrics.vip.conversionRate === null
-      ? "VIP conversion data is unavailable."
-      : "VIP promotion may help if conversion remains below target."
+    growth.scaleUserAcquisition
+      ? "VIP conversion is strong while user volume remains low, supporting cautious acquisition scaling."
+      : metrics.vip.conversionRate === null
+        ? "VIP conversion data is unavailable."
+        : vipConversionNeedsReview
+          ? "VIP promotion may help if conversion remains below target."
+          : "No verified VIP promotion action is currently required."
   );
 
   actions.pauseMarketing = action(
