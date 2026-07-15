@@ -12,6 +12,7 @@ import CEOShadowHistoryCard from "@/components/admin/ceo/CEOShadowHistoryCard";
 import SEODirectorCard from "@/components/admin/ceo/SEODirectorCard";
 import SEOPageDraftsCard from "@/components/admin/ceo/SEOPageDraftsCard";
 import SEOAuditLogCard from "@/components/admin/ceo/SEOAuditLogCard";
+import LearningDashboard from "@/components/admin/learning/LearningDashboard";
 
 import { useCEO } from "@/hooks/useCEO";
 
@@ -59,6 +60,10 @@ export default function AICEODashboardPage() {
 
       <section className="mt-12">
         <CEOShadowHistoryCard />
+      </section>
+
+      <section className="mt-12">
+        <LearningDashboard />
       </section>
 
       <div className="mt-12">
