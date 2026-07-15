@@ -518,6 +518,45 @@ export async function executeCEORecommendation(
       source: "execution-engine",
     });
 
+    await learningService.record({
+      agent: "ceo",
+      recommendationId,
+      recommendationType:
+        recommendation.executionType ||
+        "unknown",
+      executionSuccess: true,
+      executionCompleted:
+        executionResult.completed,
+      executionMessage:
+        executionResult.message,
+      executionData:
+        executionResult.data || {},
+      metricsBefore: {
+        status: "approved",
+        executionPayload:
+          recommendation.executionPayload ||
+          {},
+      },
+      metricsAfter: {
+        status: "completed",
+        executionResult:
+          executionResult.data || {},
+      },
+      tags: [
+        "execution-engine",
+        "completed",
+      ],
+      metadata: {
+        taskId: taskRef.id,
+        executedBy:
+          admin.email ||
+          admin.uid,
+        recommendationSource:
+          recommendation.source ||
+          null,
+      },
+    });
+
     return {
       success: true,
       recommendationId,
