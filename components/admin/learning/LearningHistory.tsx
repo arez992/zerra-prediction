@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import LearningHistoryTable from "@/components/admin/learning/LearningHistoryTable";
+import LearningHistoryDrawer from "@/components/admin/learning/LearningHistoryDrawer";
 import type {
   LearningHistoryRecord,
 } from "@/components/admin/learning/types";
@@ -66,6 +67,13 @@ export default function LearningHistory() {
 
   const [offset, setOffset] =
     useState(0);
+
+  const [
+    selectedRecord,
+    setSelectedRecord,
+  ] = useState<
+    LearningHistoryRecord | null
+  >(null);
 
   const limit = 20;
 
@@ -352,6 +360,9 @@ export default function LearningHistory() {
           records={records}
           loading={loading}
           error={error}
+          onView={(record) =>
+            setSelectedRecord(record)
+          }
         />
       </div>
 
@@ -398,6 +409,13 @@ export default function LearningHistory() {
           </button>
         </div>
       </div>
+
+      <LearningHistoryDrawer
+        record={selectedRecord}
+        onClose={() =>
+          setSelectedRecord(null)
+        }
+      />
     </section>
   );
 }

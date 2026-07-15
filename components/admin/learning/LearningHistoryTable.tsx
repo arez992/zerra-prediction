@@ -9,12 +9,16 @@ type LearningHistoryTableProps = {
   records: LearningHistoryRecord[];
   loading: boolean;
   error: string;
+  onView: (
+    record: LearningHistoryRecord
+  ) => void;
 };
 
 export default function LearningHistoryTable({
   records,
   loading,
   error,
+  onView,
 }: LearningHistoryTableProps) {
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-[#151c2e]">
@@ -60,6 +64,10 @@ export default function LearningHistoryTable({
 
                   <TableHead>
                     Completed
+                  </TableHead>
+
+                  <TableHead>
+                    Action
                   </TableHead>
                 </tr>
               </thead>
@@ -111,6 +119,18 @@ export default function LearningHistoryTable({
                           record.completedAt
                         )}
                       </span>
+                    </TableCell>
+
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onView(record)
+                        }
+                        className="rounded-full border border-[#D4AF37]/40 px-4 py-2 text-xs font-black text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-black"
+                      >
+                        View
+                      </button>
                     </TableCell>
                   </tr>
                 ))}
