@@ -1,6 +1,9 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { saveCEOMemory } from "@/lib/ai-ceo/memoryEngine";
+import {
+  learningService,
+} from "@/lib/zaos/learning";
 
 type AdminIdentity = {
   uid: string;
