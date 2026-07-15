@@ -162,6 +162,28 @@ export default function LearningDashboard() {
       })[0] ?? null;
     }, [summary]);
 
+  const topStrategies =
+    useMemo(
+      () =>
+        [...(
+          summary?.byRecommendationType || []
+        )]
+          .sort(compareBestFirst)
+          .slice(0, 5),
+      [summary]
+    );
+
+  const bottomStrategies =
+    useMemo(
+      () =>
+        [...(
+          summary?.byRecommendationType || []
+        )]
+          .sort(compareWorstFirst)
+          .slice(0, 5),
+      [summary]
+    );
+
   return (
     <section className="rounded-3xl border border-zinc-800 bg-[#0f1422] p-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -294,55 +316,32 @@ export default function LearningDashboard() {
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
-          <h3 className="text-lg font-semibold text-white">
-            Strategy Performance
-          </h3>
+        <StrategyList
+          title="Top 5 Strategies"
+          subtitle="Highest performing strategies by success rate and score."
+          strategies={topStrategies}
+          loading={loading}
+          emptyMessage="No strategy data is available yet."
+        />
 
-          <div className="mt-5 space-y-4">
-            {loading ? (
-              <LoadingRows />
-            ) : summary &&
-              summary.byRecommendationType.length > 0 ? (
-              summary.byRecommendationType.map(
-                (strategy) => (
-                  <div
-                    key={
-                      strategy.recommendationType
-                    }
-                    className="rounded-xl border border-zinc-800 bg-[#101624] p-4"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-white">
-                          {formatStrategy(
-                            strategy.recommendationType
-                          )}
-                        </p>
+        <StrategyList
+          title="Bottom 5 Strategies"
+          subtitle="Lowest performing strategies that need review."
+          strategies={bottomStrategies}
+          loading={loading}
+          emptyMessage="No strategy data is available yet."
+        />
+      </div>
 
-                        <p className="mt-1 text-xs text-zinc-500">
-                          {strategy.totalRuns} run(s)
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-xl font-bold text-yellow-400">
-                          {strategy.averageScore}
-                        </p>
-
-                        <p className="text-xs text-zinc-500">
-                          average score
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              )
-            ) : (
-              <EmptyState />
-            )}
-          </div>
-        </div>
+      <div className="mt-8 grid gap-6 xl:grid-cols-2">
+        <OutcomeDistribution
+          successRate={
+            summary?.overall.successRate ?? 0
+          }
+          failureRate={failureRate}
+          neutralRate={neutralRate}
+          loading={loading}
+        />
 
         <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
           <h3 className="text-lg font-semibold text-white">
@@ -377,6 +376,196 @@ export default function LearningDashboard() {
         </div>
       </div>
     </section>
+  );
+}
+
+function StrategyList({
+  title,
+  subtitle,
+  strategies,
+  loading,
+  emptyMessage,
+}: {
+  title: string;
+  subtitle: string;
+  strategies: LearningTypeStats[];
+  loading: boolean;
+  emptyMessage: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
+      <div>
+        <h3 className="text-lg font-semibold text-white">
+          {title}
+        </h3>
+
+        <p className="mt-1 text-sm text-zinc-500">
+          {subtitle}
+        </p>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        {loading ? (
+          <LoadingRows />
+        ) : strategies.length > 0 ? (
+          strategies.map(
+            (strategy, index) => (
+              <StrategyRow
+                key={
+                  strategy.recommendationType
+                }
+                strategy={strategy}
+                rank={index + 1}
+              />
+            )
+          )
+        ) : (
+          <EmptyState
+            message={emptyMessage}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StrategyRow({
+  strategy,
+  rank,
+}: {
+  strategy: LearningTypeStats;
+  rank: number;
+}) {
+  const progress =
+    Math.min(
+      100,
+      Math.max(
+        0,
+        strategy.averageScore
+      )
+    );
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-[#101624] p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-white">
+            {rank}.{" "}
+            {formatStrategy(
+              strategy.recommendationType
+            )}
+          </p>
+
+          <p className="mt-1 text-xs text-zinc-500">
+            {strategy.totalRuns} run(s) ·{" "}
+            {strategy.successRate}% success
+          </p>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="text-xl font-bold text-yellow-400">
+            {strategy.averageScore}
+          </p>
+
+          <p className="text-xs text-zinc-500">
+            average score
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className="h-full rounded-full bg-yellow-500 transition-all"
+          style={{
+            width: `${progress}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function OutcomeDistribution({
+  successRate,
+  failureRate,
+  neutralRate,
+  loading,
+}: {
+  successRate: number;
+  failureRate: number;
+  neutralRate: number;
+  loading: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
+      <h3 className="text-lg font-semibold text-white">
+        Outcome Distribution
+      </h3>
+
+      <p className="mt-1 text-sm text-zinc-500">
+        Current balance of successful, neutral, and failed learning outcomes.
+      </p>
+
+      <div className="mt-6 space-y-5">
+        {loading ? (
+          <LoadingRows />
+        ) : (
+          <>
+            <OutcomeBar
+              label="Success"
+              value={successRate}
+            />
+
+            <OutcomeBar
+              label="Neutral"
+              value={neutralRate}
+            />
+
+            <OutcomeBar
+              label="Failure"
+              value={failureRate}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OutcomeBar({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  const normalized =
+    Math.min(
+      100,
+      Math.max(0, value)
+    );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm font-medium text-white">
+          {label}
+        </span>
+
+        <span className="text-sm font-bold text-yellow-400">
+          {normalized}%
+        </span>
+      </div>
+
+      <div className="mt-2 h-3 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className="h-full rounded-full bg-yellow-500 transition-all"
+          style={{
+            width: `${normalized}%`,
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -418,18 +607,82 @@ function LoadingRows() {
       {[1, 2, 3].map((item) => (
         <div
           key={item}
-          className="h-20 animate-pulse rounded-xl bg-zinc-800/50"
+          className="h-24 animate-pulse rounded-xl bg-zinc-800/50"
         />
       ))}
     </>
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  message,
+}: {
+  message: string;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-center text-sm text-zinc-500">
-      No learning records are available yet.
+      {message}
     </div>
+  );
+}
+
+function compareBestFirst(
+  first: LearningTypeStats,
+  second: LearningTypeStats
+) {
+  if (
+    second.successRate !==
+    first.successRate
+  ) {
+    return (
+      second.successRate -
+      first.successRate
+    );
+  }
+
+  if (
+    second.averageScore !==
+    first.averageScore
+  ) {
+    return (
+      second.averageScore -
+      first.averageScore
+    );
+  }
+
+  return (
+    second.totalRuns -
+    first.totalRuns
+  );
+}
+
+function compareWorstFirst(
+  first: LearningTypeStats,
+  second: LearningTypeStats
+) {
+  if (
+    first.successRate !==
+    second.successRate
+  ) {
+    return (
+      first.successRate -
+      second.successRate
+    );
+  }
+
+  if (
+    first.averageScore !==
+    second.averageScore
+  ) {
+    return (
+      first.averageScore -
+      second.averageScore
+    );
+  }
+
+  return (
+    second.totalRuns -
+    first.totalRuns
   );
 }
 
