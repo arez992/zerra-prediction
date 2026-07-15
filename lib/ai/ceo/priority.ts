@@ -31,6 +31,71 @@ function action(
   };
 }
 
+function getCustomNumber(
+  metrics: CEOMetrics,
+  key: string
+): number | null {
+  const value = metrics.custom?.[key];
+
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+function getPaymentSignals(
+  metrics: CEOMetrics
+) {
+  const failedPayments =
+    getCustomNumber(
+      metrics,
+      "failedPayments"
+    ) ?? 0;
+
+  const totalPayments =
+    getCustomNumber(
+      metrics,
+      "totalPayments"
+    ) ?? 0;
+
+  const storedRate =
+    getCustomNumber(
+      metrics,
+      "failedPaymentRate"
+    );
+
+  const failedPaymentRate =
+    storedRate ??
+    (
+      totalPayments > 0
+        ? Number(
+            (
+              failedPayments /
+              totalPayments *
+              100
+            ).toFixed(2)
+          )
+        : 0
+    );
+
+  const needsInvestigation =
+    failedPayments >= 3 ||
+    failedPaymentRate >= 15;
+
+  return {
+    failedPayments,
+    totalPayments,
+    failedPaymentRate,
+    needsInvestigation,
+    critical:
+      failedPaymentRate >= 25,
+  };
+}
+
 export function createDefaultActions(): CEOActions {
   return ACTION_KEYS.reduce(
     (result, key) => {
@@ -49,11 +114,15 @@ export function createDefaultActions(): CEOActions {
 export function calculateRuleBasedHealth(
   metrics: CEOMetrics
 ): CEOHealth {
+  const payments =
+    getPaymentSignals(metrics);
+
   const severeSignals = [
     metrics.apiHealth.apiFootballAvailable === false,
     metrics.apiHealth.openAiAvailable === false,
     (metrics.apiHealth.recentErrors ?? 0) >= 20,
     (metrics.predictions.accuracyPercent ?? 100) < 45,
+    payments.critical,
   ].filter(Boolean).length;
 
   if (severeSignals >= 2) {
@@ -66,6 +135,7 @@ export function calculateRuleBasedHealth(
     (metrics.predictions.accuracyPercent ?? 100) < 60,
     (metrics.seo.pagesNeedingReview ?? 0) > 20,
     (metrics.revenue.trendPercent ?? 0) < -10,
+    payments.needsInvestigation,
   ].filter(Boolean).length;
 
   if (warningSignals >= 2) {
@@ -78,6 +148,7 @@ export function calculateRuleBasedHealth(
     (metrics.predictions.accuracyPercent ?? 0) >= 70,
     (metrics.seo.averageQualityScore ?? 0) >= 85,
     (metrics.apiHealth.recentErrors ?? 1) === 0,
+    !payments.needsInvestigation,
   ].filter(Boolean).length;
 
   return positiveSignals >= 4
@@ -89,6 +160,21 @@ export function buildRuleBasedPriorities(
   metrics: CEOMetrics
 ): CEOPriority[] {
   const priorities: CEOPriority[] = [];
+  const payments =
+    getPaymentSignals(metrics);
+
+  if (payments.needsInvestigation) {
+    priorities.push({
+      id: "investigate-failed-payments",
+      title: "Investigate Failed Payments",
+      reason:
+        "Payment failures are high enough to affect revenue and VIP conversion. Review NOWPayments statuses, expired invoices, webhook delivery, and checkout friction.",
+      impact: "High",
+      urgency: "High",
+      requiresApproval: false,
+      actionKey: "investigateApi",
+    });
+  }
 
   if (
     metrics.apiHealth.apiFootballAvailable === false ||
@@ -192,6 +278,8 @@ export function buildRuleBasedActions(
   metrics: CEOMetrics
 ): CEOActions {
   const actions = createDefaultActions();
+  const payments =
+    getPaymentSignals(metrics);
 
   const hasPredictionDrafts =
     (metrics.predictions.pendingReview ?? 0) > 0;
@@ -250,12 +338,18 @@ export function buildRuleBasedActions(
       : "Accuracy is below the working model-quality threshold."
   );
 
-  actions.investigateApi = action(
+  const apiNeedsInvestigation =
     metrics.apiHealth.apiFootballAvailable === false ||
-      metrics.apiHealth.openAiAvailable === false ||
-      (metrics.apiHealth.recentErrors ?? 0) >= 5,
+    metrics.apiHealth.openAiAvailable === false ||
+    (metrics.apiHealth.recentErrors ?? 0) >= 5;
+
+  actions.investigateApi = action(
+    payments.needsInvestigation ||
+      apiNeedsInvestigation,
     false,
-    "Provider availability and recent errors determine this operational check."
+    payments.needsInvestigation
+      ? `Payment health requires investigation: ${payments.failedPayments} failed payment(s), ${payments.failedPaymentRate}% failure rate.`
+      : "Provider availability and recent errors determine this operational check."
   );
 
   return actions;
@@ -265,6 +359,22 @@ export function buildRuleBasedRisks(
   metrics: CEOMetrics
 ): CEORisk[] {
   const risks: CEORisk[] = [];
+  const payments =
+    getPaymentSignals(metrics);
+
+  if (payments.needsInvestigation) {
+    risks.push({
+      title: "Payment failures affecting revenue",
+      level:
+        payments.critical
+          ? "Critical"
+          : "High",
+      reason:
+        `${payments.failedPayments} failed payment(s) were detected with a ${payments.failedPaymentRate}% failure rate.`,
+      mitigation:
+        "Review NOWPayments statuses, expired invoices, webhook delivery, and checkout friction before scaling acquisition.",
+    });
+  }
 
   if (metrics.apiHealth.apiFootballAvailable === false) {
     risks.push({
