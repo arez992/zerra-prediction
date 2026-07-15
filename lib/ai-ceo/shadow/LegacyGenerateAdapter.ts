@@ -130,14 +130,53 @@ function slugify(value: string): string {
     .slice(0, 60);
 }
 
+function getCanonicalPriorityId(
+  decision: LegacyGeneratedDecision,
+  index: number
+): string {
+  switch (decision.executionType) {
+    case "payment-audit":
+      return "investigate-failed-payments";
+
+    case "vip-conversion-review":
+      return "improve-vip-conversion";
+
+    case "registration-funnel-review":
+      return "improve-registration-conversion";
+
+    case "seo-metadata-optimization":
+      return "improve-search-ctr";
+
+    case "create-country-landing-page":
+      return `create-country-landing-page-${slugify(
+        decision.country || "unknown"
+      )}`;
+
+    case "create-seo-content-cluster":
+      return "expand-seo-content";
+
+    case "growth-foundation-plan":
+      return "increase-early-traffic";
+
+    case "controlled-user-acquisition":
+      return "scale-user-acquisition";
+
+    default:
+      return `legacy-generate-${index + 1}-${slugify(
+        decision.title
+      )}`;
+  }
+}
+
 function mapPriority(
   decision: LegacyGeneratedDecision,
   index: number
 ): CEOPriority {
   return {
-    id: `legacy-generate-${index + 1}-${slugify(
-      decision.title
-    )}`,
+    id: getCanonicalPriorityId(
+      decision,
+      index
+    ),
     title: decision.title,
     reason: decision.description,
     impact:
