@@ -410,6 +410,22 @@ function convertSnapshotToCEOMetrics(
     custom: {
       legacyGeneratedRecommendations:
         decisions.length,
+      totalPayments:
+        snapshot.internal.totalPayments,
+      failedPayments:
+        snapshot.internal.failedPayments,
+      failedPaymentRate:
+        snapshot.internal.totalPayments > 0
+          ? Number(
+              (
+                snapshot.internal.failedPayments /
+                snapshot.internal.totalPayments *
+                100
+              ).toFixed(2)
+            )
+          : 0,
+      completedPayments:
+        snapshot.internal.completedPayments,
       paymentSuccessRate:
         snapshot.internal.paymentSuccessRate,
       searchCtr:
