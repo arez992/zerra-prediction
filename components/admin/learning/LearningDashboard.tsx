@@ -99,42 +99,24 @@ export default function LearningDashboard() {
   }, [loadSummary]);
 
   const failureRate =
-    useMemo(() => {
-      if (
-        !summary ||
-        summary.overall.totalRuns === 0
-      ) {
-        return 0;
-      }
-
-      return Number(
-        (
-          (
-            summary.overall.failedRuns /
-            summary.overall.totalRuns
-          ) * 100
-        ).toFixed(2)
-      );
-    }, [summary]);
+    useMemo(
+      () =>
+        calculateRate(
+          summary?.overall.failedRuns ?? 0,
+          summary?.overall.totalRuns ?? 0
+        ),
+      [summary]
+    );
 
   const neutralRate =
-    useMemo(() => {
-      if (
-        !summary ||
-        summary.overall.totalRuns === 0
-      ) {
-        return 0;
-      }
-
-      return Number(
-        (
-          (
-            summary.overall.neutralRuns /
-            summary.overall.totalRuns
-          ) * 100
-        ).toFixed(2)
-      );
-    }, [summary]);
+    useMemo(
+      () =>
+        calculateRate(
+          summary?.overall.neutralRuns ?? 0,
+          summary?.overall.totalRuns ?? 0
+        ),
+      [summary]
+    );
 
   const topAgent =
     useMemo(() => {
@@ -162,26 +144,88 @@ export default function LearningDashboard() {
       })[0] ?? null;
     }, [summary]);
 
-  const topStrategies =
-    useMemo(
-      () =>
-        [...(
-          summary?.byRecommendationType || []
-        )]
-          .sort(compareBestFirst)
-          .slice(0, 5),
-      [summary]
-    );
+  const strategyGroups =
+    useMemo(() => {
+      const strategies = [
+        ...(summary?.byRecommendationType || []),
+      ].sort(compareBestFirst);
 
-  const bottomStrategies =
+      if (strategies.length <= 1) {
+        return {
+          top: strategies,
+          bottom: [],
+        };
+      }
+
+      const topCount =
+        Math.min(
+          5,
+          Math.ceil(
+            strategies.length / 2
+          )
+        );
+
+      const top =
+        strategies.slice(
+          0,
+          topCount
+        );
+
+      const topIds =
+        new Set(
+          top.map(
+            (item) =>
+              item.recommendationType
+          )
+        );
+
+      const bottom = [
+        ...strategies,
+      ]
+        .sort(compareWorstFirst)
+        .filter(
+          (item) =>
+            !topIds.has(
+              item.recommendationType
+            )
+        )
+        .slice(0, 5);
+
+      return {
+        top,
+        bottom,
+      };
+    }, [summary]);
+
+  const latestStrategy =
+    useMemo(() => {
+      const strategies =
+        summary?.byRecommendationType || [];
+
+      return [...strategies]
+        .filter(
+          (item) =>
+            item.lastCompletedAt
+        )
+        .sort(
+          (first, second) =>
+            dateValue(
+              second.lastCompletedAt
+            ) -
+            dateValue(
+              first.lastCompletedAt
+            )
+        )[0] ?? null;
+    }, [summary]);
+
+  const executiveGuidance =
     useMemo(
       () =>
-        [...(
-          summary?.byRecommendationType || []
-        )]
-          .sort(compareWorstFirst)
-          .slice(0, 5),
-      [summary]
+        buildExecutiveGuidance(
+          summary,
+          failureRate
+        ),
+      [summary, failureRate]
     );
 
   return (
@@ -197,8 +241,9 @@ export default function LearningDashboard() {
           </h2>
 
           <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-            Monitor how ZAOS learns from completed executions,
-            business outcomes, and historical recommendations.
+            Monitor verified learning outcomes,
+            strategy quality, and the actions that
+            need executive attention.
           </p>
         </div>
 
@@ -206,9 +251,13 @@ export default function LearningDashboard() {
           className="rounded-full border border-yellow-500 px-6 py-2 text-sm font-semibold text-yellow-400 transition hover:bg-yellow-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
           type="button"
           disabled={loading}
-          onClick={() => void loadSummary()}
+          onClick={() =>
+            void loadSummary()
+          }
         >
-          {loading ? "Loading..." : "Refresh"}
+          {loading
+            ? "Loading..."
+            : "Refresh"}
         </button>
       </div>
 
@@ -270,29 +319,33 @@ export default function LearningDashboard() {
             loading
               ? null
               : formatStrategy(
-                  summary?.bestPerformingStrategy
+                  summary
+                    ?.bestPerformingStrategy
                     ?.recommendationType
                 )
           }
           detail={
-            summary?.bestPerformingStrategy
+            summary
+              ?.bestPerformingStrategy
               ? `${summary.bestPerformingStrategy.averageScore} score`
               : "No data"
           }
         />
 
         <MetricCard
-          title="Worst Strategy"
+          title="Needs Review"
           value={
             loading
               ? null
               : formatStrategy(
-                  summary?.worstPerformingStrategy
+                  summary
+                    ?.worstPerformingStrategy
                     ?.recommendationType
                 )
           }
           detail={
-            summary?.worstPerformingStrategy
+            summary
+              ?.worstPerformingStrategy
               ? `${summary.worstPerformingStrategy.averageScore} score`
               : "No data"
           }
@@ -315,65 +368,76 @@ export default function LearningDashboard() {
         />
       </div>
 
+      <div className="mt-8 rounded-2xl border border-[#D4AF37]/25 bg-[#151c2e] p-6">
+        <p className="text-xs font-black uppercase tracking-[0.28em] text-[#D4AF37]">
+          Executive Guidance
+        </p>
+
+        <h3 className="mt-3 text-xl font-bold text-white">
+          {executiveGuidance.title}
+        </h3>
+
+        <p className="mt-2 max-w-4xl text-sm leading-7 text-zinc-400">
+          {executiveGuidance.description}
+        </p>
+      </div>
+
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <StrategyList
-          title="Top 5 Strategies"
-          subtitle="Highest performing strategies by success rate and score."
-          strategies={topStrategies}
+          title="Top Strategies"
+          subtitle="Best-performing strategies without duplicate entries."
+          strategies={
+            strategyGroups.top
+          }
           loading={loading}
           emptyMessage="No strategy data is available yet."
         />
 
         <StrategyList
-          title="Bottom 5 Strategies"
-          subtitle="Lowest performing strategies that need review."
-          strategies={bottomStrategies}
+          title="Strategies Needing Review"
+          subtitle="Lowest-performing unique strategies that require attention."
+          strategies={
+            strategyGroups.bottom
+          }
           loading={loading}
-          emptyMessage="No strategy data is available yet."
+          emptyMessage={
+            strategyGroups.top.length > 0
+              ? "More strategy data is required before a separate review list can be produced."
+              : "No strategy data is available yet."
+          }
         />
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <OutcomeDistribution
-          successRate={
-            summary?.overall.successRate ?? 0
+          successfulRuns={
+            summary?.overall
+              .successfulRuns ?? 0
           }
-          failureRate={failureRate}
-          neutralRate={neutralRate}
+          neutralRuns={
+            summary?.overall
+              .neutralRuns ?? 0
+          }
+          failedRuns={
+            summary?.overall
+              .failedRuns ?? 0
+          }
+          totalRuns={
+            summary?.overall.totalRuns ?? 0
+          }
           loading={loading}
         />
 
-        <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
-          <h3 className="text-lg font-semibold text-white">
-            Latest Learning
-          </h3>
-
-          <div className="mt-5 rounded-xl border border-zinc-800 bg-[#101624] p-5">
-            <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">
-              Last Completed
-            </p>
-
-            <p className="mt-3 text-lg font-semibold text-white">
-              {loading
-                ? "Loading..."
-                : formatDate(
-                    summary?.overall.lastCompletedAt
-                  )}
-            </p>
-
-            <p className="mt-5 text-sm text-zinc-400">
-              Summary generated:
-            </p>
-
-            <p className="mt-1 text-sm text-white">
-              {loading
-                ? "—"
-                : formatDate(
-                    summary?.generatedAt
-                  )}
-            </p>
-          </div>
-        </div>
+        <LatestLearningCard
+          strategy={latestStrategy}
+          agent={
+            topAgent?.[0] ?? null
+          }
+          generatedAt={
+            summary?.generatedAt ?? null
+          }
+          loading={loading}
+        />
       </div>
     </section>
   );
@@ -394,15 +458,13 @@ function StrategyList({
 }) {
   return (
     <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
-      <div>
-        <h3 className="text-lg font-semibold text-white">
-          {title}
-        </h3>
+      <h3 className="text-lg font-semibold text-white">
+        {title}
+      </h3>
 
-        <p className="mt-1 text-sm text-zinc-500">
-          {subtitle}
-        </p>
-      </div>
+      <p className="mt-1 text-sm text-zinc-500">
+        {subtitle}
+      </p>
 
       <div className="mt-5 space-y-4">
         {loading ? (
@@ -412,7 +474,8 @@ function StrategyList({
             (strategy, index) => (
               <StrategyRow
                 key={
-                  strategy.recommendationType
+                  strategy
+                    .recommendationType
                 }
                 strategy={strategy}
                 rank={index + 1}
@@ -445,37 +508,48 @@ function StrategyRow({
       )
     );
 
+  const outcome =
+    getDominantOutcome(strategy);
+
   return (
     <div className="rounded-xl border border-zinc-800 bg-[#101624] p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="truncate font-semibold text-white">
+          <p className="font-semibold text-white">
             {rank}.{" "}
             {formatStrategy(
-              strategy.recommendationType
+              strategy
+                .recommendationType
             )}
           </p>
 
           <p className="mt-1 text-xs text-zinc-500">
-            {strategy.totalRuns} run(s) ·{" "}
-            {strategy.successRate}% success
+            {strategy.totalRuns} run(s)
+            {" · "}
+            {outcome} outcome
           </p>
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-xl font-bold text-yellow-400">
+          <p
+            className={`text-xl font-bold ${scoreTextClass(
+              strategy.averageScore
+            )}`}
+          >
             {strategy.averageScore}
           </p>
 
           <p className="text-xs text-zinc-500">
-            average score
+            learning score
           </p>
         </div>
       </div>
 
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800">
         <div
-          className="h-full rounded-full bg-yellow-500 transition-all"
+          className={`h-full rounded-full transition-all ${scoreBarClass(
+            strategy.averageScore
+          )}`}
           style={{
             width: `${progress}%`,
           }}
@@ -486,14 +560,16 @@ function StrategyRow({
 }
 
 function OutcomeDistribution({
-  successRate,
-  failureRate,
-  neutralRate,
+  successfulRuns,
+  neutralRuns,
+  failedRuns,
+  totalRuns,
   loading,
 }: {
-  successRate: number;
-  failureRate: number;
-  neutralRate: number;
+  successfulRuns: number;
+  neutralRuns: number;
+  failedRuns: number;
+  totalRuns: number;
   loading: boolean;
 }) {
   return (
@@ -503,7 +579,7 @@ function OutcomeDistribution({
       </h3>
 
       <p className="mt-1 text-sm text-zinc-500">
-        Current balance of successful, neutral, and failed learning outcomes.
+        Percentages and verified run counts.
       </p>
 
       <div className="mt-6 space-y-5">
@@ -513,17 +589,26 @@ function OutcomeDistribution({
           <>
             <OutcomeBar
               label="Success"
-              value={successRate}
+              count={successfulRuns}
+              total={totalRuns}
+              barClass="bg-emerald-500"
+              textClass="text-emerald-400"
             />
 
             <OutcomeBar
               label="Neutral"
-              value={neutralRate}
+              count={neutralRuns}
+              total={totalRuns}
+              barClass="bg-amber-500"
+              textClass="text-amber-400"
             />
 
             <OutcomeBar
               label="Failure"
-              value={failureRate}
+              count={failedRuns}
+              total={totalRuns}
+              barClass="bg-red-500"
+              textClass="text-red-400"
             />
           </>
         )}
@@ -534,15 +619,21 @@ function OutcomeDistribution({
 
 function OutcomeBar({
   label,
-  value,
+  count,
+  total,
+  barClass,
+  textClass,
 }: {
   label: string;
-  value: number;
+  count: number;
+  total: number;
+  barClass: string;
+  textClass: string;
 }) {
-  const normalized =
-    Math.min(
-      100,
-      Math.max(0, value)
+  const percentage =
+    calculateRate(
+      count,
+      total
     );
 
   return (
@@ -552,19 +643,142 @@ function OutcomeBar({
           {label}
         </span>
 
-        <span className="text-sm font-bold text-yellow-400">
-          {normalized}%
+        <span
+          className={`text-sm font-bold ${textClass}`}
+        >
+          {count} run(s) ·{" "}
+          {percentage}%
         </span>
       </div>
 
       <div className="mt-2 h-3 overflow-hidden rounded-full bg-zinc-800">
         <div
-          className="h-full rounded-full bg-yellow-500 transition-all"
+          className={`h-full rounded-full transition-all ${barClass}`}
           style={{
-            width: `${normalized}%`,
+            width: `${percentage}%`,
           }}
         />
       </div>
+    </div>
+  );
+}
+
+function LatestLearningCard({
+  strategy,
+  agent,
+  generatedAt,
+  loading,
+}: {
+  strategy:
+    | LearningTypeStats
+    | null;
+  agent: string | null;
+  generatedAt: string | null;
+  loading: boolean;
+}) {
+  const outcome =
+    strategy
+      ? getDominantOutcome(
+          strategy
+        )
+      : "No data";
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-[#151c2e] p-6">
+      <h3 className="text-lg font-semibold text-white">
+        Latest Learning
+      </h3>
+
+      <div className="mt-5 grid gap-4 rounded-xl border border-zinc-800 bg-[#101624] p-5 sm:grid-cols-2">
+        <Detail
+          label="Strategy"
+          value={
+            loading
+              ? "Loading..."
+              : formatStrategy(
+                  strategy
+                    ?.recommendationType
+                )
+          }
+        />
+
+        <Detail
+          label="Outcome"
+          value={
+            loading
+              ? "Loading..."
+              : outcome
+          }
+        />
+
+        <Detail
+          label="Score"
+          value={
+            loading
+              ? "Loading..."
+              : strategy
+                ? String(
+                    strategy
+                      .averageScore
+                  )
+                : "No data"
+          }
+        />
+
+        <Detail
+          label="Agent"
+          value={
+            loading
+              ? "Loading..."
+              : agent
+                ? agent.toUpperCase()
+                : "No data"
+          }
+        />
+
+        <Detail
+          label="Completed"
+          value={
+            loading
+              ? "Loading..."
+              : formatDate(
+                  strategy
+                    ?.lastCompletedAt
+                )
+          }
+        />
+
+        <Detail
+          label="Summary Generated"
+          value={
+            loading
+              ? "Loading..."
+              : formatDate(
+                  generatedAt
+                )
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function Detail({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+        {label}
+      </p>
+
+      <p className="mt-2 font-semibold text-white">
+        {value}
+      </p>
     </div>
   );
 }
@@ -624,6 +838,146 @@ function EmptyState({
       {message}
     </div>
   );
+}
+
+function buildExecutiveGuidance(
+  summary: LearningSummary | null,
+  failureRate: number
+) {
+  if (
+    !summary ||
+    summary.totalRecords === 0
+  ) {
+    return {
+      title:
+        "Collect more verified outcomes",
+      description:
+        "There is not enough learning data yet to recommend a strategy change.",
+    };
+  }
+
+  if (failureRate >= 50) {
+    return {
+      title:
+        "Review the lowest-scoring strategy before scaling",
+      description:
+        `The current failure rate is ${failureRate}%. Review ${formatStrategy(
+          summary
+            .worstPerformingStrategy
+            ?.recommendationType
+        )} and collect more evidence before expanding automated execution.`,
+    };
+  }
+
+  if (
+    summary.overall.neutralRuns >
+    summary.overall.successfulRuns
+  ) {
+    return {
+      title:
+        "Measure business impact before declaring success",
+      description:
+        "Most current outcomes are neutral. Execution is working, but final business impact still needs measurement.",
+    };
+  }
+
+  return {
+    title:
+      "Continue the strongest verified strategy",
+    description:
+      `${formatStrategy(
+        summary
+          .bestPerformingStrategy
+          ?.recommendationType
+      )} is currently the strongest strategy. Continue cautiously while preserving human approval.`,
+  };
+}
+
+function getDominantOutcome(
+  strategy: LearningTypeStats
+) {
+  const outcomes = [
+    {
+      name: "Success",
+      count:
+        strategy.successfulRuns,
+    },
+    {
+      name: "Neutral",
+      count:
+        strategy.neutralRuns,
+    },
+    {
+      name: "Failure",
+      count:
+        strategy.failedRuns,
+    },
+  ];
+
+  return outcomes.sort(
+    (first, second) =>
+      second.count -
+      first.count
+  )[0]?.name ?? "No data";
+}
+
+function scoreTextClass(
+  score: number
+) {
+  if (score >= 80) {
+    return "text-emerald-400";
+  }
+
+  if (score >= 50) {
+    return "text-amber-400";
+  }
+
+  return "text-red-400";
+}
+
+function scoreBarClass(
+  score: number
+) {
+  if (score >= 80) {
+    return "bg-emerald-500";
+  }
+
+  if (score >= 50) {
+    return "bg-amber-500";
+  }
+
+  return "bg-red-500";
+}
+
+function calculateRate(
+  count: number,
+  total: number
+) {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return Number(
+    (
+      (count / total) *
+      100
+    ).toFixed(2)
+  );
+}
+
+function dateValue(
+  value?: string | null
+) {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed =
+    Date.parse(value);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
 }
 
 function compareBestFirst(
@@ -697,7 +1051,8 @@ function formatStrategy(
     .split("-")
     .map(
       (part) =>
-        part.charAt(0).toUpperCase() +
+        part.charAt(0)
+          .toUpperCase() +
         part.slice(1)
     )
     .join(" ");
@@ -710,7 +1065,8 @@ function formatDate(
     return "No data";
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
   if (
     Number.isNaN(
@@ -720,8 +1076,11 @@ function formatDate(
     return "No data";
   }
 
-  return date.toLocaleString("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return date.toLocaleString(
+    "en",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  );
 }
