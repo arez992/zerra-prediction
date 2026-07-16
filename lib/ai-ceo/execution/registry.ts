@@ -5,6 +5,10 @@ import {
 } from "./executors/executionPlanExecutor";
 
 import {
+  growthExecutor,
+} from "./executors/growthExecutor";
+
+import {
   paymentAuditExecutor,
 } from "./executors/paymentAuditExecutor";
 
@@ -42,13 +46,13 @@ const registrations:
       "vip-conversion-review",
 
     handler:
-      executionPlanExecutor,
+      growthExecutor,
 
     department:
       "growth",
 
     description:
-      "Create a controlled review plan for VIP conversion performance.",
+      "Analyze verified VIP conversion metrics and create a controlled measurable improvement plan.",
 
     requiresApproval:
       true,
@@ -62,13 +66,13 @@ const registrations:
       "registration-funnel-review",
 
     handler:
-      executionPlanExecutor,
+      growthExecutor,
 
     department:
       "growth",
 
     description:
-      "Create a review plan for the registration funnel.",
+      "Analyze verified registration and acquisition metrics and identify the primary growth bottleneck.",
 
     requiresApproval:
       true,
@@ -142,13 +146,13 @@ const registrations:
       "growth-foundation-plan",
 
     handler:
-      executionPlanExecutor,
+      growthExecutor,
 
     department:
       "growth",
 
     description:
-      "Create a controlled growth foundation plan.",
+      "Analyze verified growth metrics and create a controlled measurable growth foundation plan.",
 
     requiresApproval:
       true,
@@ -162,13 +166,13 @@ const registrations:
       "controlled-user-acquisition",
 
     handler:
-      executionPlanExecutor,
+      growthExecutor,
 
     department:
       "growth",
 
     description:
-      "Create a controlled user acquisition execution plan.",
+      "Analyze verified acquisition signals and create a controlled user acquisition plan without changing paid spend automatically.",
 
     requiresApproval:
       true,
