@@ -31,6 +31,17 @@ import {
 import {
   requireServerAdmin,
 } from "@/lib/serverAdminAuth";
+import {
+  findSimilarDecisions,
+} from "@/src/lib/ai/ceo/similar/findSimilar";
+import {
+  calculateDecisionHistoryScore,
+  summarizeSimilarDecisions,
+} from "@/src/lib/ai/ceo/similar/score";
+import type {
+  SimilarDecisionMatch,
+  SimilarDecisionSummary,
+} from "@/src/lib/ai/ceo/similar/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +52,238 @@ type CreatedRecommendation =
     id: string;
     status: "pending";
   };
+
+
+type DecisionHistoryContext = {
+  evaluated: boolean;
+  historyScore: number;
+  summary:
+    SimilarDecisionSummary | null;
+  matches:
+    SimilarDecisionMatch[];
+  generatedAt: string;
+  reason: string | null;
+};
+
+type HistoryEnrichedDecision =
+  CEODecision & {
+    decisionHistory:
+      DecisionHistoryContext;
+  };
+
+const MAX_HISTORY_LOOKUPS_PER_RUN = 5;
+
+function getHistoryLookupPriority(
+  decision: CEODecision
+): number {
+  switch (decision.priority) {
+    case "critical":
+      return 4;
+
+    case "high":
+      return 3;
+
+    case "medium":
+      return 2;
+
+    case "low":
+    default:
+      return 1;
+  }
+}
+
+function buildHistoryTags(
+  decision: CEODecision
+): string[] {
+  return Array.from(
+    new Set(
+      [
+        decision.category,
+        decision.priority,
+        decision.risk,
+        decision.source,
+        decision.executionType,
+      ]
+        .filter(
+          (
+            value
+          ): value is string =>
+            typeof value === "string" &&
+            value.trim().length > 0
+        )
+        .map((value) =>
+          value.trim().toLowerCase()
+        )
+    )
+  );
+}
+
+function emptyHistoryContext(
+  reason: string
+): DecisionHistoryContext {
+  return {
+    evaluated: false,
+    historyScore: 0,
+    summary: null,
+    matches: [],
+    generatedAt:
+      new Date().toISOString(),
+    reason,
+  };
+}
+
+async function enrichDecisionWithHistory(
+  decision: CEODecision
+): Promise<HistoryEnrichedDecision> {
+  try {
+    const result =
+      await findSimilarDecisions({
+        input: {
+          recommendationType:
+            decision.category ||
+            "Executive",
+          title:
+            decision.title,
+          description:
+            decision.description,
+          executionType:
+            decision.executionType ||
+            null,
+          tags:
+            buildHistoryTags(
+              decision
+            ),
+          metadata: {
+            priority:
+              decision.priority,
+            risk:
+              decision.risk,
+            source:
+              decision.source,
+            expectedImpact:
+              decision.expectedImpact,
+          },
+        },
+        minimumScore: 35,
+        limit: 5,
+        candidateLimit: 100,
+        includeFailed: true,
+        includeNeutral: true,
+      });
+
+    const summary =
+      summarizeSimilarDecisions(
+        result.matches
+      );
+
+    return {
+      ...decision,
+      decisionHistory: {
+        evaluated: true,
+        historyScore:
+          calculateDecisionHistoryScore(
+            result.matches
+          ),
+        summary,
+        matches:
+          result.matches,
+        generatedAt:
+          result.generatedAt,
+        reason: null,
+      },
+    };
+  } catch (error) {
+    console.warn(
+      "[AI_CEO_SIMILAR_HISTORY_WARNING]",
+      {
+        title:
+          decision.title,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown similar decision error",
+      }
+    );
+
+    return {
+      ...decision,
+      decisionHistory:
+        emptyHistoryContext(
+          "Historical intelligence could not be evaluated for this recommendation."
+        ),
+    };
+  }
+}
+
+async function enrichDecisionsWithHistory(
+  decisions: CEODecision[]
+): Promise<
+  HistoryEnrichedDecision[]
+> {
+  const lookupIndexes =
+    decisions
+      .map(
+        (
+          decision,
+          index
+        ) => ({
+          index,
+          priority:
+            getHistoryLookupPriority(
+              decision
+            ),
+          confidence:
+            Number(
+              decision.confidence ||
+              0
+            ),
+        })
+      )
+      .sort(
+        (left, right) =>
+          right.priority -
+            left.priority ||
+          right.confidence -
+            left.confidence
+      )
+      .slice(
+        0,
+        MAX_HISTORY_LOOKUPS_PER_RUN
+      )
+      .map((item) =>
+        item.index
+      );
+
+  const lookupSet =
+    new Set(
+      lookupIndexes
+    );
+
+  return Promise.all(
+    decisions.map(
+      (
+        decision,
+        index
+      ) => {
+        if (
+          !lookupSet.has(index)
+        ) {
+          return Promise.resolve({
+            ...decision,
+            decisionHistory:
+              emptyHistoryContext(
+                "Skipped by the bounded history lookup policy."
+              ),
+          });
+        }
+
+        return enrichDecisionWithHistory(
+          decision
+        );
+      }
+    )
+  );
+}
 
 function getErrorStatus(
   message: string
@@ -428,7 +671,9 @@ export async function POST() {
       });
 
     const decisions =
-      canary.result;
+      await enrichDecisionsWithHistory(
+        canary.result
+      );
 
     const createdRecommendations:
       CreatedRecommendation[] = [];
@@ -464,6 +709,41 @@ export async function POST() {
 
       const recommendation = {
         ...decision,
+        executionPayload: {
+          ...(
+            decision.executionPayload ||
+            {}
+          ),
+          similarDecisionContext: {
+            evaluated:
+              decision.decisionHistory
+                .evaluated,
+            historyScore:
+              decision.decisionHistory
+                .historyScore,
+            recommendedAction:
+              decision.decisionHistory
+                .summary
+                ?.recommendedAction ||
+              "insufficient-history",
+            totalMatches:
+              decision.decisionHistory
+                .summary
+                ?.totalMatches ||
+              0,
+            strongestMatch:
+              decision.decisionHistory
+                .summary
+                ?.strongestMatch ||
+              null,
+            generatedAt:
+              decision.decisionHistory
+                .generatedAt,
+            reason:
+              decision.decisionHistory
+                .reason,
+          },
+        },
         status: "pending" as const,
 
         createdBy:
