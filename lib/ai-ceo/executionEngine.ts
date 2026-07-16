@@ -5,6 +5,9 @@ import {
   learningService,
 } from "@/lib/zaos/learning";
 import {
+  executeRegisteredHandler,
+} from "@/lib/ai-ceo/execution/registry";
+import {
   saveRecommendationImpact,
 } from "@/src/lib/ai/ceo/impact/saveImpact";
 import type {
@@ -15,20 +18,6 @@ type AdminIdentity = {
   uid: string;
   email?: string | null;
 };
-
-type ExecutionResult = {
-  success: boolean;
-  completed: boolean;
-  message: string;
-  data?: Record<string, unknown>;
-};
-
-function normalizeStatus(value: unknown) {
-  return typeof value === "string"
-    ? value.toLowerCase()
-    : "";
-}
-
 
 type ImpactMetrics =
   RecommendationImpact["expectedImpact"];
@@ -156,134 +145,6 @@ async function safelySaveImpact(
     );
 
     return null;
-  }
-}
-
-async function runPaymentAudit(
-  payload: Record<string, unknown>
-): Promise<ExecutionResult> {
-  const paymentsSnapshot = await adminDb
-    .collection("payments")
-    .get();
-
-  const payments = paymentsSnapshot.docs.map(
-    (document) => document.data()
-  );
-
-  const summary = {
-    total: payments.length,
-    completed: 0,
-    pending: 0,
-    failed: 0,
-    unknown: 0,
-  };
-
-  for (const payment of payments) {
-    const status = normalizeStatus(
-      payment.status ||
-        payment.paymentStatus ||
-        payment.nowpayments?.payment_status
-    );
-
-    if (
-      status === "completed" ||
-      status === "finished" ||
-      status === "confirmed"
-    ) {
-      summary.completed += 1;
-    } else if (
-      status === "pending" ||
-      status === "waiting" ||
-      status === "confirming"
-    ) {
-      summary.pending += 1;
-    } else if (
-      status === "failed" ||
-      status === "expired" ||
-      status === "refunded"
-    ) {
-      summary.failed += 1;
-    } else {
-      summary.unknown += 1;
-    }
-  }
-
-  const processed =
-    summary.completed + summary.failed;
-
-  const successRate =
-    processed === 0
-      ? 0
-      : Number(
-          (
-            (summary.completed / processed) *
-            100
-          ).toFixed(2)
-        );
-
-  return {
-    success: true,
-    completed: true,
-    message:
-      "Payment audit completed successfully.",
-    data: {
-      ...summary,
-      successRate,
-      originalPayload: payload,
-    },
-  };
-}
-
-async function createExecutionPlan(
-  executionType: string,
-  payload: Record<string, unknown>
-): Promise<ExecutionResult> {
-  return {
-    success: true,
-    completed: true,
-    message:
-      `Execution plan created for ${executionType}. ` +
-      "A specialized executor will perform the final publishing or external action.",
-    data: {
-      executionType,
-      payload,
-      planCreated: true,
-      requiresSpecializedExecutor: true,
-    },
-  };
-}
-
-async function executeByType(
-  executionType: string | null,
-  payload: Record<string, unknown>
-): Promise<ExecutionResult> {
-  switch (executionType) {
-    case "payment-audit":
-      return runPaymentAudit(payload);
-
-    case "vip-conversion-review":
-    case "registration-funnel-review":
-    case "seo-metadata-optimization":
-    case "create-country-landing-page":
-    case "create-seo-content-cluster":
-    case "growth-foundation-plan":
-    case "controlled-user-acquisition":
-      return createExecutionPlan(
-        executionType,
-        payload
-      );
-
-    default:
-      return {
-        success: false,
-        completed: false,
-        message:
-          "No execution handler has been registered for this recommendation yet.",
-        data: {
-          executionType,
-          payload,
-        },
-      };
   }
 }
 
@@ -513,13 +374,37 @@ export async function executeCEORecommendation(
   );
 
   try {
-    const executionResult =
-      await executeByType(
-        recommendation.executionType ||
-          null,
-        recommendation.executionPayload ||
-          {}
+    const executionType =
+      typeof recommendation.executionType ===
+        "string"
+        ? recommendation.executionType
+            .trim()
+            .toLowerCase()
+        : "";
+
+    const executionPayload =
+      asRecord(
+        recommendation.executionPayload
       );
+
+    const executionResult =
+      await executeRegisteredHandler({
+        recommendationId,
+        executionType,
+        payload:
+          executionPayload,
+        recommendation,
+        metadata: {
+          taskId:
+            taskRef.id,
+          executedBy:
+            admin.email ||
+            admin.uid,
+          recommendationSource:
+            recommendation.source ||
+            null,
+        },
+      });
 
     const executionDurationSeconds =
       Math.max(
