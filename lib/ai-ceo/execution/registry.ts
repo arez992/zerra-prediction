@@ -9,6 +9,10 @@ import {
 } from "./executors/growthExecutor";
 
 import {
+  marketingExecutor,
+} from "./executors/marketingExecutor";
+
+import {
   paymentAuditExecutor,
 } from "./executors/paymentAuditExecutor";
 
@@ -230,13 +234,13 @@ const registrations:
       "marketing-review",
 
     handler:
-      executionPlanExecutor,
+      marketingExecutor,
 
     department:
       "marketing",
 
     description:
-      "Create a safe marketing review plan without automatically pausing campaigns.",
+      "Analyze verified acquisition, device, country, conversion, and user-trend data and create a controlled marketing plan.",
 
     requiresApproval:
       true,
