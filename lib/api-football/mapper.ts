@@ -21,13 +21,21 @@ export function mapCompleteFixtureData(
     statistics?:
       | APIFootballTeamStatistics[]
       | null;
-    events?: Record<string, unknown>[] | null;
-    lineups?: Record<string, unknown>[] | null;
+    events?:
+      | Record<string, unknown>[]
+      | null;
+    lineups?:
+      | Record<string, unknown>[]
+      | null;
     headToHead?:
       | APIFootballFixture[]
       | null;
-    injuries?: Record<string, unknown>[] | null;
-    odds?: Record<string, unknown>[] | null;
+    injuries?:
+      | Record<string, unknown>[]
+      | null;
+    odds?:
+      | Record<string, unknown>[]
+      | null;
   }
 ): CompleteFixtureData {
   if (!input.fixture) {
@@ -63,6 +71,7 @@ export function mapCompleteFixtureData(
     headToHead,
     injuries,
     odds,
+
     availability: {
       fixture: true,
       statistics:
@@ -78,9 +87,12 @@ export function mapCompleteFixtureData(
       odds:
         odds.length > 0,
     },
+
     fetchedAt:
       new Date().toISOString(),
-    source: "api-football",
+
+    source:
+      "api-football",
   };
 }
 
@@ -88,10 +100,37 @@ export function toPredictionPipelineInput(
   data: CompleteFixtureData
 ) {
   return {
-    fixture: data.fixture,
-    statistics: data.statistics,
-    lineups: data.lineups,
-    events: data.events,
-    source: "api-football",
+    fixtureId:
+      data.fixtureId,
+
+    fixture:
+      data.fixture,
+
+    statistics:
+      data.statistics,
+
+    events:
+      data.events,
+
+    lineups:
+      data.lineups,
+
+    headToHead:
+      data.headToHead,
+
+    injuries:
+      data.injuries,
+
+    odds:
+      data.odds,
+
+    availability:
+      data.availability,
+
+    fetchedAt:
+      data.fetchedAt,
+
+    source:
+      data.source,
   };
 }
