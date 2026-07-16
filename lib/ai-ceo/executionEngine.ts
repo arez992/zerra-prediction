@@ -4,6 +4,12 @@ import { saveCEOMemory } from "@/lib/ai-ceo/memoryEngine";
 import {
   learningService,
 } from "@/lib/zaos/learning";
+import {
+  saveRecommendationImpact,
+} from "@/src/lib/ai/ceo/impact/saveImpact";
+import type {
+  RecommendationImpact,
+} from "@/src/lib/ai/ceo/impact/types";
 
 type AdminIdentity = {
   uid: string;
@@ -21,6 +27,136 @@ function normalizeStatus(value: unknown) {
   return typeof value === "string"
     ? value.toLowerCase()
     : "";
+}
+
+
+type ImpactMetrics =
+  RecommendationImpact["expectedImpact"];
+
+function asRecord(
+  value: unknown
+): Record<string, unknown> {
+  return value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readFiniteNumber(
+  value: unknown
+): number | undefined {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : undefined;
+}
+
+function readPercentage(
+  value: unknown,
+  fallback = 0
+): number {
+  const parsed =
+    readFiniteNumber(value);
+
+  if (parsed === undefined) {
+    return fallback;
+  }
+
+  return Math.min(
+    100,
+    Math.max(0, parsed)
+  );
+}
+
+function readImpactMetrics(
+  value: unknown
+): ImpactMetrics {
+  const source = asRecord(value);
+  const metrics: ImpactMetrics = {};
+
+  const keys = [
+    "revenue",
+    "users",
+    "seo",
+    "vipConversion",
+    "predictionAccuracy",
+  ] as const;
+
+  for (const key of keys) {
+    const parsed =
+      readFiniteNumber(source[key]);
+
+    if (parsed !== undefined) {
+      metrics[key] = parsed;
+    }
+  }
+
+  return metrics;
+}
+
+function getExpectedImpact(
+  recommendation: Record<
+    string,
+    unknown
+  >
+): ImpactMetrics {
+  const payload =
+    asRecord(
+      recommendation.executionPayload
+    );
+
+  return readImpactMetrics(
+    recommendation.expectedImpact ??
+      payload.expectedImpact
+  );
+}
+
+function getActualImpact(
+  executionData:
+    | Record<string, unknown>
+    | undefined
+): ImpactMetrics {
+  const data =
+    executionData || {};
+
+  return readImpactMetrics(
+    data.actualImpact ??
+      data.impact
+  );
+}
+
+async function safelySaveImpact(
+  input: RecommendationImpact
+) {
+  try {
+    return await saveRecommendationImpact(
+      input
+    );
+  } catch (error) {
+    console.error(
+      "[CEO_RECOMMENDATION_IMPACT_SAVE_ERROR]",
+      {
+        recommendationId:
+          input.recommendationId,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown impact storage error",
+      }
+    );
+
+    return null;
+  }
 }
 
 async function runPaymentAudit(
@@ -335,6 +471,9 @@ export async function executeCEORecommendation(
     ? adminDb.collection("ceoTasks").doc()
     : taskSnapshot.docs[0].ref;
 
+  const executionStartedAt =
+    Date.now();
+
   await recommendationRef.update({
     status: "executing",
     executedBy:
@@ -382,11 +521,72 @@ export async function executeCEORecommendation(
           {}
       );
 
+    const executionDurationSeconds =
+      Math.max(
+        0,
+        Math.round(
+          (
+            Date.now() -
+            executionStartedAt
+          ) / 1000
+        )
+      );
+
+    const expectedImpact =
+      getExpectedImpact(
+        recommendation
+      );
+
+    const actualImpact =
+      getActualImpact(
+        executionResult.data
+      );
+
+    const confidenceBefore =
+      readPercentage(
+        recommendation.confidence ??
+          recommendation.confidenceScore,
+        0
+      );
+
     if (!executionResult.success) {
+      const savedImpact =
+        await safelySaveImpact({
+          recommendationId,
+          measuredAt:
+            new Date().toISOString(),
+          expectedImpact,
+          actualImpact,
+          confidenceBefore,
+          confidenceAfter: 0,
+          roi: 0,
+          executionDurationSeconds,
+          success: false,
+          notes: [
+            executionResult.message,
+          ],
+          metadata: {
+            taskId: taskRef.id,
+            executionType:
+              recommendation.executionType ||
+              null,
+            executionData:
+              executionResult.data ||
+              {},
+            executedBy:
+              admin.email ||
+              admin.uid,
+          },
+        });
+
       await recommendationRef.update({
         status: "failed",
         result:
           executionResult.message,
+        impactId:
+          savedImpact?.id || null,
+        impactScore:
+          savedImpact?.impactScore ?? 0,
         updatedAt:
           FieldValue.serverTimestamp(),
       });
@@ -398,6 +598,10 @@ export async function executeCEORecommendation(
             executionResult.message,
           result:
             executionResult.data || {},
+          impactId:
+            savedImpact?.id || null,
+          impactScore:
+            savedImpact?.impactScore ?? 0,
           completedAt:
             FieldValue.serverTimestamp(),
           updatedAt:
@@ -413,12 +617,19 @@ export async function executeCEORecommendation(
         lesson:
           executionResult.message,
         success: false,
-        roi: 0,
+        roi:
+          savedImpact?.roi ?? 0,
         before: {
           status: "approved",
+          expectedImpact,
+          confidence:
+            confidenceBefore,
         },
         after: {
           status: "failed",
+          actualImpact,
+          impactScore:
+            savedImpact?.impactScore ?? 0,
         },
         source: "execution-engine",
       });
@@ -433,8 +644,15 @@ export async function executeCEORecommendation(
         executionCompleted: false,
         executionMessage:
           executionResult.message,
-        executionData:
-          executionResult.data || {},
+        executionData: {
+          ...(executionResult.data || {}),
+          impactId:
+            savedImpact?.id || null,
+          impactScore:
+            savedImpact?.impactScore ?? 0,
+          expectedImpact,
+          actualImpact,
+        },
         metricsBefore: {
           status: "approved",
           executionPayload:
@@ -445,10 +663,15 @@ export async function executeCEORecommendation(
           status: "failed",
           executionResult:
             executionResult.data || {},
+          actualImpact,
+          impactScore:
+            savedImpact?.impactScore ?? 0,
+          confidence: 0,
         },
         tags: [
           "execution-engine",
           "failed",
+          "impact-tracked",
         ],
         metadata: {
           taskId: taskRef.id,
@@ -469,12 +692,59 @@ export async function executeCEORecommendation(
       };
     }
 
+    const confidenceAfter =
+      executionResult.completed
+        ? 100
+        : 60;
+
+    const savedImpact =
+      await safelySaveImpact({
+        recommendationId,
+        measuredAt:
+          new Date().toISOString(),
+        expectedImpact,
+        actualImpact,
+        confidenceBefore,
+        confidenceAfter,
+        roi:
+          readFiniteNumber(
+            executionResult.data?.roi
+          ) ??
+          readFiniteNumber(
+            recommendation.roi
+          ) ??
+          0,
+        executionDurationSeconds,
+        success: true,
+        notes: [
+          executionResult.message,
+        ],
+        metadata: {
+          taskId: taskRef.id,
+          executionType:
+            recommendation.executionType ||
+            null,
+          executionCompleted:
+            executionResult.completed,
+          executionData:
+            executionResult.data ||
+            {},
+          executedBy:
+            admin.email ||
+            admin.uid,
+        },
+      });
+
     await recommendationRef.update({
       status: "completed",
       result:
         executionResult.message,
       executionResult:
         executionResult.data || {},
+      impactId:
+        savedImpact?.id || null,
+      impactScore:
+        savedImpact?.impactScore ?? 0,
       completedAt:
         FieldValue.serverTimestamp(),
       updatedAt:
@@ -490,6 +760,10 @@ export async function executeCEORecommendation(
           data:
             executionResult.data || {},
         },
+        impactId:
+          savedImpact?.id || null,
+        impactScore:
+          savedImpact?.impactScore ?? 0,
         error: null,
         completedAt:
           FieldValue.serverTimestamp(),
@@ -506,14 +780,23 @@ export async function executeCEORecommendation(
       lesson:
         `Execution completed: ${executionResult.message}`,
       success: true,
-      roi: 0,
+      roi:
+        savedImpact?.roi ?? 0,
       before: {
         status: "approved",
+        expectedImpact,
+        confidence:
+          confidenceBefore,
       },
       after: {
         status: "completed",
         result:
           executionResult.data || {},
+        actualImpact,
+        impactScore:
+          savedImpact?.impactScore ?? 0,
+        confidence:
+          confidenceAfter,
       },
       source: "execution-engine",
     });
@@ -529,8 +812,15 @@ export async function executeCEORecommendation(
         executionResult.completed,
       executionMessage:
         executionResult.message,
-      executionData:
-        executionResult.data || {},
+      executionData: {
+        ...(executionResult.data || {}),
+        impactId:
+          savedImpact?.id || null,
+        impactScore:
+          savedImpact?.impactScore ?? 0,
+        expectedImpact,
+        actualImpact,
+      },
       metricsBefore: {
         status: "approved",
         executionPayload:
@@ -541,10 +831,16 @@ export async function executeCEORecommendation(
         status: "completed",
         executionResult:
           executionResult.data || {},
+        actualImpact,
+        impactScore:
+          savedImpact?.impactScore ?? 0,
+        confidence:
+          confidenceAfter,
       },
       tags: [
         "execution-engine",
         "completed",
+        "impact-tracked",
       ],
       metadata: {
         taskId: taskRef.id,
@@ -563,6 +859,7 @@ export async function executeCEORecommendation(
       taskId: taskRef.id,
       status: "completed",
       result: executionResult,
+      impact: savedImpact,
     };
   } catch (error: any) {
     const message =
