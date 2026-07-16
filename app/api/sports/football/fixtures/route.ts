@@ -4,120 +4,52 @@ import {
 } from "next/server";
 
 import {
-  getCompleteFixtureData,
+  getFixturesByDate,
 } from "@/lib/api-football/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function getBooleanParam(
-  value: string | null,
-  fallback: boolean
-): boolean {
-  if (value === null) {
-    return fallback;
-  }
-
-  return value === "true";
+function getTodayUTC(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function getErrorStatus(
-  message: string
-): number {
-  const normalized =
-    message.toLowerCase();
+function getErrorStatus(message: string): number {
+  const normalized = message.toLowerCase();
 
-  if (
-    normalized.includes(
-      "fixture id"
-    ) ||
-    normalized.includes(
-      "valid numeric"
-    )
-  ) {
+  if (normalized.includes("yyyy-mm-dd")) {
     return 400;
   }
 
-  if (
-    normalized.includes(
-      "not found"
-    )
-  ) {
-    return 404;
-  }
-
-  if (
-    normalized.includes(
-      "api_football_key"
-    )
-  ) {
+  if (normalized.includes("api_football_key")) {
     return 500;
   }
 
   return 502;
 }
 
-export async function GET(
-  request: NextRequest
-) {
+export async function GET(request: NextRequest) {
   try {
-    const fixtureId =
-      request.nextUrl.searchParams.get(
-        "fixture"
-      );
+    const date =
+      request.nextUrl.searchParams.get("date")?.trim() ||
+      getTodayUTC();
 
-    if (!fixtureId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "fixture id is required",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const data =
-      await getCompleteFixtureData(
-        fixtureId,
-        {
-          includeHeadToHead:
-            getBooleanParam(
-              request.nextUrl.searchParams.get(
-                "h2h"
-              ),
-              true
-            ),
-          includeInjuries:
-            getBooleanParam(
-              request.nextUrl.searchParams.get(
-                "injuries"
-              ),
-              true
-            ),
-          includeOdds:
-            getBooleanParam(
-              request.nextUrl.searchParams.get(
-                "odds"
-              ),
-              false
-            ),
-        }
-      );
+    const fixtures = await getFixturesByDate(date);
 
     return NextResponse.json(
       {
         success: true,
-        ...data,
+        date,
+        count: fixtures.length,
+        fixtures,
+        cachedForSeconds: 900,
       },
       {
         status: 200,
         headers: {
           "Cache-Control":
-            "no-store",
+            "public, s-maxage=900, stale-while-revalidate=1800",
         },
       }
     );
@@ -125,18 +57,17 @@ export async function GET(
     const message =
       error instanceof Error
         ? error.message
-        : "Failed to fetch match details.";
+        : "Failed to fetch football fixtures.";
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          "Failed to fetch match details.",
+        fixtures: [],
+        message: "Failed to fetch football fixtures.",
         error: message,
       },
       {
-        status:
-          getErrorStatus(message),
+        status: getErrorStatus(message),
       }
     );
   }
