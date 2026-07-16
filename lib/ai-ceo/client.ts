@@ -17,6 +17,33 @@ export type CEORecommendationRisk =
   | "medium"
   | "high";
 
+
+export type CEOHistoryAction =
+  | "proceed"
+  | "review"
+  | "avoid"
+  | "insufficient-history";
+
+export type CEOHistoryStrongestMatch = {
+  similarityScore?: number | null;
+  title?: string | null;
+  outcome?: string | null;
+  roi?: number | null;
+  impactScore?: number | null;
+};
+
+export type CEODecisionHistory = {
+  historyScore?: number | null;
+  recommendedAction?: CEOHistoryAction | null;
+  totalMatches?: number | null;
+  averageSimilarity?: number | null;
+  averageImpactScore?: number | null;
+  averageROI?: number | null;
+  strongestMatch?: CEOHistoryStrongestMatch | null;
+  skipped?: boolean;
+  skipReason?: string | null;
+};
+
 export type CEORecommendation = {
   id: string;
   title: string;
@@ -39,6 +66,20 @@ export type CEORecommendation = {
   completedAt?: string | null;
   result?: string | null;
   rejectionReason?: string | null;
+
+  generationSource?: string | null;
+  canaryRequestId?: string | null;
+  dataSnapshotAt?: string | null;
+
+  historyScore?: number | null;
+  recommendedAction?: CEOHistoryAction | null;
+  totalMatches?: number | null;
+  strongestMatch?: CEOHistoryStrongestMatch | null;
+  decisionHistory?: CEODecisionHistory | null;
+  similarDecisionContext?: CEODecisionHistory | null;
+
+  impactId?: string | null;
+  impactScore?: number | null;
 };
 
 export type CEORecommendationStats = {
