@@ -40,6 +40,7 @@ type FixtureLike = {
   fixture?: {
     id?: string | number;
     date?: string;
+
     status?: {
       short?: string;
       long?: string;
@@ -79,25 +80,42 @@ export type PredictionGenerationMode =
 export type PredictionGenerationItem = {
   fixtureId: string;
   fixtureDate: string | null;
+
   generated: boolean;
   skipped: boolean;
+
   reason: string;
+
   predictionId: string | null;
+
   enriched: boolean;
+
+  generationStatus?:
+    | "allowed"
+    | "withheld"
+    | "insufficient-data"
+    | "failed"
+    | "existing";
 };
 
 export type PredictionGenerationSummary = {
   generatedAt: string;
   date: string;
   mode: PredictionGenerationMode;
+
   fixturesFound: number;
   eligibleFixtures: number;
+
   generatedPredictions: number;
   skippedPredictions: number;
   existingPredictions: number;
+  withheldPredictions: number;
+  insufficientDataPredictions: number;
   failedPredictions: number;
+
   apiDateRequests: number;
   enrichedFixtureRequests: number;
+
   items: PredictionGenerationItem[];
 };
 
@@ -248,8 +266,10 @@ async function buildPipelineInput(
         {
           includeHeadToHead:
             false,
+
           includeInjuries:
             false,
+
           includeOdds:
             false,
         }
@@ -260,38 +280,48 @@ async function buildPipelineInput(
         ...toPredictionPipelineInput(
           complete
         ),
+
         source:
           "prediction-generation-scheduler-enriched",
       },
+
       enriched: true,
+
       sourceData: {
         fetchedFromApiFootball:
           true,
+
         fetchedAt:
           complete.fetchedAt,
+
         availability:
           complete.availability,
-        headToHead: [],
-        injuries: [],
-        odds: [],
+
+        headToHead:
+          complete.headToHead,
+
+        injuries:
+          complete.injuries,
+
+        odds:
+          complete.odds,
       },
     };
   }
 
   return {
     input: {
+      fixtureId,
+
       fixture,
+
       statistics: [],
       lineups: [],
       events: [],
-      source:
-        "prediction-generation-scheduler-basic",
-    },
-    enriched: false,
-    sourceData: {
-      fetchedFromApiFootball:
-        false,
-      fetchedAt: null,
+      headToHead: [],
+      injuries: [],
+      odds: [],
+
       availability: {
         fixture: true,
         statistics: false,
@@ -301,11 +331,105 @@ async function buildPipelineInput(
         injuries: false,
         odds: false,
       },
+
+      fetchedAt: null,
+
+      source:
+        "prediction-generation-scheduler-basic",
+    },
+
+    enriched: false,
+
+    sourceData: {
+      fetchedFromApiFootball:
+        false,
+
+      fetchedAt: null,
+
+      availability: {
+        fixture: true,
+        statistics: false,
+        events: false,
+        lineups: false,
+        headToHead: false,
+        injuries: false,
+        odds: false,
+      },
+
       headToHead: [],
       injuries: [],
       odds: [],
     },
   };
+}
+
+async function writeGenerationAudit(
+  input: {
+    action: string;
+    predictionId: string | null;
+    fixtureId: string;
+    source: string | undefined;
+    generationMode: PredictionGenerationMode;
+    fetchedFromApiFootball: boolean;
+    dataAvailability: unknown;
+    performedBy: string;
+    modelVersion: string | null;
+    dataQuality: unknown;
+    generationDecision: unknown;
+    openAIEligibility: unknown;
+    reason: string | null;
+  }
+): Promise<void> {
+  await adminDb
+    .collection(
+      AUDIT_COLLECTION
+    )
+    .doc()
+    .set({
+      action:
+        input.action,
+
+      predictionId:
+        input.predictionId,
+
+      fixtureId:
+        input.fixtureId,
+
+      source:
+        input.source ||
+        "prediction-generation-scheduler",
+
+      generationMode:
+        input.generationMode,
+
+      fetchedFromApiFootball:
+        input.fetchedFromApiFootball,
+
+      dataAvailability:
+        input.dataAvailability,
+
+      performedBy:
+        input.performedBy,
+
+      modelVersion:
+        input.modelVersion,
+
+      dataQuality:
+        input.dataQuality,
+
+      generationDecision:
+        input.generationDecision,
+
+      openAIEligibility:
+        input.openAIEligibility,
+
+      reason:
+        input.reason,
+
+      createdAt:
+        FieldValue
+          .serverTimestamp(),
+    });
 }
 
 export async function generatePredictionsForDate(
@@ -332,6 +456,10 @@ export async function generatePredictionsForDate(
       options.mode
     );
 
+  const performedBy =
+    options.performedBy ||
+    "prediction-generation-scheduler";
+
   const fixtures =
     await getFixturesByDate(
       date
@@ -353,6 +481,8 @@ export async function generatePredictionsForDate(
     PredictionGenerationItem[] = [];
 
   let existingPredictions = 0;
+  let withheldPredictions = 0;
+  let insufficientDataPredictions = 0;
   let failedPredictions = 0;
   let enrichedFixtureRequests = 0;
 
@@ -390,12 +520,16 @@ export async function generatePredictionsForDate(
       items.push({
         fixtureId,
         fixtureDate,
+
         generated: false,
         skipped: true,
+
         reason:
           "Prediction already exists.",
+
         predictionId:
           predictionRef.id,
+
         enriched:
           Boolean(
             existing.data()
@@ -403,6 +537,9 @@ export async function generatePredictionsForDate(
               ?.availability
               ?.statistics
           ),
+
+        generationStatus:
+          "existing",
       });
 
       continue;
@@ -434,13 +571,109 @@ export async function generatePredictionsForDate(
         );
       }
 
+      const generationDecision =
+        engineResult.data
+          .generationDecision;
+
+      const dataQuality =
+        engineResult.data
+          .dataQuality;
+
+      const openAIEligibility =
+        engineResult.data
+          .openAIEligibility;
+
+      const modelVersion =
+        engineResult.data
+          .prediction
+          .model
+          .version;
+
+      /*
+       * Hard quality gate:
+       *
+       * Predictions with fallback,
+       * insufficient data, or a
+       * withheld decision are not
+       * persisted in predictionHistory.
+       */
+      if (
+        !generationDecision.allowed
+      ) {
+        if (
+          generationDecision.status ===
+          "withheld"
+        ) {
+          withheldPredictions += 1;
+        } else {
+          insufficientDataPredictions += 1;
+        }
+
+        await writeGenerationAudit({
+          action:
+            "generation-blocked",
+
+          predictionId:
+            existing.exists
+              ? predictionRef.id
+              : null,
+
+          fixtureId,
+
+          source:
+            pipeline.input.source,
+
+          generationMode:
+            mode,
+
+          fetchedFromApiFootball:
+            pipeline.sourceData
+              .fetchedFromApiFootball,
+
+          dataAvailability:
+            pipeline.sourceData
+              .availability,
+
+          performedBy,
+
+          modelVersion,
+
+          dataQuality,
+
+          generationDecision,
+
+          openAIEligibility,
+
+          reason:
+            generationDecision.reason,
+        });
+
+        items.push({
+          fixtureId,
+          fixtureDate,
+
+          generated: false,
+          skipped: true,
+
+          reason:
+            generationDecision.reason ||
+            "Prediction generation was blocked by the data-quality gate.",
+
+          predictionId: null,
+
+          enriched:
+            pipeline.enriched,
+
+          generationStatus:
+            generationDecision.status,
+        });
+
+        continue;
+      }
+
       const now =
         new Date()
           .toISOString();
-
-      const performedBy =
-        options.performedBy ||
-        "prediction-generation-scheduler";
 
       const documentData = {
         ...engineResult.data
@@ -449,6 +682,12 @@ export async function generatePredictionsForDate(
         prediction:
           engineResult.data
             .prediction,
+
+        dataQuality,
+
+        generationDecision,
+
+        openAIEligibility,
 
         sourceData:
           pipeline.sourceData,
@@ -499,10 +738,24 @@ export async function generatePredictionsForDate(
 
         generation: {
           mode,
+
           generatedAutomatically:
             true,
+
           generatedForDate:
             date,
+
+          qualityGatePassed:
+            true,
+
+          generationStatus:
+            generationDecision.status,
+
+          dataCompleteness:
+            dataQuality.completeness,
+
+          dataReliability:
+            dataQuality.reliability,
         },
       };
 
@@ -556,10 +809,13 @@ export async function generatePredictionsForDate(
 
           performedBy,
 
-          modelVersion:
-            engineResult.data
-              .prediction
-              .model.version,
+          modelVersion,
+
+          dataQuality,
+
+          generationDecision,
+
+          openAIEligibility,
 
           createdAt:
             FieldValue
@@ -572,31 +828,86 @@ export async function generatePredictionsForDate(
       items.push({
         fixtureId,
         fixtureDate,
+
         generated: true,
         skipped: false,
+
         reason:
           "Prediction generated successfully.",
+
         predictionId:
           predictionRef.id,
+
         enriched:
           pipeline.enriched,
+
+        generationStatus:
+          "allowed",
       });
     } catch (error) {
       failedPredictions += 1;
 
+      const reason =
+        error instanceof Error
+          ? error.message
+          : "Prediction generation failed.";
+
+      try {
+        await writeGenerationAudit({
+          action:
+            "generation-failed",
+
+          predictionId: null,
+
+          fixtureId,
+
+          source:
+            "prediction-generation-scheduler",
+
+          generationMode:
+            mode,
+
+          fetchedFromApiFootball:
+            mode === "enriched",
+
+          dataAvailability: null,
+
+          performedBy,
+
+          modelVersion: null,
+
+          dataQuality: null,
+
+          generationDecision: null,
+
+          openAIEligibility: null,
+
+          reason,
+        });
+      } catch {
+        /*
+         * Do not hide the original
+         * prediction-generation error
+         * if audit logging also fails.
+         */
+      }
+
       items.push({
         fixtureId,
         fixtureDate,
+
         generated: false,
         skipped: true,
-        reason:
-          error instanceof Error
-            ? error.message
-            : "Prediction generation failed.",
-        predictionId:
-          null,
+
+        reason,
+
+        predictionId: null,
+
         enriched:
           mode === "enriched",
+
+        generationStatus:
+          "failed",
       });
     }
   }
@@ -605,26 +916,41 @@ export async function generatePredictionsForDate(
     generatedAt:
       new Date()
         .toISOString(),
+
     date,
+
     mode,
+
     fixturesFound:
       fixtures.length,
+
     eligibleFixtures:
       eligibleFixtures.length,
+
     generatedPredictions:
       items.filter(
         (item) =>
           item.generated
       ).length,
+
     skippedPredictions:
       items.filter(
         (item) =>
           item.skipped
       ).length,
+
     existingPredictions,
+
+    withheldPredictions,
+
+    insufficientDataPredictions,
+
     failedPredictions,
+
     apiDateRequests: 1,
+
     enrichedFixtureRequests,
+
     items,
   };
 }

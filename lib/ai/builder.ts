@@ -2,15 +2,24 @@ import type {
   PredictionResult,
   PredictionStatus,
 } from "./prediction";
+
 import type {
   ExplanationResult,
 } from "./explanation";
+
 import type {
   AIContext,
 } from "./context";
+
 import type {
   ValidationResult,
 } from "./validator";
+
+import type {
+  GenerationDecision,
+  OpenAIAnalysisEligibility,
+  PredictionDataQuality,
+} from "./types-v3";
 
 export type PredictionDocument = {
   fixtureId: string;
@@ -29,6 +38,7 @@ export type PredictionDocument = {
       id: number | null;
       name: string;
     };
+
     away: {
       id: number | null;
       name: string;
@@ -86,6 +96,20 @@ export type PredictionDocument = {
 
   validation: ValidationResult;
 
+  /*
+   * Prediction Engine v3 metadata.
+   *
+   * These fields remain optional so
+   * existing v2 consumers and older
+   * Firestore documents continue to work.
+   */
+  dataQuality?: PredictionDataQuality;
+
+  generationDecision?: GenerationDecision;
+
+  openAIEligibility?:
+    OpenAIAnalysisEligibility;
+
   source: string;
 
   generatedAt: string;
@@ -94,26 +118,42 @@ export type PredictionDocument = {
 
 type BuildPredictionDocumentInput = {
   fixture: unknown;
+
   prediction: PredictionResult;
+
   explanation: ExplanationResult;
+
   context: AIContext;
+
   validation: ValidationResult;
+
+  dataQuality?: PredictionDataQuality;
+
+  generationDecision?: GenerationDecision;
+
+  openAIEligibility?:
+    OpenAIAnalysisEligibility;
+
   source: string;
 };
 
 type FixtureLike = {
   fixture?: {
     id?: number | string;
+
     date?: string;
+
     status?: {
       short?: string;
       long?: string;
     };
+
     venue?: {
       name?: string;
       city?: string;
     };
   };
+
   league?: {
     id?: number;
     name?: string;
@@ -121,11 +161,13 @@ type FixtureLike = {
     season?: number;
     round?: string;
   };
+
   teams?: {
     home?: {
       id?: number;
       name?: string;
     };
+
     away?: {
       id?: number;
       name?: string;
@@ -161,7 +203,7 @@ export function buildPredictionDocument(
     input.prediction.model.generatedAt ||
     new Date().toISOString();
 
-  return {
+  const document: PredictionDocument = {
     fixtureId: String(
       fixture.fixture?.id ?? ""
     ),
@@ -172,37 +214,51 @@ export function buildPredictionDocument(
       ),
 
     competition: {
-      id: safeNumber(
-        fixture.league?.id
-      ),
-      name: safeString(
-        fixture.league?.name
-      ),
-      country: safeString(
-        fixture.league?.country
-      ),
-      season: safeNumber(
-        fixture.league?.season
-      ),
-      round: safeString(
-        fixture.league?.round
-      ),
+      id:
+        safeNumber(
+          fixture.league?.id
+        ),
+
+      name:
+        safeString(
+          fixture.league?.name
+        ),
+
+      country:
+        safeString(
+          fixture.league?.country
+        ),
+
+      season:
+        safeNumber(
+          fixture.league?.season
+        ),
+
+      round:
+        safeString(
+          fixture.league?.round
+        ),
     },
 
     teams: {
       home: {
-        id: safeNumber(
-          fixture.teams?.home?.id
-        ),
+        id:
+          safeNumber(
+            fixture.teams?.home?.id
+          ),
+
         name:
           safeString(
             fixture.teams?.home?.name
           ) || "Home team",
       },
+
       away: {
-        id: safeNumber(
-          fixture.teams?.away?.id
-        ),
+        id:
+          safeNumber(
+            fixture.teams?.away?.id
+          ),
+
         name:
           safeString(
             fixture.teams?.away?.name
@@ -211,21 +267,27 @@ export function buildPredictionDocument(
     },
 
     venue: {
-      name: safeString(
-        fixture.fixture?.venue?.name
-      ),
-      city: safeString(
-        fixture.fixture?.venue?.city
-      ),
+      name:
+        safeString(
+          fixture.fixture?.venue?.name
+        ),
+
+      city:
+        safeString(
+          fixture.fixture?.venue?.city
+        ),
     },
 
     fixtureStatus: {
-      short: safeString(
-        fixture.fixture?.status?.short
-      ),
-      long: safeString(
-        fixture.fixture?.status?.long
-      ),
+      short:
+        safeString(
+          fixture.fixture?.status?.short
+        ),
+
+      long:
+        safeString(
+          fixture.fixture?.status?.long
+        ),
     },
 
     publicPrediction:
@@ -237,20 +299,27 @@ export function buildPredictionDocument(
     probabilities: {
       homeWin:
         input.prediction.homeWin,
+
       draw:
         input.prediction.draw,
+
       awayWin:
         input.prediction.awayWin,
+
       over25:
         input.prediction.over25,
+
       under25:
         input.prediction.under25,
+
       btts:
         input.prediction.btts,
     },
 
     risk: {
-      label: input.prediction.risk,
+      label:
+        input.prediction.risk,
+
       score:
         input.prediction.riskScore,
     },
@@ -259,9 +328,11 @@ export function buildPredictionDocument(
       home:
         input.prediction
           .homeExpectedGoals,
+
       away:
         input.prediction
           .awayExpectedGoals,
+
       total:
         input.prediction
           .expectedGoals,
@@ -280,13 +351,18 @@ export function buildPredictionDocument(
       publicSummary:
         input.explanation
           .publicSummary,
+
       publicReasons:
         input.explanation
           .publicReasons,
+
       vipSummary:
-        input.explanation.vipSummary,
+        input.explanation
+          .vipSummary,
+
       vipReasons:
-        input.explanation.vipReasons,
+        input.explanation
+          .vipReasons,
     },
 
     validation:
@@ -296,7 +372,25 @@ export function buildPredictionDocument(
       input.source,
 
     generatedAt,
+
     updatedAt:
       new Date().toISOString(),
   };
+
+  if (input.dataQuality) {
+    document.dataQuality =
+      input.dataQuality;
+  }
+
+  if (input.generationDecision) {
+    document.generationDecision =
+      input.generationDecision;
+  }
+
+  if (input.openAIEligibility) {
+    document.openAIEligibility =
+      input.openAIEligibility;
+  }
+
+  return document;
 }

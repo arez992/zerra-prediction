@@ -72,6 +72,7 @@ export type PredictionPipelineResult = {
 
   dataQuality: PredictionDataQuality;
   generationDecision: GenerationDecision;
+
   openAIEligibility:
     OpenAIAnalysisEligibility;
 };
@@ -165,6 +166,15 @@ function ensureArray(
     : [];
 }
 
+function hasArrayData(
+  value: unknown
+): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length > 0
+  );
+}
+
 function buildMatchEnvelope(
   input: PredictionPipelineInput
 ) {
@@ -216,15 +226,6 @@ function buildMatchEnvelope(
         input.odds
       ),
   };
-}
-
-function hasArrayData(
-  value: unknown
-): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length > 0
-  );
 }
 
 function resolveAvailability(
@@ -307,24 +308,35 @@ function createInputFingerprint(
     fixture.fixture?.date ?? "",
     fixture.fixture?.status?.short ??
       "",
+
     availability.fixture
       ? "fixture-1"
       : "fixture-0",
+
     availability.statistics
       ? "statistics-1"
       : "statistics-0",
+
+    availability.events
+      ? "events-1"
+      : "events-0",
+
     availability.lineups
       ? "lineups-1"
       : "lineups-0",
+
     availability.headToHead
       ? "h2h-1"
       : "h2h-0",
+
     availability.injuries
       ? "injuries-1"
       : "injuries-0",
+
     availability.odds
       ? "odds-1"
       : "odds-0",
+
     input.fetchedAt ?? "",
   ].join("|");
 
@@ -337,10 +349,12 @@ function createInputFingerprint(
     index += 1
   ) {
     hash =
-      (hash * 31 +
+      (
+        hash * 31 +
         fingerprintSource.charCodeAt(
           index
-        )) >>>
+        )
+      ) >>>
       0;
   }
 
@@ -365,12 +379,12 @@ function evaluatePipelineDataQuality(
 
   /*
    * The current v2 form, strength,
-   * and goals modules still use
-   * placeholder fallback values.
+   * and goals modules still depend
+   * on placeholder fallback values.
    *
-   * Until real recent-form and
-   * team-strength enrichment are
-   * connected, premium generation
+   * Until real recent-form and team
+   * profile data are connected,
+   * premium prediction persistence
    * must remain withheld.
    */
   const generatedFromFallback =
@@ -382,9 +396,9 @@ function evaluatePipelineDataQuality(
         availability.fixture,
 
       /*
-       * Current fixture statistics
-       * are not equivalent to recent
-       * team-form history.
+       * Match statistics from an
+       * upcoming fixture are not
+       * recent-form history.
        */
       recentFormHome: false,
       recentFormAway: false,
@@ -392,11 +406,10 @@ function evaluatePipelineDataQuality(
       homeAwaySplits: false,
 
       /*
-       * Existing statistics can be
-       * preserved as available data,
-       * but they do not yet prove
-       * that season/team profiles
-       * exist independently for both
+       * Statistics are preserved as
+       * available context, but they
+       * do not yet prove that complete
+       * team profiles exist for both
        * teams.
        */
       teamStatisticsHome:
@@ -423,6 +436,9 @@ function evaluatePipelineDataQuality(
     freshness: {
       fixtureFetchedAt:
         input.fetchedAt ?? null,
+
+      recentFormFetchedAt:
+        null,
 
       statisticsFetchedAt:
         availability.statistics
@@ -463,7 +479,8 @@ function evaluatePipelineDataQuality(
       "Home and away performance splits are not connected.",
     ],
 
-    dailyAIBudgetRemaining: true,
+    dailyAIBudgetRemaining:
+      true,
 
     cachedOpenAIResultAvailable:
       false,
@@ -492,15 +509,12 @@ export async function runPredictionPipeline(
     buildMatchEnvelope(input);
 
   /*
-   * The v2 prediction continues to
-   * run temporarily for backward
-   * compatibility with the current
-   * UI, builder, and Firestore model.
+   * The v2 prediction runs temporarily
+   * for backward compatibility with
+   * the current UI and Firestore model.
    *
-   * The generator will use the v3
-   * generation decision as a hard
-   * persistence gate in the next
-   * implementation step.
+   * The generation decision is used
+   * as the v3 quality gate.
    */
   const prediction =
     calculatePrediction(match);
@@ -535,6 +549,17 @@ export async function runPredictionPipeline(
       context,
 
       validation,
+
+      dataQuality:
+        qualityResult.dataQuality,
+
+      generationDecision:
+        qualityResult
+          .generationDecision,
+
+      openAIEligibility:
+        qualityResult
+          .openAIEligibility,
 
       source:
         input.source ||
