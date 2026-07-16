@@ -12,6 +12,10 @@ import {
   paymentAuditExecutor,
 } from "./executors/paymentAuditExecutor";
 
+import {
+  seoExecutor,
+} from "./executors/seoExecutor";
+
 import type {
   ExecutionContext,
   ExecutionHandlerRegistration,
@@ -86,13 +90,13 @@ const registrations:
       "seo-metadata-optimization",
 
     handler:
-      executionPlanExecutor,
+      seoExecutor,
 
     department:
       "seo",
 
     description:
-      "Create a safe SEO metadata optimization plan.",
+      "Analyze verified Search Console data and create a measurable metadata optimization plan.",
 
     requiresApproval:
       true,
@@ -106,13 +110,13 @@ const registrations:
       "create-country-landing-page",
 
     handler:
-      executionPlanExecutor,
+      seoExecutor,
 
     department:
       "seo",
 
     description:
-      "Create a reviewed execution plan for a country landing page.",
+      "Validate country-level search demand and create a reviewed landing-page opportunity plan.",
 
     requiresApproval:
       true,
@@ -126,13 +130,13 @@ const registrations:
       "create-seo-content-cluster",
 
     handler:
-      executionPlanExecutor,
+      seoExecutor,
 
     department:
       "seo",
 
     description:
-      "Create a reviewed SEO content cluster plan.",
+      "Analyze verified query and page data and create a reviewed SEO content-cluster plan.",
 
     requiresApproval:
       true,
