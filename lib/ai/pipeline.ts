@@ -41,6 +41,14 @@ export type PredictionPipelineAvailability = {
   headToHead: boolean;
   injuries: boolean;
   odds: boolean;
+
+  recentFixturesHome: boolean;
+  recentFixturesAway: boolean;
+
+  teamSeasonStatisticsHome: boolean;
+  teamSeasonStatisticsAway: boolean;
+
+  homeAwaySplits: boolean;
 };
 
 export type PredictionPipelineInput = {
@@ -55,6 +63,16 @@ export type PredictionPipelineInput = {
   headToHead?: unknown[];
   injuries?: unknown[];
   odds?: unknown[];
+
+  recentFixtures?: {
+    home?: unknown[];
+    away?: unknown[];
+  };
+
+  teamSeasonStatistics?: {
+    home?: unknown | null;
+    away?: unknown | null;
+  };
 
   availability?:
     Partial<PredictionPipelineAvailability>;
@@ -119,6 +137,34 @@ type FixtureLike = {
   };
 };
 
+type TeamSeasonStatisticsLike = {
+  fixtures?: {
+    played?: {
+      home?: number;
+      away?: number;
+      total?: number;
+    };
+  };
+
+  goals?: {
+    for?: {
+      average?: {
+        home?: string | number | null;
+        away?: string | number | null;
+        total?: string | number | null;
+      };
+    };
+
+    against?: {
+      average?: {
+        home?: string | number | null;
+        away?: string | number | null;
+        total?: string | number | null;
+      };
+    };
+  };
+};
+
 function assertFixture(
   value: unknown
 ): asserts value is FixtureLike {
@@ -175,6 +221,55 @@ function hasArrayData(
   );
 }
 
+function hasObjectData(
+  value: unknown
+): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  );
+}
+
+function hasHomeAwaySplits(
+  value: unknown
+): boolean {
+  if (
+    !hasObjectData(value)
+  ) {
+    return false;
+  }
+
+  const statistics =
+    value as TeamSeasonStatisticsLike;
+
+  const played =
+    statistics.fixtures?.played;
+
+  const goalsFor =
+    statistics.goals
+      ?.for?.average;
+
+  const goalsAgainst =
+    statistics.goals
+      ?.against?.average;
+
+  return Boolean(
+    typeof played?.home === "number" &&
+    typeof played?.away === "number" &&
+
+    goalsFor?.home !== undefined &&
+    goalsFor?.home !== null &&
+    goalsFor?.away !== undefined &&
+    goalsFor?.away !== null &&
+
+    goalsAgainst?.home !== undefined &&
+    goalsAgainst?.home !== null &&
+    goalsAgainst?.away !== undefined &&
+    goalsAgainst?.away !== null
+  );
+}
+
 function buildMatchEnvelope(
   input: PredictionPipelineInput
 ) {
@@ -225,12 +320,56 @@ function buildMatchEnvelope(
       ensureArray(
         input.odds
       ),
+
+    recentFixtures: {
+      home:
+        ensureArray(
+          input.recentFixtures
+            ?.home
+        ),
+
+      away:
+        ensureArray(
+          input.recentFixtures
+            ?.away
+        ),
+    },
+
+    teamSeasonStatistics: {
+      home:
+        input
+          .teamSeasonStatistics
+          ?.home ?? null,
+
+      away:
+        input
+          .teamSeasonStatistics
+          ?.away ?? null,
+    },
   };
 }
 
 function resolveAvailability(
   input: PredictionPipelineInput
 ): PredictionPipelineAvailability {
+  const recentHome =
+    ensureArray(
+      input.recentFixtures?.home
+    );
+
+  const recentAway =
+    ensureArray(
+      input.recentFixtures?.away
+    );
+
+  const seasonHome =
+    input.teamSeasonStatistics
+      ?.home ?? null;
+
+  const seasonAway =
+    input.teamSeasonStatistics
+      ?.away ?? null;
+
   return {
     fixture:
       input.availability
@@ -278,6 +417,42 @@ function resolveAvailability(
       hasArrayData(
         input.odds
       ),
+
+    recentFixturesHome:
+      input.availability
+        ?.recentFixturesHome ??
+      recentHome.length > 0,
+
+    recentFixturesAway:
+      input.availability
+        ?.recentFixturesAway ??
+      recentAway.length > 0,
+
+    teamSeasonStatisticsHome:
+      input.availability
+        ?.teamSeasonStatisticsHome ??
+      hasObjectData(
+        seasonHome
+      ),
+
+    teamSeasonStatisticsAway:
+      input.availability
+        ?.teamSeasonStatisticsAway ??
+      hasObjectData(
+        seasonAway
+      ),
+
+    homeAwaySplits:
+      input.availability
+        ?.homeAwaySplits ??
+      (
+        hasHomeAwaySplits(
+          seasonHome
+        ) &&
+        hasHomeAwaySplits(
+          seasonAway
+        )
+      ),
   };
 }
 
@@ -302,6 +477,16 @@ function createInputFingerprint(
 ): string {
   const fixture =
     input.fixture as FixtureLike;
+
+  const recentHomeCount =
+    ensureArray(
+      input.recentFixtures?.home
+    ).length;
+
+  const recentAwayCount =
+    ensureArray(
+      input.recentFixtures?.away
+    ).length;
 
   const fingerprintSource = [
     normalizeFixtureId(input),
@@ -337,6 +522,23 @@ function createInputFingerprint(
       ? "odds-1"
       : "odds-0",
 
+    `recent-home-${recentHomeCount}`,
+    `recent-away-${recentAwayCount}`,
+
+    availability
+      .teamSeasonStatisticsHome
+      ? "season-home-1"
+      : "season-home-0",
+
+    availability
+      .teamSeasonStatisticsAway
+      ? "season-away-1"
+      : "season-away-0",
+
+    availability.homeAwaySplits
+      ? "splits-1"
+      : "splits-0",
+
     input.fetchedAt ?? "",
   ].join("|");
 
@@ -371,6 +573,16 @@ function evaluatePipelineDataQuality(
   const availability =
     resolveAvailability(input);
 
+  const recentHome =
+    ensureArray(
+      input.recentFixtures?.home
+    );
+
+  const recentAway =
+    ensureArray(
+      input.recentFixtures?.away
+    );
+
   const inputFingerprint =
     createInputFingerprint(
       input,
@@ -378,45 +590,79 @@ function evaluatePipelineDataQuality(
     );
 
   /*
-   * The current v2 form, strength,
-   * and goals modules still depend
-   * on placeholder fallback values.
+   * Real enrichment is now available
+   * to the pipeline and quality gate.
    *
-   * Until real recent-form and team
-   * profile data are connected,
-   * premium prediction persistence
-   * must remain withheld.
+   * The current scoring modules still
+   * use v2 fallback calculations, so
+   * premium persistence must remain
+   * withheld until form.ts, strength.ts,
+   * and goals.ts consume this evidence.
    */
   const generatedFromFallback =
     true;
+
+  const warnings: string[] = [];
+
+  if (
+    !availability
+      .recentFixturesHome ||
+    !availability
+      .recentFixturesAway
+  ) {
+    warnings.push(
+      "Recent-form fixtures are missing for one or both teams."
+    );
+  }
+
+  if (
+    !availability
+      .teamSeasonStatisticsHome ||
+    !availability
+      .teamSeasonStatisticsAway
+  ) {
+    warnings.push(
+      "Season statistics are missing for one or both teams."
+    );
+  }
+
+  if (
+    !availability
+      .homeAwaySplits
+  ) {
+    warnings.push(
+      "Complete home and away performance splits are unavailable."
+    );
+  }
+
+  warnings.push(
+    "Prediction Engine v2 fallback scoring modules are still active."
+  );
 
   return evaluatePredictionDataQuality({
     availability: {
       fixture:
         availability.fixture,
 
-      /*
-       * Match statistics from an
-       * upcoming fixture are not
-       * recent-form history.
-       */
-      recentFormHome: false,
-      recentFormAway: false,
+      recentFormHome:
+        availability
+          .recentFixturesHome,
 
-      homeAwaySplits: false,
+      recentFormAway:
+        availability
+          .recentFixturesAway,
 
-      /*
-       * Statistics are preserved as
-       * available context, but they
-       * do not yet prove that complete
-       * team profiles exist for both
-       * teams.
-       */
+      homeAwaySplits:
+        availability
+          .homeAwaySplits,
+
       teamStatisticsHome:
-        availability.statistics,
+        availability
+          .teamSeasonStatisticsHome,
 
       teamStatisticsAway:
-        availability.statistics,
+        availability
+          .teamSeasonStatisticsAway,
 
       headToHead:
         availability.headToHead,
@@ -438,10 +684,22 @@ function evaluatePipelineDataQuality(
         input.fetchedAt ?? null,
 
       recentFormFetchedAt:
-        null,
+        (
+          availability
+            .recentFixturesHome ||
+          availability
+            .recentFixturesAway
+        )
+          ? input.fetchedAt ?? null
+          : null,
 
       statisticsFetchedAt:
-        availability.statistics
+        (
+          availability
+            .teamSeasonStatisticsHome ||
+          availability
+            .teamSeasonStatisticsAway
+        )
           ? input.fetchedAt ?? null
           : null,
 
@@ -467,17 +725,16 @@ function evaluatePipelineDataQuality(
     },
 
     sampleSize: {
-      home: 0,
-      away: 0,
+      home:
+        recentHome.length,
+
+      away:
+        recentAway.length,
     },
 
     generatedFromFallback,
 
-    warnings: [
-      "Prediction Engine v2 fallback factors are still active.",
-      "Recent-form history is not connected to the prediction pipeline.",
-      "Home and away performance splits are not connected.",
-    ],
+    warnings,
 
     dailyAIBudgetRemaining:
       true,
@@ -513,8 +770,10 @@ export async function runPredictionPipeline(
    * for backward compatibility with
    * the current UI and Firestore model.
    *
-   * The generation decision is used
-   * as the v3 quality gate.
+   * Enriched evidence is now present in
+   * the match envelope, but the hard gate
+   * remains active while legacy scoring
+   * modules still depend on fallback data.
    */
   const prediction =
     calculatePrediction(match);

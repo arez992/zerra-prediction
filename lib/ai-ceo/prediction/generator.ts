@@ -272,6 +272,12 @@ async function buildPipelineInput(
 
           includeOdds:
             false,
+
+          includeTeamEnrichment:
+            true,
+
+          recentFixtureLimit:
+            8,
         }
       );
 
@@ -305,6 +311,18 @@ async function buildPipelineInput(
 
         odds:
           complete.odds,
+
+        recentFixtures:
+          complete.recentFixtures ?? {
+            home: [],
+            away: [],
+          },
+
+        teamSeasonStatistics:
+          complete.teamSeasonStatistics ?? {
+            home: null,
+            away: null,
+          },
       },
     };
   }
@@ -354,11 +372,36 @@ async function buildPipelineInput(
         headToHead: false,
         injuries: false,
         odds: false,
+
+        recentFixturesHome:
+          false,
+
+        recentFixturesAway:
+          false,
+
+        teamSeasonStatisticsHome:
+          false,
+
+        teamSeasonStatisticsAway:
+          false,
+
+        homeAwaySplits:
+          false,
       },
 
       headToHead: [],
       injuries: [],
       odds: [],
+
+      recentFixtures: {
+        home: [],
+        away: [],
+      },
+
+      teamSeasonStatistics: {
+        home: null,
+        away: null,
+      },
     },
   };
 }
