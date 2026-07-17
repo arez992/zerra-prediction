@@ -34,23 +34,24 @@ export async function getUserVipStatus(
       uid
     );
 
-    const snapshot =
-      await getDoc(userRef);
+    const snapshot = await getDoc(
+      userRef
+    );
 
     if (!snapshot.exists()) {
       return {
         isVip: false,
+        isAdmin: false,
         plan: "Free",
         expiresAt: null,
       };
     }
 
-    const data =
-      snapshot.data();
+    const data = snapshot.data();
 
     return {
-      isVip:
-        data.isVip === true,
+      isVip: data.isVip === true,
+      isAdmin: data.role === "admin",
       plan: normalizePlan(
         data.plan
       ),
@@ -65,6 +66,7 @@ export async function getUserVipStatus(
 
     return {
       isVip: false,
+      isAdmin: false,
       plan: "Free",
       expiresAt: null,
     };

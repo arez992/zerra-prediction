@@ -15,6 +15,7 @@ export type VipExpiry =
 
 export type VipStatus = {
   isVip: boolean;
+  isAdmin: boolean;
   plan: VipPlan;
   expiresAt: VipExpiry;
 };
@@ -28,6 +29,7 @@ function getExpiryTime(
 
   if (expiresAt instanceof Date) {
     const time = expiresAt.getTime();
+
     return Number.isFinite(time)
       ? time
       : null;
@@ -45,8 +47,7 @@ function getExpiryTime(
 
   if (
     typeof expiresAt === "object" &&
-    typeof expiresAt.toDate ===
-      "function"
+    typeof expiresAt.toDate === "function"
   ) {
     const time = expiresAt
       .toDate()
@@ -59,8 +60,7 @@ function getExpiryTime(
 
   if (
     typeof expiresAt === "object" &&
-    typeof expiresAt.seconds ===
-      "number"
+    typeof expiresAt.seconds === "number"
   ) {
     return expiresAt.seconds * 1000;
   }
@@ -71,7 +71,18 @@ function getExpiryTime(
 export function isVipActive(
   status?: VipStatus | null
 ): boolean {
-  if (!status?.isVip) {
+  if (!status) {
+    return false;
+  }
+
+  /*
+   * Admin always has access to VIP content.
+   */
+  if (status.isAdmin) {
+    return true;
+  }
+
+  if (!status.isVip) {
     return false;
   }
 
@@ -79,13 +90,17 @@ export function isVipActive(
     return true;
   }
 
-  const expiry =
-    getExpiryTime(
-      status.expiresAt
-    );
+  const expiry = getExpiryTime(
+    status.expiresAt
+  );
 
+  /*
+   * Backward compatibility:
+   * Older VIP users may only have isVip=true
+   * without plan or expiresAt.
+   */
   if (expiry === null) {
-    return false;
+    return true;
   }
 
   return expiry > Date.now();

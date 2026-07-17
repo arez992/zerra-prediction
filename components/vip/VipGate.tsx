@@ -14,9 +14,24 @@ export default function VipGate({
   fallbackTitle = "Premium VIP Content",
   fallbackText = "Unlock VIP access to view full AI analysis, premium predictions, value bets, and advanced match insights.",
 }: VipGateProps) {
-  const { isVip } = useVip();
+  const {
+    hasVipAccess,
+    loading,
+  } = useVip();
 
-  if (isVip) {
+  if (loading) {
+    return (
+      <section className="rounded-[2rem] border border-white/10 bg-[#0B1220] p-8 text-center shadow-xl">
+        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-[#D4AF37]" />
+
+        <p className="mt-4 text-sm font-bold text-white/60">
+          Checking VIP access...
+        </p>
+      </section>
+    );
+  }
+
+  if (hasVipAccess) {
     return <>{children}</>;
   }
 
@@ -26,7 +41,9 @@ export default function VipGate({
         🔒
       </div>
 
-      <h3 className="mt-5 text-2xl font-black text-white">{fallbackTitle}</h3>
+      <h3 className="mt-5 text-2xl font-black text-white">
+        {fallbackTitle}
+      </h3>
 
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/60">
         {fallbackText}
