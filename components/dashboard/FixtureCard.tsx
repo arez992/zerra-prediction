@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import type {
-  PredictionResult,
-} from "@/lib/ai/prediction";
+import type { PredictionResult } from "@/lib/ai/prediction";
 
 type FixtureCardProps = {
   match: any;
@@ -15,44 +13,26 @@ type FixtureCardProps = {
   predictionError?: boolean;
 };
 
-function getStatusStyle(
-  short: string
-) {
-  if (
-    ["1H", "2H", "HT", "ET", "P"].includes(
-      short
-    )
-  ) {
+function getStatusStyle(short: string) {
+  if (["1H", "2H", "HT", "ET", "P"].includes(short)) {
     return "bg-red-500/20 text-red-400";
   }
 
-  if (
-    ["FT", "AET", "PEN"].includes(
-      short
-    )
-  ) {
+  if (["FT", "AET", "PEN"].includes(short)) {
     return "bg-white/10 text-white/60";
   }
 
   return "bg-green-500/20 text-green-400";
 }
 
-function normalizePercent(
-  value: unknown
-) {
-  const number = Number(value);
+function normalizePercent(value: unknown) {
+  const parsedValue = Number(value);
 
-  if (!Number.isFinite(number)) {
+  if (!Number.isFinite(parsedValue)) {
     return 0;
   }
 
-  return Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(number)
-    )
-  );
+  return Math.max(0, Math.min(100, Math.round(parsedValue)));
 }
 
 export default function FixtureCard({
@@ -62,115 +42,109 @@ export default function FixtureCard({
   predictionLoading = false,
   predictionError = false,
 }: FixtureCardProps) {
-  const params = useParams();
+  const params = useParams<{ locale?: string }>();
 
   const locale =
-    typeof params.locale === "string"
+    typeof params?.locale === "string" && params.locale.length > 0
       ? params.locale
       : "en";
 
-  const confidence = prediction
-    ? normalizePercent(
-        prediction.confidence
-      )
-    : 0;
+  const fixtureId = Number(match?.fixture?.id);
 
-  const homePercent = prediction
-    ? normalizePercent(
-        prediction.homeWin
-      )
-    : 0;
+  const matchHref = Number.isFinite(fixtureId)
+    ? `/${locale}/match/${fixtureId}`
+    : `/${locale}/dashboard`;
 
-  const drawPercent = prediction
-    ? normalizePercent(
-        prediction.draw
-      )
-    : 0;
+  const statusShort = String(match?.fixture?.status?.short ?? "NS");
+  const statusLong = String(
+    match?.fixture?.status?.long ?? "Not Started"
+  );
 
-  const awayPercent = prediction
-    ? normalizePercent(
-        prediction.awayWin
-      )
-    : 0;
+  const confidence = normalizePercent(prediction?.confidence);
+  const homePercent = normalizePercent(prediction?.homeWin);
+  const drawPercent = normalizePercent(prediction?.draw);
+  const awayPercent = normalizePercent(prediction?.awayWin);
 
   return (
-    <Link
-      href={`/${locale}/match/${match.fixture.id}`}
-      className="block rounded-[2rem] border border-white/10 bg-[#101827]/90 p-5 shadow-xl transition hover:border-[#D4AF37]/60 hover:bg-[#141f33] md:p-6"
-    >
+    <article className="rounded-[2rem] border border-white/10 bg-[#101827]/90 p-5 shadow-xl transition hover:border-[#D4AF37]/60 hover:bg-[#141f33] md:p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          {match.league.logo && (
+          {match?.league?.logo ? (
             <img
               src={match.league.logo}
-              alt={match.league.name}
+              alt={match?.league?.name ?? "League"}
               className="h-9 w-9 shrink-0 rounded-full bg-white object-contain p-1"
+              loading="lazy"
             />
-          )}
+          ) : null}
 
           <div className="min-w-0">
             <p className="truncate font-black text-[#D4AF37]">
-              {match.league.name}
+              {match?.league?.name ?? "Unknown League"}
             </p>
 
             <p className="truncate text-xs text-white/45">
-              {match.league.country}
+              {match?.league?.country ?? "Unknown Country"}
               {" • "}
-              {match.fixture.status.long}
+              {statusLong}
             </p>
           </div>
         </div>
 
         <span
           className={`shrink-0 rounded-full px-4 py-1 text-xs font-black ${getStatusStyle(
-            match.fixture.status.short
+            statusShort
           )}`}
         >
-          {match.fixture.status.short}
+          {statusShort}
         </span>
       </div>
 
       <div className="mt-8 grid gap-5 md:grid-cols-3 md:items-center">
         <div className="flex flex-col items-center gap-3 text-center md:flex-row md:text-left">
-          {match.teams.home.logo && (
+          {match?.teams?.home?.logo ? (
             <img
               src={match.teams.home.logo}
-              alt={match.teams.home.name}
+              alt={match?.teams?.home?.name ?? "Home Team"}
               className="h-14 w-14 shrink-0 rounded-full bg-white object-contain p-1"
+              loading="lazy"
             />
-          )}
+          ) : null}
 
           <p className="max-w-[160px] text-xl font-black leading-tight text-white md:max-w-none">
-            {match.teams.home.name}
+            {match?.teams?.home?.name ?? "Home Team"}
           </p>
         </div>
 
         <div className="mx-auto w-full max-w-[180px] rounded-3xl bg-black/40 px-4 py-5 text-center">
-          <p className="text-5xl font-black leading-none text-[#D4AF37]">
-            {match.goals.home ?? "-"}
-          </p>
+          <div className="flex items-center justify-center gap-3">
+            <span className="text-5xl font-black leading-none text-[#D4AF37]">
+              {match?.goals?.home ?? "-"}
+            </span>
 
-          <p className="text-3xl font-black leading-none text-[#D4AF37]">
-            :
-          </p>
+            <span className="text-3xl font-black leading-none text-[#D4AF37]">
+              :
+            </span>
 
-          <p className="text-5xl font-black leading-none text-[#D4AF37]">
-            {match.goals.away ?? "-"}
-          </p>
+            <span className="text-5xl font-black leading-none text-[#D4AF37]">
+              {match?.goals?.away ?? "-"}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-col items-center gap-3 text-center md:flex-row md:justify-end md:text-right">
           <p className="max-w-[160px] text-xl font-black leading-tight text-white md:max-w-none">
-            {match.teams.away.name}
+            {match?.teams?.away?.name ?? "Away Team"}
           </p>
 
-          {match.teams.away.logo && (
+          {match?.teams?.away?.logo ? (
             <img
               src={match.teams.away.logo}
-              alt={match.teams.away.name}
+              alt={match?.teams?.away?.name ?? "Away Team"}
               className="h-14 w-14 shrink-0 rounded-full bg-white object-contain p-1"
+              loading="lazy"
             />
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -230,7 +204,16 @@ export default function FixtureCard({
           </p>
         </div>
       )}
-    </Link>
+
+      <div className="mt-6 flex justify-end">
+        <Link
+          href={matchHref}
+          className="inline-flex items-center justify-center rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-black text-black transition hover:bg-[#e4c45a]"
+        >
+          View Match Analysis
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -275,9 +258,9 @@ function PredictionBar({
         <span>{value}%</span>
       </div>
 
-      <div className="h-2 rounded-full bg-white/10">
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
         <div
-          className="h-2 rounded-full bg-[#D4AF37]"
+          className="h-full rounded-full bg-[#D4AF37] transition-[width] duration-500"
           style={{
             width: `${value}%`,
           }}

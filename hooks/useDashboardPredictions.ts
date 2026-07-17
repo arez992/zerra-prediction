@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PredictionResult } from "@/lib/ai/prediction";
 
 type PredictionMap = Record<number, PredictionResult | null>;
@@ -11,35 +10,16 @@ type UseDashboardPredictionsOptions = {
   enabled: boolean;
 };
 
-type PredictionApiResponse = {
-  success?: boolean;
-  prediction?: PredictionResult;
-  data?: PredictionResult | {
-    prediction?: PredictionResult;
-  };
-};
-
-function extractPrediction(
-  payload: PredictionApiResponse
-): PredictionResult | null {
+function extractPrediction(payload: any): PredictionResult | null {
   if (payload?.prediction) {
     return payload.prediction;
   }
 
-  if (
-    payload?.data &&
-    typeof payload.data === "object" &&
-    "prediction" in payload.data &&
-    payload.data.prediction
-  ) {
+  if (payload?.data?.prediction) {
     return payload.data.prediction;
   }
 
-  if (
-    payload?.data &&
-    typeof payload.data === "object" &&
-    "homeWin" in payload.data
-  ) {
+  if (payload?.data?.homeWin !== undefined) {
     return payload.data as PredictionResult;
   }
 
@@ -50,122 +30,89 @@ export function useDashboardPredictions({
   fixtureIds,
   enabled,
 }: UseDashboardPredictionsOptions) {
-  const [predictions, setPredictions] =
-    useState<PredictionMap>({});
+  const [predictions, setPredictions] = useState<PredictionMap>({});
+  const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
+  const [errorIds, setErrorIds] = useState<Set<number>>(new Set());
 
-  const [loadingIds, setLoadingIds] =
-    useState<Set<number>>(new Set());
+  const requestedIdsRef = useRef<Set<number>>(new Set());
 
-  const [errorIds, setErrorIds] =
-    useState<Set<number>>(new Set());
-
-  const stableFixtureIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          fixtureIds.filter(
-            (id) =>
-              Number.isInteger(id) &&
-              id > 0
-          )
+  const stableIds = useMemo(() => {
+    return Array.from(
+      new Set(
+        fixtureIds.filter(
+          (id) => Number.isInteger(id) && id > 0
         )
-      ),
-    [fixtureIds]
-  );
+      )
+    );
+  }, [fixtureIds]);
+
+  const idsKey = stableIds.join(",");
 
   useEffect(() => {
-    if (!enabled) {
-      setPredictions({});
-      setLoadingIds(new Set());
-      setErrorIds(new Set());
+    if (!enabled || stableIds.length === 0) {
       return;
     }
 
-    if (!stableFixtureIds.length) {
+    const idsToLoad = stableIds.filter(
+      (id) => !requestedIdsRef.current.has(id)
+    );
+
+    if (idsToLoad.length === 0) {
       return;
     }
 
-    const missingIds =
-      stableFixtureIds.filter(
-        (fixtureId) =>
-          !(fixtureId in predictions)
-      );
+    idsToLoad.forEach((id) => {
+      requestedIdsRef.current.add(id);
+    });
 
-    if (!missingIds.length) {
-      return;
-    }
+    const controller = new AbortController();
 
-    const controller =
-      new AbortController();
+    setLoadingIds((current) => {
+      const next = new Set(current);
 
-    async function loadPredictions() {
-      setLoadingIds((current) => {
-        const next = new Set(current);
-
-        missingIds.forEach((id) =>
-          next.add(id)
-        );
-
-        return next;
+      idsToLoad.forEach((id) => {
+        next.add(id);
       });
 
-      const results =
-        await Promise.allSettled(
-          missingIds.map(
-            async (fixtureId) => {
-              const response =
-                await fetch(
-                  `/api/vip/predictions/${fixtureId}`,
-                  {
-                    cache: "no-store",
-                    signal:
-                      controller.signal,
-                  }
-                );
+      return next;
+    });
 
-              if (!response.ok) {
-                throw new Error(
-                  `Prediction request failed for fixture ${fixtureId}`
-                );
-              }
-
-              const payload =
-                (await response.json()) as PredictionApiResponse;
-
-              return {
-                fixtureId,
-                prediction:
-                  extractPrediction(
-                    payload
-                  ),
-              };
-            }
-          )
+    Promise.allSettled(
+      idsToLoad.map(async (fixtureId) => {
+        const response = await fetch(
+          `/api/vip/predictions/${fixtureId}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
         );
 
+        if (!response.ok) {
+          throw new Error(`Prediction failed: ${fixtureId}`);
+        }
+
+        const payload = await response.json();
+
+        return {
+          fixtureId,
+          prediction: extractPrediction(payload),
+        };
+      })
+    ).then((results) => {
       if (controller.signal.aborted) {
         return;
       }
 
       setPredictions((current) => {
-        const next = {
-          ...current,
-        };
+        const next = { ...current };
 
-        results.forEach(
-          (result, index) => {
-            const fixtureId =
-              missingIds[index];
+        results.forEach((result, index) => {
+          const fixtureId = idsToLoad[index];
 
-            if (
-              result.status ===
-              "fulfilled"
-            ) {
-              next[fixtureId] =
-                result.value.prediction;
-            }
+          if (result.status === "fulfilled") {
+            next[fixtureId] = result.value.prediction;
           }
-        );
+        });
 
         return next;
       });
@@ -173,21 +120,15 @@ export function useDashboardPredictions({
       setErrorIds((current) => {
         const next = new Set(current);
 
-        results.forEach(
-          (result, index) => {
-            const fixtureId =
-              missingIds[index];
+        results.forEach((result, index) => {
+          const fixtureId = idsToLoad[index];
 
-            if (
-              result.status ===
-              "rejected"
-            ) {
-              next.add(fixtureId);
-            } else {
-              next.delete(fixtureId);
-            }
+          if (result.status === "rejected") {
+            next.add(fixtureId);
+          } else {
+            next.delete(fixtureId);
           }
-        );
+        });
 
         return next;
       });
@@ -195,36 +136,18 @@ export function useDashboardPredictions({
       setLoadingIds((current) => {
         const next = new Set(current);
 
-        missingIds.forEach((id) =>
-          next.delete(id)
-        );
+        idsToLoad.forEach((id) => {
+          next.delete(id);
+        });
 
         return next;
       });
-    }
-
-    loadPredictions().catch(
-      (error) => {
-        if (
-          error instanceof Error &&
-          error.name !== "AbortError"
-        ) {
-          console.error(
-            "Failed to load dashboard predictions:",
-            error
-          );
-        }
-      }
-    );
+    });
 
     return () => {
       controller.abort();
     };
-  }, [
-    enabled,
-    predictions,
-    stableFixtureIds,
-  ]);
+  }, [enabled, idsKey]);
 
   return {
     predictions,
