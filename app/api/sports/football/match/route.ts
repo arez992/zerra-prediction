@@ -29,28 +29,20 @@ function getErrorStatus(
     message.toLowerCase();
 
   if (
-    normalized.includes(
-      "fixture id"
-    ) ||
-    normalized.includes(
-      "valid numeric"
-    )
+    normalized.includes("fixture id") ||
+    normalized.includes("valid numeric")
   ) {
     return 400;
   }
 
   if (
-    normalized.includes(
-      "not found"
-    )
+    normalized.includes("not found")
   ) {
     return 404;
   }
 
   if (
-    normalized.includes(
-      "api_football_key"
-    )
+    normalized.includes("api_football_key")
   ) {
     return 500;
   }
@@ -91,6 +83,7 @@ export async function GET(
               ),
               true
             ),
+
           includeInjuries:
             getBooleanParam(
               request.nextUrl.searchParams.get(
@@ -98,6 +91,7 @@ export async function GET(
               ),
               true
             ),
+
           includeOdds:
             getBooleanParam(
               request.nextUrl.searchParams.get(
@@ -105,6 +99,9 @@ export async function GET(
               ),
               false
             ),
+
+          includeTeamEnrichment:
+            true,
         }
       );
 
