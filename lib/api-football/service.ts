@@ -902,11 +902,10 @@ async function fetchTeamEnrichment(
    */
   const requestLimit =
     Math.min(
-      40,
+      20,
       Math.max(
-        20,
-        input.recentFixtureLimit *
-          3
+        input.recentFixtureLimit,
+        12
       )
     );
 
