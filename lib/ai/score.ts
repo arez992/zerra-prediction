@@ -3,6 +3,13 @@ import { calculateRisk } from "./risk";
 import {
   calculateMatchIntelligence,
 } from "./intelligence";
+import {
+  calculateDataCompleteness,
+} from "./data-completeness";
+
+import type {
+  DataCompletenessResult,
+} from "./data-completeness";
 
 import type {
   PredictionResult,
@@ -14,10 +21,10 @@ export type AIScoreResult =
   PredictionResult;
 
 const MODEL_VERSION =
-  "zerra-ai-v3.0";
+  "zerra-ai-v4.2";
 
 const DATA_VERSION =
-  "fixture-intelligence-v2";
+  "fixture-intelligence-v3-data-completeness-v1";
 
 function clamp(
   value: number,
@@ -224,9 +231,12 @@ function chooseExactScore(
 function chooseValueBet(
   markets:
     PredictionMarketProbabilities,
-  confidence: number
+  confidence: number,
+  dataCompleteness:
+    DataCompletenessResult
 ): string {
   if (
+    !dataCompleteness.vipReady ||
     confidence < 58
   ) {
     return "No Value";
@@ -266,7 +276,7 @@ function chooseValueBet(
   return "No Value";
 }
 
-function calculateConfidence(
+function calculateBaseConfidence(
   markets:
     PredictionMarketProbabilities,
   ratingDifference: number,
@@ -315,11 +325,157 @@ function calculateConfidence(
   );
 }
 
+function applyDataConfidenceAdjustment(
+  baseConfidence: number,
+  dataCompleteness:
+    DataCompletenessResult
+): number {
+  const completenessMultiplier =
+    0.62 +
+    (
+      dataCompleteness.score /
+      100
+    ) * 0.38;
+
+  const reliabilityMultiplier =
+    0.72 +
+    (
+      dataCompleteness
+        .summary
+        .weightedReliability /
+      100
+    ) * 0.28;
+
+  const criticalPenalty =
+    Math.min(
+      24,
+      dataCompleteness
+        .missingCritical
+        .length * 7
+    );
+
+  const warningPenalty =
+    Math.min(
+      8,
+      dataCompleteness
+        .warnings
+        .length * 2
+    );
+
+  const adjusted =
+    baseConfidence *
+    completenessMultiplier *
+    reliabilityMultiplier -
+    criticalPenalty -
+    warningPenalty;
+
+  const maximumConfidence =
+    dataCompleteness.vipReady
+      ? 88
+      : dataCompleteness.score >= 60
+      ? 64
+      : 54;
+
+  return Math.round(
+    clamp(
+      adjusted,
+      30,
+      maximumConfidence
+    )
+  );
+}
+
+function riskFromScore(
+  riskScore: number
+): PredictionRisk {
+  if (riskScore >= 67) {
+    return "High";
+  }
+
+  if (riskScore >= 36) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
+function applyDataRiskAdjustment(
+  baseRiskScore: number,
+  dataCompleteness:
+    DataCompletenessResult
+): {
+  risk: PredictionRisk;
+  riskScore: number;
+} {
+  const completenessRisk =
+    100 -
+    dataCompleteness.score;
+
+  const reliabilityRisk =
+    100 -
+    dataCompleteness
+      .summary
+      .weightedReliability;
+
+  const freshnessRisk =
+    100 -
+    dataCompleteness
+      .summary
+      .weightedFreshness;
+
+  const criticalPenalty =
+    Math.min(
+      32,
+      dataCompleteness
+        .missingCritical
+        .length * 9
+    );
+
+  const warningPenalty =
+    Math.min(
+      12,
+      dataCompleteness
+        .warnings
+        .length * 3
+    );
+
+  const dataRiskScore =
+    completenessRisk * 0.45 +
+    reliabilityRisk * 0.32 +
+    freshnessRisk * 0.23 +
+    criticalPenalty +
+    warningPenalty;
+
+  const adjustedRiskScore =
+    Math.round(
+      clamp(
+        Math.max(
+          baseRiskScore,
+          dataRiskScore
+        ),
+        0,
+        100
+      )
+    );
+
+  return {
+    risk:
+      riskFromScore(
+        adjustedRiskScore
+      ),
+
+    riskScore:
+      adjustedRiskScore,
+  };
+}
+
 function buildPublicPrediction(
   risk: PredictionRisk,
   riskScore: number,
   markets:
-    PredictionMarketProbabilities
+    PredictionMarketProbabilities,
+  dataCompleteness:
+    DataCompletenessResult
 ) {
   const keyInsights:
     string[] = [];
@@ -359,26 +515,97 @@ function buildPublicPrediction(
     );
   }
 
+  if (
+    dataCompleteness.vipReady
+  ) {
+    keyInsights.push(
+      `Prediction data quality is ${dataCompleteness.level} with a completeness score of ${dataCompleteness.score}/100.`
+    );
+  } else {
+    keyInsights.push(
+      "The available evidence does not currently meet ZERRA's VIP publication standard."
+    );
+  }
+
   return {
     overview:
-      "ZERRA AI evaluated attack quality, defensive stability, venue strength, recent form, momentum, goal signals, and prediction risk.",
+      "ZERRA AI evaluated attack quality, defensive stability, venue strength, recent form, momentum, goal signals, prediction risk, and source-data completeness.",
 
     risk,
     riskScore,
     keyInsights,
 
     teaser:
-      "The final prediction, confidence score, exact-score estimate, and value selection are reserved for VIP.",
+      dataCompleteness.vipReady
+        ? "The final prediction, confidence score, exact-score estimate, and value selection are reserved for VIP."
+        : "VIP prediction details are withheld until the available match data meets the required quality threshold.",
   };
+}
+
+function buildDataReasoning(
+  dataCompleteness:
+    DataCompletenessResult
+): string[] {
+  const reasoning = [
+    `Data completeness is ${dataCompleteness.score}/100 (${dataCompleteness.level}).`,
+
+    `Weighted data reliability is ${dataCompleteness.summary.weightedReliability}% and weighted freshness is ${dataCompleteness.summary.weightedFreshness}%.`,
+
+    `Available evidence factors: ${dataCompleteness.summary.availableFactors}/${dataCompleteness.summary.totalFactors}.`,
+
+    `VIP readiness is ${dataCompleteness.vipReady ? "approved" : "not approved"}.`,
+  ];
+
+  dataCompleteness
+    .missingCritical
+    .forEach(
+      (item) => {
+        reasoning.push(
+          `Critical data issue: ${item}`
+        );
+      }
+    );
+
+  dataCompleteness
+    .missingOptional
+    .forEach(
+      (item) => {
+        reasoning.push(
+          `Optional data gap: ${item}`
+        );
+      }
+    );
+
+  dataCompleteness
+    .warnings
+    .forEach(
+      (item) => {
+        reasoning.push(
+          `Data warning: ${item}`
+        );
+      }
+    );
+
+  return reasoning;
 }
 
 export function calculateAIScore(
   match: any
 ): AIScoreResult {
+  const generatedAt =
+    new Date();
+
   const intelligence =
     calculateMatchIntelligence(
       match
     );
+
+  const dataCompleteness =
+    calculateDataCompleteness({
+      match,
+      intelligence,
+      generatedAt,
+    });
 
   const goals =
     calculateGoals(match);
@@ -439,8 +666,8 @@ export function calculateAIScore(
         goals.btts,
     };
 
-  const confidence =
-    calculateConfidence(
+  const baseConfidence =
+    calculateBaseConfidence(
       markets,
       intelligence
         .ratingDifference,
@@ -448,35 +675,59 @@ export function calculateAIScore(
         .evidenceReliability
     );
 
-  const riskResult =
+  const confidence =
+    applyDataConfidenceAdjustment(
+      baseConfidence,
+      dataCompleteness
+    );
+
+  const baseRiskResult =
     calculateRisk(
       markets.homeWin,
       markets.draw,
       markets.awayWin
     );
 
+  const riskResult =
+    applyDataRiskAdjustment(
+      baseRiskResult.riskScore,
+      dataCompleteness
+    );
+
   const valueBet =
     chooseValueBet(
       markets,
-      confidence
+      confidence,
+      dataCompleteness
     );
 
-  const finalPrediction =
+  const calculatedFinalPrediction =
     chooseFinalPrediction(
       markets
     );
 
-  const exactScore =
+  const calculatedExactScore =
     chooseExactScore(
       goals.homeExpectedGoals,
       goals.awayExpectedGoals
     );
 
+  const finalPrediction =
+    dataCompleteness.vipReady
+      ? calculatedFinalPrediction
+      : "Insufficient Data";
+
+  const exactScore =
+    dataCompleteness.vipReady
+      ? calculatedExactScore
+      : "N/A";
+
   const publicPrediction =
     buildPublicPrediction(
       riskResult.risk,
       riskResult.riskScore,
-      markets
+      markets,
+      dataCompleteness
     );
 
   const vipReasoning = [
@@ -500,9 +751,15 @@ export function calculateAIScore(
       2
     )} for the away team.`,
 
-    `The model confidence is ${confidence}% and the prediction risk is ${riskResult.risk} with a score of ${riskResult.riskScore}/100.`,
+    `Base model confidence was ${baseConfidence}% and data-adjusted confidence is ${confidence}%.`,
+
+    `The prediction risk is ${riskResult.risk} with a data-adjusted score of ${riskResult.riskScore}/100.`,
 
     `The selected value signal is ${valueBet}.`,
+
+    ...buildDataReasoning(
+      dataCompleteness
+    ),
   ];
 
   return {
@@ -575,7 +832,7 @@ export function calculateAIScore(
         DATA_VERSION,
 
       generatedAt:
-        new Date().toISOString(),
+        generatedAt.toISOString(),
     },
 
     review: {
@@ -585,6 +842,8 @@ export function calculateAIScore(
     },
 
     status:
-      "draft",
+      dataCompleteness.vipReady
+        ? "review"
+        : "draft",
   };
 }
