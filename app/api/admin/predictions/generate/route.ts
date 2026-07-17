@@ -12,13 +12,22 @@ import {
   type PredictionGenerationMode,
 } from "@/lib/ai-ceo/prediction/generator";
 
-export const runtime =
-  "nodejs";
-
-export const dynamic =
-  "force-dynamic";
-
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+/*
+ * Enriched mode may trigger several
+ * API-Football calls for each fixture.
+ *
+ * Keep batches intentionally small
+ * to protect the API quota.
+ */
+const DEFAULT_ENRICHED_LIMIT = 3;
+const MAX_ENRICHED_LIMIT = 5;
+
+const DEFAULT_BASIC_LIMIT = 10;
+const MAX_BASIC_LIMIT = 25;
 
 type GeneratePredictionsBody = {
   date?: string;
@@ -45,9 +54,18 @@ function normalizeDate(
   }
 
   if (
-    typeof value !== "string" ||
+    typeof value !== "string"
+  ) {
+    throw new Error(
+      "Generation date must use YYYY-MM-DD format."
+    );
+  }
+
+  const date = value.trim();
+
+  if (
     !/^\d{4}-\d{2}-\d{2}$/.test(
-      value.trim()
+      date
     )
   ) {
     throw new Error(
@@ -55,36 +73,59 @@ function normalizeDate(
     );
   }
 
-  return value.trim();
-}
-
-function normalizeLimit(
-  value: unknown
-): number {
-  const parsed =
-    Number(value);
-
-  if (
-    !Number.isFinite(parsed)
-  ) {
-    return 10;
-  }
-
-  return Math.min(
-    25,
-    Math.max(
-      1,
-      Math.floor(parsed)
-    )
-  );
+  return date;
 }
 
 function normalizeMode(
   value: unknown
 ): PredictionGenerationMode {
-  return value === "enriched"
-    ? "enriched"
-    : "basic";
+  /*
+   * Enriched mode is the default
+   * for higher prediction quality.
+   *
+   * Basic mode must be requested
+   * explicitly.
+   */
+  return value === "basic"
+    ? "basic"
+    : "enriched";
+}
+
+function normalizeLimit(
+  value: unknown,
+  mode: PredictionGenerationMode
+): number {
+  const defaultLimit =
+    mode === "enriched"
+      ? DEFAULT_ENRICHED_LIMIT
+      : DEFAULT_BASIC_LIMIT;
+
+  const maximumLimit =
+    mode === "enriched"
+      ? MAX_ENRICHED_LIMIT
+      : MAX_BASIC_LIMIT;
+
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return defaultLimit;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return defaultLimit;
+  }
+
+  return Math.min(
+    maximumLimit,
+    Math.max(
+      1,
+      Math.floor(parsed)
+    )
+  );
 }
 
 function getErrorStatus(
@@ -198,39 +239,70 @@ export async function POST(
         body.date
       );
 
-    const limit =
-      normalizeLimit(
-        body.limit
-      );
-
     const mode =
       normalizeMode(
         body.mode
       );
+
+    const limit =
+      normalizeLimit(
+        body.limit,
+        mode
+      );
+
+    /*
+     * Overwrite is opt-in only.
+     *
+     * Existing predictions are skipped
+     * before enriched API data is fetched,
+     * which protects the API quota.
+     */
+    const overwrite =
+      body.overwrite === true;
 
     const summary =
       await generatePredictionsForDate({
         date,
         limit,
         mode,
-        overwrite:
-          body.overwrite ===
-          true,
+        overwrite,
         performedBy:
           admin.email ||
           admin.uid ||
           "unknown-admin",
       });
 
+    const message =
+      summary.generatedPredictions > 0
+        ? `${summary.generatedPredictions} high-quality prediction(s) generated successfully.`
+        : summary.existingPredictions > 0
+          ? "Generation completed. Existing predictions were skipped."
+          : summary.withheldPredictions > 0 ||
+              summary.insufficientDataPredictions > 0
+            ? "Generation completed, but some predictions were blocked by the quality gate."
+            : "Generation completed. No new prediction was generated.";
+
     return NextResponse.json(
       {
         success: true,
+        message,
 
-        message:
-          summary.generatedPredictions >
-          0
-            ? `${summary.generatedPredictions} prediction(s) generated successfully.`
-            : "Generation completed. No new prediction was generated.",
+        safeguards: {
+          mode,
+          requestedLimit:
+            limit,
+          maximumLimit:
+            mode === "enriched"
+              ? MAX_ENRICHED_LIMIT
+              : MAX_BASIC_LIMIT,
+          overwrite,
+          apiDateRequests:
+            summary.apiDateRequests,
+          enrichedFixtureRequests:
+            summary.enrichedFixtureRequests,
+          existingPredictionsSkipped:
+            summary.existingPredictions,
+        },
 
         summary,
       },
@@ -256,8 +328,7 @@ export async function POST(
     return NextResponse.json(
       {
         success: false,
-        error:
-          message,
+        error: message,
       },
       {
         status:
