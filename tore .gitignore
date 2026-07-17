@@ -1,0 +1,22 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 0f35c08..8490977 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -9,3 +9,5 @@[m [myarn-debug.log*[m
+ yarn-error.log*[m
+ [m
+ tsconfig.tsbuildinfo[m
+[32m+[m[32m.vercel[m
+[32m+[m[32m.env*[m
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 0f35c08..8490977 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -9,3 +9,5 @@[m [myarn-debug.log*[m
+ yarn-error.log*[m
+ [m
+ tsconfig.tsbuildinfo[m
+[32m+[m[32m.vercel[m
+[32m+[m[32m.env*[m

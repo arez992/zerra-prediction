@@ -1,8 +1,13 @@
 import { calculateGoals } from "./goals";
 import { calculateRisk } from "./risk";
+
 import {
   calculateMatchIntelligence,
 } from "./intelligence";
+
+import {
+  calculateMatchProbabilities,
+} from "./probability";
 
 import type {
   PredictionResult,
@@ -14,164 +19,10 @@ export type AIScoreResult =
   PredictionResult;
 
 const MODEL_VERSION =
-  "zerra-ai-v3.0";
+  "zerra-ai-v4.0";
 
 const DATA_VERSION =
-  "fixture-intelligence-v2";
-
-function clamp(
-  value: number,
-  minimum: number,
-  maximum: number
-): number {
-  return Math.min(
-    maximum,
-    Math.max(
-      minimum,
-      value
-    )
-  );
-}
-
-function round(
-  value: number,
-  decimals = 1
-): number {
-  const multiplier =
-    10 ** decimals;
-
-  return Math.round(
-    value * multiplier
-  ) / multiplier;
-}
-
-function normalizeProbabilities(
-  homeWin: number,
-  draw: number,
-  awayWin: number
-): {
-  homeWin: number;
-  draw: number;
-  awayWin: number;
-} {
-  const safeHome =
-    Math.max(1, homeWin);
-
-  const safeDraw =
-    Math.max(1, draw);
-
-  const safeAway =
-    Math.max(1, awayWin);
-
-  const total =
-    safeHome +
-    safeDraw +
-    safeAway;
-
-  const normalizedHome =
-    Math.round(
-      (
-        safeHome /
-        total
-      ) * 100
-    );
-
-  const normalizedAway =
-    Math.round(
-      (
-        safeAway /
-        total
-      ) * 100
-    );
-
-  const normalizedDraw =
-    100 -
-    normalizedHome -
-    normalizedAway;
-
-  return {
-    homeWin:
-      normalizedHome,
-
-    draw:
-      normalizedDraw,
-
-    awayWin:
-      normalizedAway,
-  };
-}
-
-function sigmoid(
-  value: number
-): number {
-  return (
-    1 /
-    (
-      1 +
-      Math.exp(-value)
-    )
-  );
-}
-
-function buildMainProbabilities(
-  homeRating: number,
-  awayRating: number,
-  evidenceReliability: number
-): {
-  homeWin: number;
-  draw: number;
-  awayWin: number;
-} {
-  const ratingDifference =
-    homeRating -
-    awayRating;
-
-  const reliableDifference =
-    ratingDifference *
-    (
-      0.65 +
-      evidenceReliability * 0.35
-    );
-
-  const absoluteDifference =
-    Math.abs(
-      reliableDifference
-    );
-
-  const drawProbability =
-    clamp(
-      31 -
-      absoluteDifference * 0.42,
-      16,
-      31
-    );
-
-  const remainingProbability =
-    100 -
-    drawProbability;
-
-  const homeShare =
-    sigmoid(
-      (
-        reliableDifference +
-        2.5
-      ) / 9
-    );
-
-  const homeWin =
-    remainingProbability *
-    homeShare;
-
-  const awayWin =
-    remainingProbability -
-    homeWin;
-
-  return normalizeProbabilities(
-    homeWin,
-    drawProbability,
-    awayWin
-  );
-}
+  "fixture-intelligence-v3";
 
 function chooseFinalPrediction(
   markets:
@@ -179,17 +30,25 @@ function chooseFinalPrediction(
 ): string {
   const outcomes = [
     {
-      label: "Home Win",
+      label:
+        "Home Win",
+
       value:
         markets.homeWin,
     },
+
     {
-      label: "Draw",
+      label:
+        "Draw",
+
       value:
         markets.draw,
     },
+
     {
-      label: "Away Win",
+      label:
+        "Away Win",
+
       value:
         markets.awayWin,
     },
@@ -224,102 +83,118 @@ function chooseExactScore(
 function chooseValueBet(
   markets:
     PredictionMarketProbabilities,
-  confidence: number
+  confidence: number,
+  riskScore: number
 ): string {
   if (
-    confidence < 58
+    confidence < 58 ||
+    riskScore >= 72
   ) {
     return "No Value";
   }
 
+  const mainOutcomes = [
+    {
+      label:
+        "Home Win",
+
+      probability:
+        markets.homeWin,
+    },
+
+    {
+      label:
+        "Draw",
+
+      probability:
+        markets.draw,
+    },
+
+    {
+      label:
+        "Away Win",
+
+      probability:
+        markets.awayWin,
+    },
+  ].sort(
+    (first, second) =>
+      second.probability -
+      first.probability
+  );
+
+  const leadingOutcome =
+    mainOutcomes[0];
+
+  const secondOutcome =
+    mainOutcomes[1];
+
+  const mainGap =
+    leadingOutcome.probability -
+    secondOutcome.probability;
+
   if (
-    markets.homeWin >= 62
+    leadingOutcome.label ===
+      "Home Win" &&
+    markets.homeWin >= 57 &&
+    mainGap >= 10 &&
+    confidence >= 61
   ) {
     return "Home Win";
   }
 
   if (
-    markets.awayWin >= 62
+    leadingOutcome.label ===
+      "Away Win" &&
+    markets.awayWin >= 57 &&
+    mainGap >= 10 &&
+    confidence >= 61
   ) {
     return "Away Win";
   }
 
   if (
-    markets.over25 >= 70
-  ) {
-    return "Over 2.5 Goals";
-  }
-
-  if (
-    markets.btts >= 70
-  ) {
-    return "BTTS Yes";
-  }
-
-  if (
-    markets.draw >= 34 &&
+    leadingOutcome.label ===
+      "Draw" &&
+    markets.draw >= 35 &&
+    mainGap >= 4 &&
     confidence >= 60
   ) {
     return "Draw";
   }
 
+  if (
+    markets.over25 >= 68 &&
+    confidence >= 60
+  ) {
+    return "Over 2.5 Goals";
+  }
+
+  if (
+    markets.under25 >= 68 &&
+    confidence >= 60
+  ) {
+    return "Under 2.5 Goals";
+  }
+
+  if (
+    markets.btts >= 68 &&
+    confidence >= 60
+  ) {
+    return "BTTS Yes";
+  }
+
   return "No Value";
-}
-
-function calculateConfidence(
-  markets:
-    PredictionMarketProbabilities,
-  ratingDifference: number,
-  evidenceReliability: number
-): number {
-  const orderedOutcomes = [
-    markets.homeWin,
-    markets.draw,
-    markets.awayWin,
-  ].sort(
-    (first, second) =>
-      second - first
-  );
-
-  const strongestOutcome =
-    orderedOutcomes[0];
-
-  const secondOutcome =
-    orderedOutcomes[1];
-
-  const probabilityGap =
-    strongestOutcome -
-    secondOutcome;
-
-  const ratingSeparation =
-    clamp(
-      Math.abs(
-        ratingDifference
-      ),
-      0,
-      30
-    );
-
-  const rawConfidence =
-    38 +
-    probabilityGap * 0.75 +
-    ratingSeparation * 0.45 +
-    evidenceReliability * 16;
-
-  return Math.round(
-    clamp(
-      rawConfidence,
-      38,
-      88
-    )
-  );
 }
 
 function buildPublicPrediction(
   risk: PredictionRisk,
   riskScore: number,
   markets:
-    PredictionMarketProbabilities
+    PredictionMarketProbabilities,
+  confidence: number,
+  drawPressure: number,
+  matchupBalance: number
 ) {
   const keyInsights:
     string[] = [];
@@ -335,11 +210,25 @@ function buildPublicPrediction(
     strongestOutcome >= 58
   ) {
     keyInsights.push(
-      "The intelligence model detects a clear difference between the leading match outcomes."
+      "The intelligence model detects a meaningful separation between the leading match outcomes."
+    );
+  } else if (
+    matchupBalance >= 70
+  ) {
+    keyInsights.push(
+      "The matchup is highly balanced, so the result market requires additional caution."
     );
   } else {
     keyInsights.push(
-      "The match remains relatively balanced across the main outcome probabilities."
+      "The main outcome probabilities remain competitive without a dominant result signal."
+    );
+  }
+
+  if (
+    drawPressure >= 65
+  ) {
+    keyInsights.push(
+      "The model detects elevated draw pressure from matchup balance, scoring conditions, and historical draw signals."
     );
   }
 
@@ -348,6 +237,12 @@ function buildPublicPrediction(
   ) {
     keyInsights.push(
       "The goal model identifies an elevated scoring environment."
+    );
+  } else if (
+    markets.under25 >= 65
+  ) {
+    keyInsights.push(
+      "The goal model identifies a controlled or lower-scoring environment."
     );
   }
 
@@ -359,17 +254,119 @@ function buildPublicPrediction(
     );
   }
 
+  if (
+    confidence < 55
+  ) {
+    keyInsights.push(
+      "Confidence is limited because the available signals do not create enough separation."
+    );
+  }
+
   return {
     overview:
-      "ZERRA AI evaluated attack quality, defensive stability, venue strength, recent form, momentum, goal signals, and prediction risk.",
+      "ZERRA AI evaluated attack quality, defensive stability, venue performance, recent form, momentum, scoring consistency, matchup balance, draw pressure, expected goals, evidence reliability, and prediction risk.",
 
     risk,
     riskScore,
     keyInsights,
 
     teaser:
-      "The final prediction, confidence score, exact-score estimate, and value selection are reserved for VIP.",
+      "The final prediction, calibrated confidence, exact-score estimate, market probabilities, and value selection are reserved for VIP.",
   };
+}
+
+function buildVipReasoning(
+  intelligence:
+    ReturnType<
+      typeof calculateMatchIntelligence
+    >,
+
+  goals:
+    ReturnType<
+      typeof calculateGoals
+    >,
+
+  markets:
+    PredictionMarketProbabilities,
+
+  confidence: number,
+  risk: PredictionRisk,
+  riskScore: number,
+  valueBet: string,
+  strongestOutcome: {
+    label:
+      | "Home Win"
+      | "Draw"
+      | "Away Win";
+
+    probability: number;
+  },
+  probabilityGap: number
+): string[] {
+  const reasoning:
+    string[] = [];
+
+  reasoning.push(
+    `The calibrated result model ranks ${strongestOutcome.label} first at ${strongestOutcome.probability}%, with a ${probabilityGap}-point advantage over the second outcome.`
+  );
+
+  reasoning.push(
+    `Home overall rating is ${intelligence.home.overallRating}/100, compared with ${intelligence.away.overallRating}/100 for the away team.`
+  );
+
+  reasoning.push(
+    `The intelligence rating difference is ${intelligence.ratingDifference} points, while evidence reliability is ${Math.round(
+      intelligence.evidenceReliability * 100
+    )}%.`
+  );
+
+  reasoning.push(
+    `Matchup balance is ${intelligence.matchupBalance}/100 and draw pressure is ${intelligence.drawPressure}/100.`
+  );
+
+  reasoning.push(
+    `The home edge signal is ${intelligence.homeEdge}/100, based on venue performance, result rates, and scoring balance.`
+  );
+
+  reasoning.push(
+    `Home attack and defense ratings are ${intelligence.home.attackRating} and ${intelligence.home.defenseRating}; away attack and defense ratings are ${intelligence.away.attackRating} and ${intelligence.away.defenseRating}.`
+  );
+
+  reasoning.push(
+    `Recent form ratings are ${intelligence.home.formRating} for the home team and ${intelligence.away.formRating} for the away team.`
+  );
+
+  reasoning.push(
+    `Momentum ratings are ${intelligence.home.momentumRating} for the home team and ${intelligence.away.momentumRating} for the away team.`
+  );
+
+  reasoning.push(
+    `Recent scoring averages are ${intelligence.home.recentGoalsForAverage} for the home team and ${intelligence.away.recentGoalsForAverage} for the away team.`
+  );
+
+  reasoning.push(
+    `Expected goals are ${goals.homeExpectedGoals.toFixed(
+      2
+    )} for the home team and ${goals.awayExpectedGoals.toFixed(
+      2
+    )} for the away team, producing a total expectation of ${goals.expectedGoals.toFixed(
+      2
+    )}.`
+  );
+
+  reasoning.push(
+    `Goal-market probabilities are Over 2.5 at ${markets.over25}%, Under 2.5 at ${markets.under25}%, and BTTS Yes at ${markets.btts}%.`
+  );
+
+  reasoning.push(
+    `The model confidence is ${confidence}%, while prediction risk is ${risk} with a score of ${riskScore}/100.`
+  );
+
+  reasoning.push(
+    `The selected value signal is ${valueBet}.`
+  );
+
+  return reasoning;
 }
 
 export function calculateAIScore(
@@ -381,72 +378,40 @@ export function calculateAIScore(
     );
 
   const goals =
-    calculateGoals(match);
-
-  const homeMatchupRating =
-    intelligence.home
-      .overallRating * 0.45 +
-    intelligence.home
-      .attackRating * 0.2 +
-    intelligence.home
-      .venueRating * 0.15 +
-    intelligence.home
-      .formRating * 0.1 +
-    intelligence.home
-      .momentumRating * 0.1 +
-    (
-      100 -
-      intelligence.away
-        .defenseRating
-    ) * 0.1;
-
-  const awayMatchupRating =
-    intelligence.away
-      .overallRating * 0.45 +
-    intelligence.away
-      .attackRating * 0.2 +
-    intelligence.away
-      .venueRating * 0.15 +
-    intelligence.away
-      .formRating * 0.1 +
-    intelligence.away
-      .momentumRating * 0.1 +
-    (
-      100 -
-      intelligence.home
-        .defenseRating
-    ) * 0.1;
-
-  const mainProbabilities =
-    buildMainProbabilities(
-      homeMatchupRating,
-      awayMatchupRating,
-      intelligence
-        .evidenceReliability
+    calculateGoals(
+      match
     );
 
-  const markets:
-    PredictionMarketProbabilities = {
-      ...mainProbabilities,
+  const probabilityResult =
+    calculateMatchProbabilities({
+      intelligence,
 
-      over25:
-        goals.over25,
+      goals: {
+        homeExpectedGoals:
+          goals.homeExpectedGoals,
 
-      under25:
-        goals.under25,
+        awayExpectedGoals:
+          goals.awayExpectedGoals,
 
-      btts:
-        goals.btts,
-    };
+        expectedGoals:
+          goals.expectedGoals,
+
+        over25:
+          goals.over25,
+
+        under25:
+          goals.under25,
+
+        btts:
+          goals.btts,
+      },
+    });
+
+  const markets =
+    probabilityResult.markets;
 
   const confidence =
-    calculateConfidence(
-      markets,
-      intelligence
-        .ratingDifference,
-      intelligence
-        .evidenceReliability
-    );
+    probabilityResult.confidence;
 
   const riskResult =
     calculateRisk(
@@ -458,7 +423,8 @@ export function calculateAIScore(
   const valueBet =
     chooseValueBet(
       markets,
-      confidence
+      confidence,
+      riskResult.riskScore
     );
 
   const finalPrediction =
@@ -476,34 +442,26 @@ export function calculateAIScore(
     buildPublicPrediction(
       riskResult.risk,
       riskResult.riskScore,
-      markets
+      markets,
+      confidence,
+      intelligence.drawPressure,
+      intelligence.matchupBalance
     );
 
-  const vipReasoning = [
-    `Home overall rating is ${intelligence.home.overallRating}/100 and away overall rating is ${intelligence.away.overallRating}/100.`,
-
-    `The rating difference is ${intelligence.ratingDifference} points with evidence reliability of ${Math.round(
-      intelligence.evidenceReliability * 100
-    )}%.`,
-
-    `Home attack and defense ratings are ${intelligence.home.attackRating} and ${intelligence.home.defenseRating}.`,
-
-    `Away attack and defense ratings are ${intelligence.away.attackRating} and ${intelligence.away.defenseRating}.`,
-
-    `Recent form ratings are ${intelligence.home.formRating} for the home team and ${intelligence.away.formRating} for the away team.`,
-
-    `Momentum ratings are ${intelligence.home.momentumRating} for the home team and ${intelligence.away.momentumRating} for the away team.`,
-
-    `Expected goals are ${goals.homeExpectedGoals.toFixed(
-      2
-    )} for the home team and ${goals.awayExpectedGoals.toFixed(
-      2
-    )} for the away team.`,
-
-    `The model confidence is ${confidence}% and the prediction risk is ${riskResult.risk} with a score of ${riskResult.riskScore}/100.`,
-
-    `The selected value signal is ${valueBet}.`,
-  ];
+  const vipReasoning =
+    buildVipReasoning(
+      intelligence,
+      goals,
+      markets,
+      confidence,
+      riskResult.risk,
+      riskResult.riskScore,
+      valueBet,
+      probabilityResult
+        .strongestOutcome,
+      probabilityResult
+        .probabilityGap
+    );
 
   return {
     confidence,

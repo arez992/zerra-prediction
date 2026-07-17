@@ -6,13 +6,39 @@ export type TeamIntelligence = {
   venueRating: number;
   overallRating: number;
   sampleSize: number;
+
+  goalsForAverage: number;
+  goalsAgainstAverage: number;
+  pointsPerGame: number;
+  winRate: number;
+  drawRate: number;
+  lossRate: number;
+  cleanSheetRate: number;
+  failedToScoreRate: number;
+
+  recentGoalsForAverage: number;
+  recentGoalsAgainstAverage: number;
+  recentWinRate: number;
+  recentDrawRate: number;
+  recentLossRate: number;
+
+  attackingConsistency: number;
+  defensiveConsistency: number;
+  formStability: number;
+  dataReliability: number;
 };
 
 export type MatchIntelligenceResult = {
   home: TeamIntelligence;
   away: TeamIntelligence;
+
   ratingDifference: number;
   evidenceReliability: number;
+
+  drawPressure: number;
+  goalEnvironment: number;
+  matchupBalance: number;
+  homeEdge: number;
 };
 
 type TeamLike = {
@@ -93,7 +119,40 @@ type MatchLike = {
   };
 };
 
+type RecentPerformance = {
+  formRating: number;
+  momentumRating: number;
+  sampleSize: number;
+
+  goalsForAverage: number;
+  goalsAgainstAverage: number;
+  winRate: number;
+  drawRate: number;
+  lossRate: number;
+
+  attackingConsistency: number;
+  defensiveConsistency: number;
+  formStability: number;
+};
+
+type SeasonPerformance = {
+  attackRating: number;
+  defenseRating: number;
+  venueRating: number;
+  seasonMatches: number;
+
+  goalsForAverage: number;
+  goalsAgainstAverage: number;
+  pointsPerGame: number;
+  winRate: number;
+  drawRate: number;
+  lossRate: number;
+  cleanSheetRate: number;
+  failedToScoreRate: number;
+};
+
 const NEUTRAL_RATING = 50;
+const MAX_RECENT_FIXTURES = 10;
 
 function clamp(
   value: number,
@@ -119,6 +178,16 @@ function round(
   return Math.round(
     value * multiplier
   ) / multiplier;
+}
+
+function safeDivide(
+  numerator: number,
+  denominator: number,
+  fallback = 0
+): number {
+  return denominator > 0
+    ? numerator / denominator
+    : fallback;
 }
 
 function toNumber(
@@ -297,20 +366,77 @@ function completed(
   );
 }
 
+function standardDeviation(
+  values: number[]
+): number {
+  if (values.length <= 1) {
+    return 0;
+  }
+
+  const mean =
+    values.reduce(
+      (sum, value) =>
+        sum + value,
+      0
+    ) / values.length;
+
+  const variance =
+    values.reduce(
+      (sum, value) =>
+        sum +
+        (value - mean) ** 2,
+      0
+    ) / values.length;
+
+  return Math.sqrt(variance);
+}
+
+function consistencyRating(
+  values: number[],
+  maximumDeviation: number
+): number {
+  if (values.length <= 1) {
+    return NEUTRAL_RATING;
+  }
+
+  const deviation =
+    standardDeviation(values);
+
+  return round(
+    clamp(
+      100 -
+      (
+        deviation /
+        maximumDeviation
+      ) * 100,
+      15,
+      95
+    )
+  );
+}
+
 function calculateRecentForm(
   fixtures: RecentFixtureLike[],
   team: TeamLike | undefined
-): {
-  formRating: number;
-  momentumRating: number;
-  sampleSize: number;
-} {
+): RecentPerformance {
+  const neutral: RecentPerformance = {
+    formRating: NEUTRAL_RATING,
+    momentumRating: NEUTRAL_RATING,
+    sampleSize: 0,
+
+    goalsForAverage: 1.2,
+    goalsAgainstAverage: 1.2,
+    winRate: 0.33,
+    drawRate: 0.34,
+    lossRate: 0.33,
+
+    attackingConsistency: NEUTRAL_RATING,
+    defensiveConsistency: NEUTRAL_RATING,
+    formStability: NEUTRAL_RATING,
+  };
+
   if (!team) {
-    return {
-      formRating: NEUTRAL_RATING,
-      momentumRating: NEUTRAL_RATING,
-      sampleSize: 0,
-    };
+    return neutral;
   }
 
   const recent =
@@ -332,24 +458,33 @@ function calculateRecentForm(
           timestamp(second) -
           timestamp(first)
       )
-      .slice(0, 8);
+      .slice(
+        0,
+        MAX_RECENT_FIXTURES
+      );
 
   if (recent.length === 0) {
-    return {
-      formRating: NEUTRAL_RATING,
-      momentumRating: NEUTRAL_RATING,
-      sampleSize: 0,
-    };
+    return neutral;
   }
 
   let weightedPoints = 0;
   let weightedGoalDifference = 0;
   let totalWeight = 0;
 
-  let newestPoints = 0;
-  let olderPoints = 0;
-  let newestCount = 0;
-  let olderCount = 0;
+  let newestWeightedPoints = 0;
+  let newestWeight = 0;
+  let olderWeightedPoints = 0;
+  let olderWeight = 0;
+
+  let wins = 0;
+  let draws = 0;
+  let losses = 0;
+  let goalsFor = 0;
+  let goalsAgainst = 0;
+
+  const scoredValues: number[] = [];
+  const concededValues: number[] = [];
+  const pointsValues: number[] = [];
 
   recent.forEach(
     (fixture, index) => {
@@ -383,10 +518,26 @@ function calculateRecentForm(
           ? 1
           : 0;
 
+      if (points === 3) {
+        wins += 1;
+      } else if (points === 1) {
+        draws += 1;
+      } else {
+        losses += 1;
+      }
+
+      goalsFor += scored;
+      goalsAgainst += conceded;
+
+      scoredValues.push(scored);
+      concededValues.push(conceded);
+      pointsValues.push(points);
+
       const weight =
-        Math.max(
-          0.55,
-          1 - index * 0.07
+        clamp(
+          1 - index * 0.065,
+          0.48,
+          1
         );
 
       weightedPoints +=
@@ -402,44 +553,51 @@ function calculateRecentForm(
       totalWeight += weight;
 
       if (index < 4) {
-        newestPoints += points;
-        newestCount += 1;
+        newestWeightedPoints +=
+          points * weight;
+
+        newestWeight += weight;
       } else {
-        olderPoints += points;
-        olderCount += 1;
+        olderWeightedPoints +=
+          points * weight;
+
+        olderWeight += weight;
       }
     }
   );
 
   if (totalWeight <= 0) {
-    return {
-      formRating: NEUTRAL_RATING,
-      momentumRating: NEUTRAL_RATING,
-      sampleSize: 0,
-    };
+    return neutral;
   }
 
-  const pointsPerGame =
+  const sampleSize =
+    pointsValues.length;
+
+  if (sampleSize <= 0) {
+    return neutral;
+  }
+
+  const weightedPointsPerGame =
     weightedPoints /
     totalWeight;
 
-  const goalDifferencePerGame =
+  const weightedGoalDifferencePerGame =
     weightedGoalDifference /
     totalWeight;
 
   const reliability =
     clamp(
-      recent.length / 6,
-      0.4,
+      sampleSize / 7,
+      0.35,
       1
     );
 
   const rawForm =
-    15 +
+    14 +
     (
-      pointsPerGame / 3
-    ) * 70 +
-    goalDifferencePerGame * 8;
+      weightedPointsPerGame / 3
+    ) * 68 +
+    weightedGoalDifferencePerGame * 9;
 
   const formRating =
     NEUTRAL_RATING +
@@ -449,24 +607,52 @@ function calculateRecentForm(
     ) * reliability;
 
   const newestPpg =
-    newestCount > 0
-      ? newestPoints /
-        newestCount
-      : 1.5;
+    safeDivide(
+      newestWeightedPoints,
+      newestWeight,
+      weightedPointsPerGame
+    );
 
   const olderPpg =
-    olderCount > 0
-      ? olderPoints /
-        olderCount
-      : newestPpg;
+    safeDivide(
+      olderWeightedPoints,
+      olderWeight,
+      newestPpg
+    );
 
   const momentumDelta =
     newestPpg -
     olderPpg;
 
+  const goalMomentum =
+    clamp(
+      weightedGoalDifferencePerGame,
+      -1.5,
+      1.5
+    );
+
   const momentumRating =
     NEUTRAL_RATING +
-    momentumDelta * 18;
+    momentumDelta * 16 +
+    goalMomentum * 4;
+
+  const attackingConsistency =
+    consistencyRating(
+      scoredValues,
+      1.8
+    );
+
+  const defensiveConsistency =
+    consistencyRating(
+      concededValues,
+      1.8
+    );
+
+  const formStability =
+    consistencyRating(
+      pointsValues,
+      1.5
+    );
 
   return {
     formRating:
@@ -482,13 +668,51 @@ function calculateRecentForm(
       round(
         clamp(
           momentumRating,
-          20,
-          80
+          18,
+          82
         )
       ),
 
-    sampleSize:
-      recent.length,
+    sampleSize,
+
+    goalsForAverage:
+      round(
+        goalsFor /
+        sampleSize,
+        2
+      ),
+
+    goalsAgainstAverage:
+      round(
+        goalsAgainst /
+        sampleSize,
+        2
+      ),
+
+    winRate:
+      round(
+        wins /
+        sampleSize,
+        3
+      ),
+
+    drawRate:
+      round(
+        draws /
+        sampleSize,
+        3
+      ),
+
+    lossRate:
+      round(
+        losses /
+        sampleSize,
+        3
+      ),
+
+    attackingConsistency,
+    defensiveConsistency,
+    formStability,
   };
 }
 
@@ -498,19 +722,25 @@ function calculateSeasonRatings(
     | null
     | undefined,
   side: "home" | "away"
-): {
-  attackRating: number;
-  defenseRating: number;
-  venueRating: number;
-  seasonMatches: number;
-} {
+): SeasonPerformance {
+  const neutral: SeasonPerformance = {
+    attackRating: NEUTRAL_RATING,
+    defenseRating: NEUTRAL_RATING,
+    venueRating: NEUTRAL_RATING,
+    seasonMatches: 0,
+
+    goalsForAverage: 1.2,
+    goalsAgainstAverage: 1.2,
+    pointsPerGame: 1.3,
+    winRate: 0.33,
+    drawRate: 0.34,
+    lossRate: 0.33,
+    cleanSheetRate: 0.25,
+    failedToScoreRate: 0.25,
+  };
+
   if (!statistics) {
-    return {
-      attackRating: NEUTRAL_RATING,
-      defenseRating: NEUTRAL_RATING,
-      venueRating: NEUTRAL_RATING,
-      seasonMatches: 0,
-    };
+    return neutral;
   }
 
   const played =
@@ -520,12 +750,7 @@ function calculateSeasonRatings(
     );
 
   if (played <= 0) {
-    return {
-      attackRating: NEUTRAL_RATING,
-      defenseRating: NEUTRAL_RATING,
-      venueRating: NEUTRAL_RATING,
-      seasonMatches: 0,
-    };
+    return neutral;
   }
 
   const wins =
@@ -537,6 +762,12 @@ function calculateSeasonRatings(
   const draws =
     splitNumber(
       statistics.fixtures?.draws,
+      side
+    );
+
+  const losses =
+    splitNumber(
+      statistics.fixtures?.loses,
       side
     );
 
@@ -567,56 +798,105 @@ function calculateSeasonRatings(
     );
 
   const pointsPerGame =
-    (
-      wins * 3 +
-      draws
-    ) / played;
+    safeDivide(
+      wins * 3 + draws,
+      played,
+      1.3
+    );
 
   const cleanSheetRate =
     clamp(
-      cleanSheets / played,
+      safeDivide(
+        cleanSheets,
+        played
+      ),
       0,
       1
     );
 
   const failedToScoreRate =
     clamp(
-      failedToScore / played,
+      safeDivide(
+        failedToScore,
+        played
+      ),
+      0,
+      1
+    );
+
+  const winRate =
+    clamp(
+      safeDivide(
+        wins,
+        played
+      ),
+      0,
+      1
+    );
+
+  const drawRate =
+    clamp(
+      safeDivide(
+        draws,
+        played
+      ),
+      0,
+      1
+    );
+
+  const lossRate =
+    clamp(
+      safeDivide(
+        losses,
+        played
+      ),
+      0,
+      1
+    );
+
+  const scoringScore =
+    clamp(
+      goalsFor / 2.4,
+      0,
+      1
+    );
+
+  const scoringFrequencyScore =
+    1 -
+    failedToScoreRate;
+
+  const resultSupport =
+    clamp(
+      pointsPerGame / 3,
       0,
       1
     );
 
   const attackRaw =
-    20 +
+    13 +
+    scoringScore * 53 +
+    scoringFrequencyScore * 24 +
+    resultSupport * 10;
+
+  const concedingControl =
+    1 -
     clamp(
-      goalsFor / 2.5,
+      goalsAgainst / 2.4,
       0,
       1
-    ) * 55 +
-    (
-      1 -
-      failedToScoreRate
-    ) * 25;
+    );
+
+  const defeatAvoidance =
+    1 -
+    lossRate;
 
   const defenseRaw =
-    20 +
-    (
-      1 -
-      clamp(
-        goalsAgainst / 2.5,
-        0,
-        1
-      )
-    ) * 55 +
-    cleanSheetRate * 25;
+    13 +
+    concedingControl * 48 +
+    cleanSheetRate * 25 +
+    defeatAvoidance * 14;
 
-  const venueRaw =
-    15 +
-    clamp(
-      pointsPerGame / 3,
-      0,
-      1
-    ) * 70 +
+  const goalDifferenceSignal =
     clamp(
       (
         goalsFor -
@@ -625,12 +905,18 @@ function calculateSeasonRatings(
       ) / 4,
       0,
       1
-    ) * 15;
+    );
+
+  const venueRaw =
+    12 +
+    resultSupport * 61 +
+    goalDifferenceSignal * 17 +
+    winRate * 10;
 
   const reliability =
     clamp(
-      played / 8,
-      0.35,
+      played / 10,
+      0.3,
       1
     );
 
@@ -676,7 +962,80 @@ function calculateSeasonRatings(
 
     seasonMatches:
       played,
+
+    goalsForAverage:
+      round(
+        goalsFor,
+        2
+      ),
+
+    goalsAgainstAverage:
+      round(
+        goalsAgainst,
+        2
+      ),
+
+    pointsPerGame:
+      round(
+        pointsPerGame,
+        2
+      ),
+
+    winRate:
+      round(
+        winRate,
+        3
+      ),
+
+    drawRate:
+      round(
+        drawRate,
+        3
+      ),
+
+    lossRate:
+      round(
+        lossRate,
+        3
+      ),
+
+    cleanSheetRate:
+      round(
+        cleanSheetRate,
+        3
+      ),
+
+    failedToScoreRate:
+      round(
+        failedToScoreRate,
+        3
+      ),
   };
+}
+
+function calculateDataReliability(
+  seasonMatches: number,
+  recentMatches: number
+): number {
+  const seasonReliability =
+    clamp(
+      seasonMatches / 12,
+      0,
+      1
+    );
+
+  const recentReliability =
+    clamp(
+      recentMatches / 8,
+      0,
+      1
+    );
+
+  return round(
+    seasonReliability * 0.58 +
+    recentReliability * 0.42,
+    3
+  );
 }
 
 function buildTeamIntelligence(
@@ -700,12 +1059,67 @@ function buildTeamIntelligence(
       team
     );
 
+  const dataReliability =
+    calculateDataReliability(
+      season.seasonMatches,
+      recent.sampleSize
+    );
+
+  const recentGoalBalance =
+    recent.goalsForAverage -
+    recent.goalsAgainstAverage;
+
+  const seasonGoalBalance =
+    season.goalsForAverage -
+    season.goalsAgainstAverage;
+
+  const balanceSupport =
+    clamp(
+      (
+        recentGoalBalance * 0.55 +
+        seasonGoalBalance * 0.45
+      ) * 2.5,
+      -8,
+      8
+    );
+
+  const consistencySupport =
+    (
+      recent.attackingConsistency +
+      recent.defensiveConsistency +
+      recent.formStability
+    ) / 3;
+
+  const consistencyAdjustment =
+    clamp(
+      (
+        consistencySupport -
+        NEUTRAL_RATING
+      ) * 0.05,
+      -3,
+      3
+    );
+
+  const overallRaw =
+    season.attackRating * 0.23 +
+    season.defenseRating * 0.24 +
+    season.venueRating * 0.18 +
+    recent.formRating * 0.21 +
+    recent.momentumRating * 0.09 +
+    consistencySupport * 0.05 +
+    balanceSupport +
+    consistencyAdjustment;
+
   const overallRating =
-    season.attackRating * 0.25 +
-    season.defenseRating * 0.25 +
-    season.venueRating * 0.2 +
-    recent.formRating * 0.2 +
-    recent.momentumRating * 0.1;
+    NEUTRAL_RATING +
+    (
+      overallRaw -
+      NEUTRAL_RATING
+    ) *
+    (
+      0.72 +
+      dataReliability * 0.28
+    );
 
   return {
     attackRating:
@@ -737,7 +1151,251 @@ function buildTeamIntelligence(
         season.seasonMatches,
         recent.sampleSize
       ),
+
+    goalsForAverage:
+      season.goalsForAverage,
+
+    goalsAgainstAverage:
+      season.goalsAgainstAverage,
+
+    pointsPerGame:
+      season.pointsPerGame,
+
+    winRate:
+      season.winRate,
+
+    drawRate:
+      season.drawRate,
+
+    lossRate:
+      season.lossRate,
+
+    cleanSheetRate:
+      season.cleanSheetRate,
+
+    failedToScoreRate:
+      season.failedToScoreRate,
+
+    recentGoalsForAverage:
+      recent.goalsForAverage,
+
+    recentGoalsAgainstAverage:
+      recent.goalsAgainstAverage,
+
+    recentWinRate:
+      recent.winRate,
+
+    recentDrawRate:
+      recent.drawRate,
+
+    recentLossRate:
+      recent.lossRate,
+
+    attackingConsistency:
+      recent.attackingConsistency,
+
+    defensiveConsistency:
+      recent.defensiveConsistency,
+
+    formStability:
+      recent.formStability,
+
+    dataReliability,
   };
+}
+
+function calculateDrawPressure(
+  home: TeamIntelligence,
+  away: TeamIntelligence,
+  ratingDifference: number
+): number {
+  const balanceSignal =
+    1 -
+    clamp(
+      Math.abs(
+        ratingDifference
+      ) / 16,
+      0,
+      1
+    );
+
+  const historicalDrawSignal =
+    clamp(
+      (
+        home.drawRate +
+        away.drawRate +
+        home.recentDrawRate +
+        away.recentDrawRate
+      ) / 4,
+      0,
+      0.65
+    ) / 0.65;
+
+  const lowScoringSignal =
+    1 -
+    clamp(
+      (
+        home.goalsForAverage +
+        away.goalsForAverage +
+        home.recentGoalsForAverage +
+        away.recentGoalsForAverage
+      ) / 8,
+      0,
+      1
+    );
+
+  const defensiveSignal =
+    clamp(
+      (
+        home.defenseRating +
+        away.defenseRating -
+        90
+      ) / 70,
+      0,
+      1
+    );
+
+  return round(
+    clamp(
+      (
+        balanceSignal * 0.42 +
+        historicalDrawSignal * 0.31 +
+        lowScoringSignal * 0.15 +
+        defensiveSignal * 0.12
+      ) * 100,
+      0,
+      100
+    )
+  );
+}
+
+function calculateGoalEnvironment(
+  home: TeamIntelligence,
+  away: TeamIntelligence
+): number {
+  const expectedGoalBase =
+    (
+      home.goalsForAverage +
+      away.goalsForAverage +
+      home.recentGoalsForAverage +
+      away.recentGoalsForAverage +
+      home.goalsAgainstAverage +
+      away.goalsAgainstAverage +
+      home.recentGoalsAgainstAverage +
+      away.recentGoalsAgainstAverage
+    ) / 8;
+
+  const scoringFrequency =
+    (
+      (
+        1 -
+        home.failedToScoreRate
+      ) +
+      (
+        1 -
+        away.failedToScoreRate
+      )
+    ) / 2;
+
+  const attackStrength =
+    (
+      home.attackRating +
+      away.attackRating
+    ) / 200;
+
+  return round(
+    clamp(
+      (
+        clamp(
+          expectedGoalBase / 2.1,
+          0,
+          1
+        ) * 0.52 +
+        scoringFrequency * 0.28 +
+        attackStrength * 0.2
+      ) * 100,
+      0,
+      100
+    )
+  );
+}
+
+function calculateMatchupBalance(
+  home: TeamIntelligence,
+  away: TeamIntelligence
+): number {
+  const ratingGap =
+    Math.abs(
+      home.overallRating -
+      away.overallRating
+    );
+
+  const formGap =
+    Math.abs(
+      home.formRating -
+      away.formRating
+    );
+
+  const attackDefenseGap =
+    Math.abs(
+      (
+        home.attackRating -
+        away.defenseRating
+      ) -
+      (
+        away.attackRating -
+        home.defenseRating
+      )
+    );
+
+  return round(
+    clamp(
+      100 -
+      ratingGap * 4.1 -
+      formGap * 1.35 -
+      attackDefenseGap * 0.8,
+      0,
+      100
+    )
+  );
+}
+
+function calculateHomeEdge(
+  home: TeamIntelligence,
+  away: TeamIntelligence
+): number {
+  const venueDifference =
+    home.venueRating -
+    away.venueRating;
+
+  const resultDifference =
+    (
+      home.winRate -
+      away.winRate
+    ) * 100;
+
+  const goalDifference =
+    (
+      (
+        home.goalsForAverage -
+        home.goalsAgainstAverage
+      ) -
+      (
+        away.goalsForAverage -
+        away.goalsAgainstAverage
+      )
+    ) * 10;
+
+  return round(
+    clamp(
+      50 +
+      venueDifference * 0.9 +
+      resultDifference * 0.23 +
+      goalDifference * 0.3,
+      0,
+      100
+    )
+  );
 }
 
 export function calculateMatchIntelligence(
@@ -779,30 +1437,51 @@ export function calculateMatchIntelligence(
       "away"
     );
 
-  const evidenceMatches =
-    Math.min(
-      home.sampleSize,
-      away.sampleSize
+  const ratingDifference =
+    round(
+      home.overallRating -
+      away.overallRating
+    );
+
+  const evidenceReliability =
+    round(
+      Math.min(
+        home.dataReliability,
+        away.dataReliability
+      ),
+      2
     );
 
   return {
     home,
     away,
 
-    ratingDifference:
-      round(
-        home.overallRating -
-        away.overallRating
+    ratingDifference,
+    evidenceReliability,
+
+    drawPressure:
+      calculateDrawPressure(
+        home,
+        away,
+        ratingDifference
       ),
 
-    evidenceReliability:
-      round(
-        clamp(
-          evidenceMatches / 8,
-          0,
-          1
-        ),
-        2
+    goalEnvironment:
+      calculateGoalEnvironment(
+        home,
+        away
+      ),
+
+    matchupBalance:
+      calculateMatchupBalance(
+        home,
+        away
+      ),
+
+    homeEdge:
+      calculateHomeEdge(
+        home,
+        away
       ),
   };
 }
