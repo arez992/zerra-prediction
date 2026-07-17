@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import PredictionActions from "@/components/admin/PredictionActions";
+import PredictionGenerator from "@/components/admin/PredictionGenerator";
 
 type PredictionItem = {
   id: string;
@@ -256,6 +257,12 @@ export default function AdminPredictionsPage() {
             </button>
           </div>
         </header>
+
+        <PredictionGenerator
+          onGenerated={() =>
+            loadPredictions(true)
+          }
+        />
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard
