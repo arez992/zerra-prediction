@@ -31,14 +31,6 @@ type CompleteFixtureOptions = {
   includeHeadToHead?: boolean;
   includeInjuries?: boolean;
   includeOdds?: boolean;
-
-  /*
-   * Prediction Engine v3 enrichment.
-   *
-   * Disabled by default so existing
-   * callers do not unexpectedly spend
-   * extra API requests.
-   */
   includeTeamEnrichment?: boolean;
 
   recentFixtureLimit?: number;
@@ -50,11 +42,29 @@ type FixtureDetailsCacheEntry = {
   data: CompleteFixtureData;
 };
 
+type SplitAccumulator = {
+  played: number;
+  wins: number;
+  draws: number;
+  loses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  cleanSheets: number;
+  failedToScore: number;
+};
+
 const FIXTURE_DETAILS_CACHE_TTL_MS =
   5 * 60 * 1000;
 
 const TEAM_ENRICHMENT_CACHE_TTL_MS =
   30 * 60 * 1000;
+
+const COMPLETED_STATUSES =
+  new Set([
+    "FT",
+    "AET",
+    "PEN",
+  ]);
 
 const fixtureDetailsCache =
   new Map<
@@ -155,6 +165,499 @@ function fixtureDateOnly(
     : undefined;
 }
 
+function fixtureTimestamp(
+  fixture: APIFootballFixture
+): number {
+  const direct =
+    fixture.fixture?.timestamp;
+
+  if (
+    typeof direct === "number" &&
+    Number.isFinite(direct)
+  ) {
+    return direct;
+  }
+
+  const date =
+    fixture.fixture?.date;
+
+  if (
+    typeof date !== "string"
+  ) {
+    return 0;
+  }
+
+  const parsed =
+    Date.parse(date);
+
+  return Number.isFinite(parsed)
+    ? Math.floor(
+        parsed / 1000
+      )
+    : 0;
+}
+
+function isCompletedFixture(
+  fixture: APIFootballFixture
+): boolean {
+  const status =
+    String(
+      fixture.fixture?.status
+        ?.short ?? ""
+    )
+      .trim()
+      .toUpperCase();
+
+  return (
+    COMPLETED_STATUSES.has(
+      status
+    ) &&
+    typeof fixture.goals?.home ===
+      "number" &&
+    typeof fixture.goals?.away ===
+      "number"
+  );
+}
+
+function belongsToTeam(
+  fixture: APIFootballFixture,
+  teamId: number
+): boolean {
+  return (
+    fixture.teams?.home?.id ===
+      teamId ||
+    fixture.teams?.away?.id ===
+      teamId
+  );
+}
+
+function filterRecentFixtures(
+  fixtures: APIFootballFixture[],
+  teamId: number,
+  beforeTimestamp: number,
+  limit: number
+): APIFootballFixture[] {
+  return fixtures
+    .filter(
+      isCompletedFixture
+    )
+    .filter(
+      (fixture) =>
+        belongsToTeam(
+          fixture,
+          teamId
+        )
+    )
+    .filter((fixture) => {
+      const timestamp =
+        fixtureTimestamp(
+          fixture
+        );
+
+      return (
+        timestamp > 0 &&
+        (
+          beforeTimestamp <= 0 ||
+          timestamp <
+            beforeTimestamp
+        )
+      );
+    })
+    .sort(
+      (first, second) =>
+        fixtureTimestamp(second) -
+        fixtureTimestamp(first)
+    )
+    .slice(
+      0,
+      limit
+    );
+}
+
+function emptySplitAccumulator():
+  SplitAccumulator {
+  return {
+    played: 0,
+    wins: 0,
+    draws: 0,
+    loses: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+    cleanSheets: 0,
+    failedToScore: 0,
+  };
+}
+
+function average(
+  total: number,
+  matches: number
+): string | null {
+  if (matches <= 0) {
+    return null;
+  }
+
+  return (
+    Math.round(
+      (
+        total / matches
+      ) * 100
+    ) / 100
+  ).toFixed(2);
+}
+
+function hasUsableHomeAwaySplits(
+  statistics:
+    | APIFootballTeamSeasonStatistics
+    | null
+): boolean {
+  if (!statistics) {
+    return false;
+  }
+
+  const played =
+    statistics.fixtures?.played;
+
+  const goalsFor =
+    statistics.goals
+      ?.for?.average;
+
+  const goalsAgainst =
+    statistics.goals
+      ?.against?.average;
+
+  return Boolean(
+    typeof played?.home === "number" &&
+    played.home > 0 &&
+    typeof played?.away === "number" &&
+    played.away > 0 &&
+
+    goalsFor?.home !== undefined &&
+    goalsFor?.home !== null &&
+    goalsFor?.away !== undefined &&
+    goalsFor?.away !== null &&
+
+    goalsAgainst?.home !== undefined &&
+    goalsAgainst?.home !== null &&
+    goalsAgainst?.away !== undefined &&
+    goalsAgainst?.away !== null
+  );
+}
+
+function buildStatisticsFromRecentFixtures(
+  fixtures: APIFootballFixture[],
+  teamId: number
+): APIFootballTeamSeasonStatistics | null {
+  if (
+    fixtures.length === 0
+  ) {
+    return null;
+  }
+
+  const home =
+    emptySplitAccumulator();
+
+  const away =
+    emptySplitAccumulator();
+
+  const form: string[] = [];
+
+  const ordered =
+    [...fixtures].sort(
+      (first, second) =>
+        fixtureTimestamp(first) -
+        fixtureTimestamp(second)
+    );
+
+  for (
+    const fixture of ordered
+  ) {
+    const teamIsHome =
+      fixture.teams?.home?.id ===
+      teamId;
+
+    const teamIsAway =
+      fixture.teams?.away?.id ===
+      teamId;
+
+    if (
+      !teamIsHome &&
+      !teamIsAway
+    ) {
+      continue;
+    }
+
+    const scored =
+      teamIsHome
+        ? fixture.goals?.home
+        : fixture.goals?.away;
+
+    const conceded =
+      teamIsHome
+        ? fixture.goals?.away
+        : fixture.goals?.home;
+
+    if (
+      typeof scored !== "number" ||
+      typeof conceded !== "number"
+    ) {
+      continue;
+    }
+
+    const split =
+      teamIsHome
+        ? home
+        : away;
+
+    split.played += 1;
+    split.goalsFor += scored;
+    split.goalsAgainst +=
+      conceded;
+
+    if (scored > conceded) {
+      split.wins += 1;
+      form.push("W");
+    } else if (
+      scored === conceded
+    ) {
+      split.draws += 1;
+      form.push("D");
+    } else {
+      split.loses += 1;
+      form.push("L");
+    }
+
+    if (conceded === 0) {
+      split.cleanSheets += 1;
+    }
+
+    if (scored === 0) {
+      split.failedToScore +=
+        1;
+    }
+  }
+
+  const totalPlayed =
+    home.played +
+    away.played;
+
+  if (
+    totalPlayed === 0
+  ) {
+    return null;
+  }
+
+  const totalWins =
+    home.wins +
+    away.wins;
+
+  const totalDraws =
+    home.draws +
+    away.draws;
+
+  const totalLoses =
+    home.loses +
+    away.loses;
+
+  const totalGoalsFor =
+    home.goalsFor +
+    away.goalsFor;
+
+  const totalGoalsAgainst =
+    home.goalsAgainst +
+    away.goalsAgainst;
+
+  const totalCleanSheets =
+    home.cleanSheets +
+    away.cleanSheets;
+
+  const totalFailedToScore =
+    home.failedToScore +
+    away.failedToScore;
+
+  const sampleFixture =
+    fixtures[0];
+
+  const team =
+    sampleFixture.teams?.home?.id ===
+      teamId
+      ? sampleFixture.teams.home
+      : sampleFixture.teams?.away;
+
+  return {
+    team: {
+      id:
+        teamId,
+
+      name:
+        team?.name,
+
+      logo:
+        team?.logo,
+    },
+
+    league: {
+      id:
+        sampleFixture.league?.id,
+
+      name:
+        sampleFixture.league?.name,
+
+      country:
+        sampleFixture.league
+          ?.country,
+
+      logo:
+        sampleFixture.league?.logo,
+
+      flag:
+        sampleFixture.league?.flag,
+
+      season:
+        sampleFixture.league
+          ?.season,
+    },
+
+    form:
+      form.join(""),
+
+    fixtures: {
+      played: {
+        home:
+          home.played,
+
+        away:
+          away.played,
+
+        total:
+          totalPlayed,
+      },
+
+      wins: {
+        home:
+          home.wins,
+
+        away:
+          away.wins,
+
+        total:
+          totalWins,
+      },
+
+      draws: {
+        home:
+          home.draws,
+
+        away:
+          away.draws,
+
+        total:
+          totalDraws,
+      },
+
+      loses: {
+        home:
+          home.loses,
+
+        away:
+          away.loses,
+
+        total:
+          totalLoses,
+      },
+    },
+
+    goals: {
+      for: {
+        total: {
+          home:
+            home.goalsFor,
+
+          away:
+            away.goalsFor,
+
+          total:
+            totalGoalsFor,
+        },
+
+        average: {
+          home:
+            average(
+              home.goalsFor,
+              home.played
+            ),
+
+          away:
+            average(
+              away.goalsFor,
+              away.played
+            ),
+
+          total:
+            average(
+              totalGoalsFor,
+              totalPlayed
+            ),
+        },
+      },
+
+      against: {
+        total: {
+          home:
+            home.goalsAgainst,
+
+          away:
+            away.goalsAgainst,
+
+          total:
+            totalGoalsAgainst,
+        },
+
+        average: {
+          home:
+            average(
+              home.goalsAgainst,
+              home.played
+            ),
+
+          away:
+            average(
+              away.goalsAgainst,
+              away.played
+            ),
+
+          total:
+            average(
+              totalGoalsAgainst,
+              totalPlayed
+            ),
+        },
+      },
+    },
+
+    clean_sheet: {
+      home:
+        home.cleanSheets,
+
+      away:
+        away.cleanSheets,
+
+      total:
+        totalCleanSheets,
+    },
+
+    failed_to_score: {
+      home:
+        home.failedToScore,
+
+      away:
+        away.failedToScore,
+
+      total:
+        totalFailedToScore,
+    },
+  };
+}
+
 async function optionalFetchArray<T>(
   path: string
 ): Promise<T[]> {
@@ -193,12 +696,6 @@ async function optionalFetchObject<T>(
         }
       );
 
-    /*
-     * Most API-Football endpoints
-     * return an array, while
-     * teams/statistics returns one
-     * response object.
-     */
     const response =
       result.data
         .response as unknown;
@@ -222,6 +719,53 @@ async function optionalFetchObject<T>(
   } catch {
     return null;
   }
+}
+
+async function fetchSeasonStatistics(
+  teamId: number,
+  leagueId: number,
+  season: number,
+  date?: string
+): Promise<
+  APIFootballTeamSeasonStatistics | null
+> {
+  const dated =
+    date
+      ? await optionalFetchObject<
+          APIFootballTeamSeasonStatistics
+        >(
+          apiFootballEndpoints
+            .teamSeasonStatistics(
+              teamId,
+              leagueId,
+              season,
+              date
+            )
+        )
+      : null;
+
+  if (
+    dated &&
+    hasUsableHomeAwaySplits(
+      dated
+    )
+  ) {
+    return dated;
+  }
+
+  const undated =
+    await optionalFetchObject<
+      APIFootballTeamSeasonStatistics
+    >(
+      apiFootballEndpoints
+        .teamSeasonStatistics(
+          teamId,
+          leagueId,
+          season
+        )
+    );
+
+  return undated || dated;
 }
 
 async function fetchFixturesByDate(
@@ -328,6 +872,11 @@ async function fetchTeamEnrichment(
       fixture
     );
 
+  const beforeTimestamp =
+    fixtureTimestamp(
+      fixture
+    );
+
   if (
     !homeTeamId ||
     !awayTeamId
@@ -345,17 +894,25 @@ async function fetchTeamEnrichment(
     };
   }
 
-  const canFetchSeasonStatistics =
-    Boolean(
-      leagueId &&
-      season
+  /*
+   * Do not restrict recent form to the
+   * target fixture's league or season.
+   * Newly-started leagues and cup ties
+   * otherwise return no history.
+   */
+  const requestLimit =
+    Math.min(
+      40,
+      Math.max(
+        20,
+        input.recentFixtureLimit *
+          3
+      )
     );
 
   const [
-    recentHome,
-    recentAway,
-    seasonHome,
-    seasonAway,
+    rawRecentHome,
+    rawRecentAway,
   ] = await Promise.all([
     optionalFetchArray<
       APIFootballFixture
@@ -365,13 +922,7 @@ async function fetchTeamEnrichment(
           homeTeamId,
           {
             last:
-              input
-                .recentFixtureLimit,
-
-            leagueId,
-            season,
-            toDate,
-            status: "FT",
+              requestLimit,
           }
         )
     ),
@@ -384,49 +935,89 @@ async function fetchTeamEnrichment(
           awayTeamId,
           {
             last:
-              input
-                .recentFixtureLimit,
-
-            leagueId,
-            season,
-            toDate,
-            status: "FT",
+              requestLimit,
           }
         )
     ),
-
-    canFetchSeasonStatistics
-      ? optionalFetchObject<
-          APIFootballTeamSeasonStatistics
-        >(
-          apiFootballEndpoints
-            .teamSeasonStatistics(
-              homeTeamId,
-              leagueId!,
-              season!,
-              toDate
-            )
-        )
-      : Promise.resolve(
-          null
-        ),
-
-    canFetchSeasonStatistics
-      ? optionalFetchObject<
-          APIFootballTeamSeasonStatistics
-        >(
-          apiFootballEndpoints
-            .teamSeasonStatistics(
-              awayTeamId,
-              leagueId!,
-              season!,
-              toDate
-            )
-        )
-      : Promise.resolve(
-          null
-        ),
   ]);
+
+  const recentHome =
+    filterRecentFixtures(
+      rawRecentHome,
+      homeTeamId,
+      beforeTimestamp,
+      input.recentFixtureLimit
+    );
+
+  const recentAway =
+    filterRecentFixtures(
+      rawRecentAway,
+      awayTeamId,
+      beforeTimestamp,
+      input.recentFixtureLimit
+    );
+
+  const canFetchSeasonStatistics =
+    Boolean(
+      leagueId &&
+      season
+    );
+
+  const [
+    apiSeasonHome,
+    apiSeasonAway,
+  ] = canFetchSeasonStatistics
+    ? await Promise.all([
+        fetchSeasonStatistics(
+          homeTeamId,
+          leagueId!,
+          season!,
+          toDate
+        ),
+
+        fetchSeasonStatistics(
+          awayTeamId,
+          leagueId!,
+          season!,
+          toDate
+        ),
+      ])
+    : [
+        null,
+        null,
+      ];
+
+  /*
+   * When the competition-season endpoint
+   * has no usable splits, construct a
+   * transparent statistical profile from
+   * the team's completed recent fixtures.
+   */
+  const recentProfileHome =
+    buildStatisticsFromRecentFixtures(
+      recentHome,
+      homeTeamId
+    );
+
+  const recentProfileAway =
+    buildStatisticsFromRecentFixtures(
+      recentAway,
+      awayTeamId
+    );
+
+  const seasonHome =
+    hasUsableHomeAwaySplits(
+      apiSeasonHome
+    )
+      ? apiSeasonHome
+      : recentProfileHome;
+
+  const seasonAway =
+    hasUsableHomeAwaySplits(
+      apiSeasonAway
+    )
+      ? apiSeasonAway
+      : recentProfileAway;
 
   return {
     recentFixtures: {
