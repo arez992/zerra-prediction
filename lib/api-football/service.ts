@@ -679,7 +679,19 @@ async function optionalFetchArray<T>(
     )
       ? response
       : [];
-  } catch {
+  } catch (error) {
+    console.error(
+      "[API-Football array request failed]",
+      {
+        path,
+
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      }
+    );
+
     return [];
   }
 }
@@ -716,7 +728,19 @@ async function optionalFetchObject<T>(
       typeof response === "object"
       ? response as T
       : null;
-  } catch {
+  } catch (error) {
+    console.error(
+      "[API-Football object request failed]",
+      {
+        path,
+
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      }
+    );
+
     return null;
   }
 }
