@@ -173,7 +173,7 @@ function buildPublicPrediction(
 }
 
 export function calculateAIScore(
-  match: unknown
+  match: any
 ): AIScoreResult {
   const form = calculateForm(match);
   const strength =

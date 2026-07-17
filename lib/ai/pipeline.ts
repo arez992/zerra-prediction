@@ -590,17 +590,31 @@ function evaluatePipelineDataQuality(
     );
 
   /*
-   * Real enrichment is now available
-   * to the pipeline and quality gate.
+   * The scoring modules now consume
+   * real recent-form and season data.
    *
-   * The current scoring modules still
-   * use v2 fallback calculations, so
-   * premium persistence must remain
-   * withheld until form.ts, strength.ts,
-   * and goals.ts consume this evidence.
+   * A prediction is treated as fallback
+   * whenever the minimum evidence needed
+   * by those modules is incomplete.
    */
+  const minimumRecentMatches = 5;
+
+  const hasRecentFormEvidence =
+    availability.recentFixturesHome &&
+    availability.recentFixturesAway &&
+    recentHome.length >= minimumRecentMatches &&
+    recentAway.length >= minimumRecentMatches;
+
+  const hasSeasonEvidence =
+    availability.teamSeasonStatisticsHome &&
+    availability.teamSeasonStatisticsAway &&
+    availability.homeAwaySplits;
+
   const generatedFromFallback =
-    true;
+    !(
+      hasRecentFormEvidence &&
+      hasSeasonEvidence
+    );
 
   const warnings: string[] = [];
 
@@ -635,9 +649,22 @@ function evaluatePipelineDataQuality(
     );
   }
 
-  warnings.push(
-    "Prediction Engine v2 fallback scoring modules are still active."
-  );
+  if (
+    recentHome.length <
+      minimumRecentMatches ||
+    recentAway.length <
+      minimumRecentMatches
+  ) {
+    warnings.push(
+      `At least ${minimumRecentMatches} completed recent fixtures are required for each team.`
+    );
+  }
+
+  if (generatedFromFallback) {
+    warnings.push(
+      "The prediction used neutral fallback values because minimum evidence requirements were not met."
+    );
+  }
 
   return evaluatePredictionDataQuality({
     availability: {
@@ -766,14 +793,13 @@ export async function runPredictionPipeline(
     buildMatchEnvelope(input);
 
   /*
-   * The v2 prediction runs temporarily
-   * for backward compatibility with
-   * the current UI and Firestore model.
+   * The statistical scoring modules now
+   * consume enriched recent-form and
+   * home/away season evidence.
    *
-   * Enriched evidence is now present in
-   * the match envelope, but the hard gate
-   * remains active while legacy scoring
-   * modules still depend on fallback data.
+   * The hard quality gate remains active:
+   * persistence is allowed only when the
+   * required evidence passes validation.
    */
   const prediction =
     calculatePrediction(match);
