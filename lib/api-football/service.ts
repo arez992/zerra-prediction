@@ -66,6 +66,24 @@ const COMPLETED_STATUSES =
     "PEN",
   ]);
 
+const UPCOMING_STATUSES =
+  new Set([
+    "NS",
+    "TBD",
+  ]);
+
+const API_REQUEST_MIN_INTERVAL_MS =
+  1_500;
+
+const API_RATE_LIMIT_RETRY_MS =
+  12_000;
+
+let apiRequestQueue:
+  Promise<void> =
+    Promise.resolve();
+
+let lastApiRequestAt = 0;
+
 const fixtureDetailsCache =
   new Map<
     string,
@@ -77,6 +95,131 @@ const teamEnrichmentCache =
     string,
     FixtureDetailsCacheEntry
   >();
+
+function delay(
+  milliseconds: number
+): Promise<void> {
+  return new Promise((resolve) =>
+    setTimeout(
+      resolve,
+      milliseconds
+    )
+  );
+}
+
+function isRateLimitError(
+  error: unknown
+): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error);
+
+  const normalized =
+    message.toLowerCase();
+
+  return (
+    normalized.includes(
+      "ratelimit"
+    ) ||
+    normalized.includes(
+      "too many requests"
+    )
+  );
+}
+
+async function runScheduledApiRequest<T>(
+  operation:
+    () => Promise<T>,
+  path: string
+): Promise<T> {
+  const previous =
+    apiRequestQueue;
+
+  let releaseQueue:
+    () => void =
+      () => undefined;
+
+  apiRequestQueue =
+    new Promise<void>(
+      (resolve) => {
+        releaseQueue =
+          resolve;
+      }
+    );
+
+  await previous;
+
+  try {
+    const elapsed =
+      Date.now() -
+      lastApiRequestAt;
+
+    const waitTime =
+      Math.max(
+        0,
+        API_REQUEST_MIN_INTERVAL_MS -
+          elapsed
+      );
+
+    if (waitTime > 0) {
+      await delay(
+        waitTime
+      );
+    }
+
+    lastApiRequestAt =
+      Date.now();
+
+    try {
+      return await operation();
+    } catch (error) {
+      if (
+        !isRateLimitError(
+          error
+        )
+      ) {
+        throw error;
+      }
+
+      console.warn(
+        "[API-Football rate limit wait]",
+        {
+          path,
+          waitMilliseconds:
+            API_RATE_LIMIT_RETRY_MS,
+        }
+      );
+
+      await delay(
+        API_RATE_LIMIT_RETRY_MS
+      );
+
+      lastApiRequestAt =
+        Date.now();
+
+      return await operation();
+    }
+  } finally {
+    releaseQueue();
+  }
+}
+
+function isUpcomingFixture(
+  fixture: APIFootballFixture
+): boolean {
+  const status =
+    String(
+      fixture.fixture?.status
+        ?.short ?? ""
+    )
+      .trim()
+      .toUpperCase();
+
+  return UPCOMING_STATUSES.has(
+    status
+  );
+}
 
 function normalizeFixtureId(
   value: string | number
@@ -663,11 +806,15 @@ async function optionalFetchArray<T>(
 ): Promise<T[]> {
   try {
     const result =
-      await apiFootballGet<T>(
-        path,
-        {
-          retries: 0,
-        }
+      await runScheduledApiRequest(
+        () =>
+          apiFootballGet<T>(
+            path,
+            {
+              retries: 0,
+            }
+          ),
+        path
       );
 
     const response =
@@ -679,19 +826,7 @@ async function optionalFetchArray<T>(
     )
       ? response
       : [];
-  } catch (error) {
-    console.error(
-      "[API-Football array request failed]",
-      {
-        path,
-
-        error:
-          error instanceof Error
-            ? error.message
-            : String(error),
-      }
-    );
-
+  } catch {
     return [];
   }
 }
@@ -701,11 +836,15 @@ async function optionalFetchObject<T>(
 ): Promise<T | null> {
   try {
     const result =
-      await apiFootballGet<T>(
-        path,
-        {
-          retries: 0,
-        }
+      await runScheduledApiRequest(
+        () =>
+          apiFootballGet<T>(
+            path,
+            {
+              retries: 0,
+            }
+          ),
+        path
       );
 
     const response =
@@ -728,19 +867,7 @@ async function optionalFetchObject<T>(
       typeof response === "object"
       ? response as T
       : null;
-  } catch (error) {
-    console.error(
-      "[API-Football object request failed]",
-      {
-        path,
-
-        error:
-          error instanceof Error
-            ? error.message
-            : String(error),
-      }
-    );
-
+  } catch {
     return null;
   }
 }
@@ -753,43 +880,17 @@ async function fetchSeasonStatistics(
 ): Promise<
   APIFootballTeamSeasonStatistics | null
 > {
-  const dated =
-    date
-      ? await optionalFetchObject<
-          APIFootballTeamSeasonStatistics
-        >(
-          apiFootballEndpoints
-            .teamSeasonStatistics(
-              teamId,
-              leagueId,
-              season,
-              date
-            )
-        )
-      : null;
-
-  if (
-    dated &&
-    hasUsableHomeAwaySplits(
-      dated
-    )
-  ) {
-    return dated;
-  }
-
-  const undated =
-    await optionalFetchObject<
-      APIFootballTeamSeasonStatistics
-    >(
-      apiFootballEndpoints
-        .teamSeasonStatistics(
-          teamId,
-          leagueId,
-          season
-        )
-    );
-
-  return undated || dated;
+  return optionalFetchObject<
+    APIFootballTeamSeasonStatistics
+  >(
+    apiFootballEndpoints
+      .teamSeasonStatistics(
+        teamId,
+        leagueId,
+        season,
+        date
+      )
+  );
 }
 
 async function fetchFixturesByDate(
@@ -801,16 +902,23 @@ async function fetchFixturesByDate(
     normalizeDate(date);
 
   const result =
-    await apiFootballGet<
-      APIFootballFixture
-    >(
+    await runScheduledApiRequest(
+      () =>
+        apiFootballGet<
+          APIFootballFixture
+        >(
+          apiFootballEndpoints
+            .fixturesByDate(
+              normalizedDate
+            ),
+          {
+            retries: 1,
+          }
+        ),
       apiFootballEndpoints
         .fixturesByDate(
           normalizedDate
-        ),
-      {
-        retries: 1,
-      }
+        )
     );
 
   return Array.isArray(
@@ -933,11 +1041,8 @@ async function fetchTeamEnrichment(
       )
     );
 
-  const [
-    rawRecentHome,
-    rawRecentAway,
-  ] = await Promise.all([
-    optionalFetchArray<
+  const rawRecentHome =
+    await optionalFetchArray<
       APIFootballFixture
     >(
       apiFootballEndpoints
@@ -948,9 +1053,10 @@ async function fetchTeamEnrichment(
               requestLimit,
           }
         )
-    ),
+    );
 
-    optionalFetchArray<
+  const rawRecentAway =
+    await optionalFetchArray<
       APIFootballFixture
     >(
       apiFootballEndpoints
@@ -961,8 +1067,7 @@ async function fetchTeamEnrichment(
               requestLimit,
           }
         )
-    ),
-  ]);
+    );
 
   const recentHome =
     filterRecentFixtures(
@@ -986,29 +1091,25 @@ async function fetchTeamEnrichment(
       season
     );
 
-  const [
-    apiSeasonHome,
-    apiSeasonAway,
-  ] = canFetchSeasonStatistics
-    ? await Promise.all([
-        fetchSeasonStatistics(
+  const apiSeasonHome =
+    canFetchSeasonStatistics
+      ? await fetchSeasonStatistics(
           homeTeamId,
           leagueId!,
           season!,
           toDate
-        ),
+        )
+      : null;
 
-        fetchSeasonStatistics(
+  const apiSeasonAway =
+    canFetchSeasonStatistics
+      ? await fetchSeasonStatistics(
           awayTeamId,
           leagueId!,
           season!,
           toDate
-        ),
-      ])
-    : [
-        null,
-        null,
-      ];
+        )
+      : null;
 
   /*
    * When the competition-season endpoint
@@ -1147,16 +1248,23 @@ export async function getCompleteFixtureData(
   }
 
   const fixtureResult =
-    await apiFootballGet<
-      APIFootballFixture
-    >(
+    await runScheduledApiRequest(
+      () =>
+        apiFootballGet<
+          APIFootballFixture
+        >(
+          apiFootballEndpoints
+            .fixtureById(
+              fixtureId
+            ),
+          {
+            retries: 1,
+          }
+        ),
       apiFootballEndpoints
         .fixtureById(
           fixtureId
-        ),
-      {
-        retries: 1,
-      }
+        )
     );
 
   const fixture =
@@ -1170,38 +1278,46 @@ export async function getCompleteFixtureData(
     );
   }
 
-  const [
-    statistics,
-    events,
-    lineups,
-  ] = await Promise.all([
-    optionalFetchArray<
-      APIFootballTeamStatistics
-    >(
-      apiFootballEndpoints
-        .statistics(
-          fixtureId
-        )
-    ),
+  const upcoming =
+    isUpcomingFixture(
+      fixture
+    );
 
-    optionalFetchArray<
-      APIFootballEvent
-    >(
-      apiFootballEndpoints
-        .events(
-          fixtureId
-        )
-    ),
+  const statistics =
+    upcoming
+      ? []
+      : await optionalFetchArray<
+          APIFootballTeamStatistics
+        >(
+          apiFootballEndpoints
+            .statistics(
+              fixtureId
+            )
+        );
 
-    optionalFetchArray<
-      APIFootballLineup
-    >(
-      apiFootballEndpoints
-        .lineups(
-          fixtureId
-        )
-    ),
-  ]);
+  const events =
+    upcoming
+      ? []
+      : await optionalFetchArray<
+          APIFootballEvent
+        >(
+          apiFootballEndpoints
+            .events(
+              fixtureId
+            )
+        );
+
+  const lineups =
+    upcoming
+      ? []
+      : await optionalFetchArray<
+          APIFootballLineup
+        >(
+          apiFootballEndpoints
+            .lineups(
+              fixtureId
+            )
+        );
 
   const homeTeamId =
     fixture.teams?.home?.id;
