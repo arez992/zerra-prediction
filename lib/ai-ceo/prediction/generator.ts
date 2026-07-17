@@ -119,6 +119,107 @@ export type PredictionGenerationSummary = {
   items: PredictionGenerationItem[];
 };
 
+function isPlainObject(
+  value: unknown
+): value is Record<string, unknown> {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return false;
+  }
+
+  const prototype =
+    Object.getPrototypeOf(
+      value
+    );
+
+  return (
+    prototype ===
+      Object.prototype ||
+    prototype === null
+  );
+}
+
+function sanitizeForFirestore(
+  value: unknown
+): unknown {
+  if (
+    value === undefined
+  ) {
+    return undefined;
+  }
+
+  if (
+    value === null ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    return value;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    return value
+      .map(
+        sanitizeForFirestore
+      )
+      .filter(
+        (item) =>
+          item !== undefined &&
+          !(
+            typeof item === "string" &&
+            item.trim() === ""
+          )
+      );
+  }
+
+  if (
+    !isPlainObject(value)
+  ) {
+    return value;
+  }
+
+  const sanitized:
+    Record<string, unknown> = {};
+
+  for (
+    const [
+      rawKey,
+      rawValue,
+    ] of Object.entries(value)
+  ) {
+    const key =
+      rawKey.trim();
+
+    if (!key) {
+      continue;
+    }
+
+    const nextValue =
+      sanitizeForFirestore(
+        rawValue
+      );
+
+    if (
+      nextValue !== undefined
+    ) {
+      sanitized[key] =
+        nextValue;
+    }
+  }
+
+  return sanitized;
+}
+
 function normalizeDate(
   value: unknown
 ): string {
@@ -428,51 +529,53 @@ async function writeGenerationAudit(
       AUDIT_COLLECTION
     )
     .doc()
-    .set({
-      action:
-        input.action,
+    .set(
+      sanitizeForFirestore({
+        action:
+          input.action,
 
-      predictionId:
-        input.predictionId,
+        predictionId:
+          input.predictionId,
 
-      fixtureId:
-        input.fixtureId,
+        fixtureId:
+          input.fixtureId,
 
-      source:
-        input.source ||
-        "prediction-generation-scheduler",
+        source:
+          input.source ||
+          "prediction-generation-scheduler",
 
-      generationMode:
-        input.generationMode,
+        generationMode:
+          input.generationMode,
 
-      fetchedFromApiFootball:
-        input.fetchedFromApiFootball,
+        fetchedFromApiFootball:
+          input.fetchedFromApiFootball,
 
-      dataAvailability:
-        input.dataAvailability,
+        dataAvailability:
+          input.dataAvailability,
 
-      performedBy:
-        input.performedBy,
+        performedBy:
+          input.performedBy,
 
-      modelVersion:
-        input.modelVersion,
+        modelVersion:
+          input.modelVersion,
 
-      dataQuality:
-        input.dataQuality,
+        dataQuality:
+          input.dataQuality,
 
-      generationDecision:
-        input.generationDecision,
+        generationDecision:
+          input.generationDecision,
 
-      openAIEligibility:
-        input.openAIEligibility,
+        openAIEligibility:
+          input.openAIEligibility,
 
-      reason:
-        input.reason,
+        reason:
+          input.reason,
 
-      createdAt:
-        FieldValue
-          .serverTimestamp(),
-    });
+        createdAt:
+          FieldValue
+            .serverTimestamp(),
+      }) as FirebaseFirestore.DocumentData
+    );
 }
 
 export async function generatePredictionsForDate(
@@ -718,7 +821,7 @@ export async function generatePredictionsForDate(
         new Date()
           .toISOString();
 
-      const documentData = {
+      const rawDocumentData = {
         ...engineResult.data
           .document,
 
@@ -802,6 +905,11 @@ export async function generatePredictionsForDate(
         },
       };
 
+      const documentData =
+        sanitizeForFirestore(
+          rawDocumentData
+        ) as FirebaseFirestore.DocumentData;
+
       const auditRef =
         adminDb
           .collection(
@@ -824,7 +932,7 @@ export async function generatePredictionsForDate(
 
       batch.set(
         auditRef,
-        {
+        sanitizeForFirestore({
           action:
             existing.exists
               ? "regenerate"
@@ -863,7 +971,7 @@ export async function generatePredictionsForDate(
           createdAt:
             FieldValue
               .serverTimestamp(),
-        }
+        }) as FirebaseFirestore.DocumentData
       );
 
       await batch.commit();
