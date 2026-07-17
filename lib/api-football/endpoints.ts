@@ -65,15 +65,6 @@ export const apiFootballEndpoints = {
     )}`;
   },
 
-  /*
-   * Retrieve recent completed fixtures
-   * for one team.
-   *
-   * League and season are optional so
-   * callers may either restrict form to
-   * the current competition or retrieve
-   * broader recent competitive form.
-   */
   recentTeamFixtures(
     teamId: string | number,
     options?: {
@@ -98,7 +89,7 @@ export const apiFootballEndpoints = {
       positiveInteger(
         options?.last ?? 8,
         8,
-        20
+        40
       )
     );
 
@@ -120,10 +111,19 @@ export const apiFootballEndpoints = {
       options?.toDate
     );
 
+    /*
+     * Do not force FT by default.
+     *
+     * The service layer validates and
+     * keeps FT, AET and PEN fixtures.
+     * Omitting status here prevents
+     * valid completed fixtures from
+     * being excluded by the API query.
+     */
     addQueryParameter(
       parameters,
       "status",
-      options?.status || "FT"
+      options?.status
     );
 
     return `fixtures?${parameters.join(
@@ -131,11 +131,6 @@ export const apiFootballEndpoints = {
     )}`;
   },
 
-  /*
-   * Retrieve a team's season profile,
-   * including form, goals, fixtures and
-   * home/away performance splits.
-   */
   teamSeasonStatistics(
     teamId: string | number,
     leagueId: string | number,
