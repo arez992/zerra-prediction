@@ -4,11 +4,69 @@ export type VipPlan =
   | "Quarterly"
   | "Lifetime";
 
+export type VipExpiry =
+  | string
+  | Date
+  | {
+      toDate?: () => Date;
+      seconds?: number;
+    }
+  | null;
+
 export type VipStatus = {
   isVip: boolean;
   plan: VipPlan;
-  expiresAt: string | null;
+  expiresAt: VipExpiry;
 };
+
+function getExpiryTime(
+  expiresAt: VipExpiry
+): number | null {
+  if (!expiresAt) {
+    return null;
+  }
+
+  if (expiresAt instanceof Date) {
+    const time = expiresAt.getTime();
+    return Number.isFinite(time)
+      ? time
+      : null;
+  }
+
+  if (typeof expiresAt === "string") {
+    const time = new Date(
+      expiresAt
+    ).getTime();
+
+    return Number.isFinite(time)
+      ? time
+      : null;
+  }
+
+  if (
+    typeof expiresAt === "object" &&
+    typeof expiresAt.toDate ===
+      "function"
+  ) {
+    const time = expiresAt
+      .toDate()
+      .getTime();
+
+    return Number.isFinite(time)
+      ? time
+      : null;
+  }
+
+  if (
+    typeof expiresAt === "object" &&
+    typeof expiresAt.seconds ===
+      "number"
+  ) {
+    return expiresAt.seconds * 1000;
+  }
+
+  return null;
+}
 
 export function isVipActive(
   status?: VipStatus | null
@@ -21,17 +79,16 @@ export function isVipActive(
     return true;
   }
 
-  if (!status.expiresAt) {
+  const expiry =
+    getExpiryTime(
+      status.expiresAt
+    );
+
+  if (expiry === null) {
     return false;
   }
 
-  const expiry =
-    new Date(status.expiresAt).getTime();
-
-  return (
-    Number.isFinite(expiry) &&
-    expiry > Date.now()
-  );
+  return expiry > Date.now();
 }
 
 export function getFreePredictionLimit() {

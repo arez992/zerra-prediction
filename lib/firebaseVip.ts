@@ -1,11 +1,41 @@
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { VipStatus } from "@/lib/vip";
+import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
 
-export async function getUserVipStatus(uid: string): Promise<VipStatus> {
+import { db } from "@/lib/firebase";
+
+import type {
+  VipPlan,
+  VipStatus,
+} from "@/lib/vip";
+
+function normalizePlan(
+  value: unknown
+): VipPlan {
+  if (
+    value === "Monthly" ||
+    value === "Quarterly" ||
+    value === "Lifetime"
+  ) {
+    return value;
+  }
+
+  return "Free";
+}
+
+export async function getUserVipStatus(
+  uid: string
+): Promise<VipStatus> {
   try {
-    const userRef = doc(db, "users", uid);
-    const snapshot = await getDoc(userRef);
+    const userRef = doc(
+      db,
+      "users",
+      uid
+    );
+
+    const snapshot =
+      await getDoc(userRef);
 
     if (!snapshot.exists()) {
       return {
@@ -15,15 +45,23 @@ export async function getUserVipStatus(uid: string): Promise<VipStatus> {
       };
     }
 
-    const data = snapshot.data();
+    const data =
+      snapshot.data();
 
     return {
-      isVip: Boolean(data.isVip),
-      plan: data.plan || "Free",
-      expiresAt: data.expiresAt || null,
+      isVip:
+        data.isVip === true,
+      plan: normalizePlan(
+        data.plan
+      ),
+      expiresAt:
+        data.expiresAt ?? null,
     };
   } catch (error) {
-    console.error("Failed to load VIP status:", error);
+    console.error(
+      "Failed to load VIP status:",
+      error
+    );
 
     return {
       isVip: false,
