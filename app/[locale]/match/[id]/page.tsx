@@ -137,7 +137,16 @@ export default function MatchDetailsPage() {
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
-        <PredictionPanel />
+        <PredictionPanel
+  confidence={prediction.confidence}
+  homeWin={prediction.homeWin}
+  draw={prediction.draw}
+  awayWin={prediction.awayWin}
+  over25={prediction.over25}
+  under25={prediction.under25}
+  risk={prediction.risk}
+  valueBet={prediction.valueBet}
+/>
         <StatsPanel statistics={match.statistics} />
       </section>
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { calculatePrediction } from "@/lib/ai/prediction";
 
 type FixtureCardProps = {
   match: any;
@@ -16,10 +17,23 @@ function getStatusStyle(short: string) {
   return "bg-green-500/20 text-green-400";
 }
 
+function normalizePercent(value: unknown) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(number)));
+}
+
 export default function FixtureCard({ match }: FixtureCardProps) {
-  const homePercent = 54;
-  const drawPercent = 24;
-  const awayPercent = 22;
+  const prediction = calculatePrediction(match);
+
+  const confidence = normalizePercent(prediction.confidence);
+  const homePercent = normalizePercent(prediction.homeWin);
+  const drawPercent = normalizePercent(prediction.draw);
+  const awayPercent = normalizePercent(prediction.awayWin);
 
   return (
     <Link
@@ -40,6 +54,7 @@ export default function FixtureCard({ match }: FixtureCardProps) {
             <p className="truncate font-black text-[#D4AF37]">
               {match.league.name}
             </p>
+
             <p className="truncate text-xs text-white/45">
               {match.league.country} • {match.fixture.status.long}
             </p>
@@ -64,6 +79,7 @@ export default function FixtureCard({ match }: FixtureCardProps) {
               className="h-14 w-14 shrink-0 rounded-full bg-white object-contain p-1"
             />
           )}
+
           <p className="max-w-[160px] text-xl font-black leading-tight text-white md:max-w-none">
             {match.teams.home.name}
           </p>
@@ -73,7 +89,9 @@ export default function FixtureCard({ match }: FixtureCardProps) {
           <p className="text-5xl font-black leading-none text-[#D4AF37]">
             {match.goals.home ?? "-"}
           </p>
+
           <p className="text-3xl font-black leading-none text-[#D4AF37]">:</p>
+
           <p className="text-5xl font-black leading-none text-[#D4AF37]">
             {match.goals.away ?? "-"}
           </p>
@@ -83,6 +101,7 @@ export default function FixtureCard({ match }: FixtureCardProps) {
           <p className="max-w-[160px] text-xl font-black leading-tight text-white md:max-w-none">
             {match.teams.away.name}
           </p>
+
           {match.teams.away.logo && (
             <img
               src={match.teams.away.logo}
@@ -96,7 +115,10 @@ export default function FixtureCard({ match }: FixtureCardProps) {
       <div className="mt-7 rounded-2xl border border-[#D4AF37]/20 bg-black/20 p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="font-black text-white">🤖 AI Prediction Signal</p>
-          <p className="font-black text-[#D4AF37]">92%</p>
+
+          <p className="font-black text-[#D4AF37]">
+            {confidence}%
+          </p>
         </div>
 
         <div className="mt-4 space-y-3 text-sm">
@@ -109,7 +131,13 @@ export default function FixtureCard({ match }: FixtureCardProps) {
   );
 }
 
-function PredictionBar({ label, value }: { label: string; value: number }) {
+function PredictionBar({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
   return (
     <div>
       <div className="mb-1 flex justify-between text-white/60">
