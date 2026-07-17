@@ -1,10 +1,27 @@
 import FixtureCard from "./FixtureCard";
 
+import type {
+  PredictionResult,
+} from "@/lib/ai/prediction";
+
 type FixturesListProps = {
   fixtures: any[];
+  isVip: boolean;
+  predictions: Record<
+    number,
+    PredictionResult | null
+  >;
+  loadingPredictionIds: Set<number>;
+  predictionErrorIds: Set<number>;
 };
 
-export default function FixturesList({ fixtures }: FixturesListProps) {
+export default function FixturesList({
+  fixtures,
+  isVip,
+  predictions,
+  loadingPredictionIds,
+  predictionErrorIds,
+}: FixturesListProps) {
   if (!fixtures.length) {
     return (
       <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#0B1220] p-8 text-center shadow-xl">
@@ -24,6 +41,7 @@ export default function FixturesList({ fixtures }: FixturesListProps) {
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-left text-sm text-white/60">
           <p>Try these:</p>
+
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>Clear search text</li>
             <li>Select “All Leagues”</li>
@@ -37,9 +55,27 @@ export default function FixturesList({ fixtures }: FixturesListProps) {
 
   return (
     <section className="grid gap-6">
-      {fixtures.map((match) => (
-        <FixtureCard key={match.fixture.id} match={match} />
-      ))}
+      {fixtures.map((match) => {
+        const fixtureId =
+          Number(match.fixture.id);
+
+        return (
+          <FixtureCard
+            key={fixtureId}
+            match={match}
+            isVip={isVip}
+            prediction={
+              predictions[fixtureId]
+            }
+            predictionLoading={loadingPredictionIds.has(
+              fixtureId
+            )}
+            predictionError={predictionErrorIds.has(
+              fixtureId
+            )}
+          />
+        );
+      })}
     </section>
   );
 }
