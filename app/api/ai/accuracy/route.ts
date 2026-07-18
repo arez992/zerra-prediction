@@ -1,6 +1,7 @@
 import {
   NextResponse,
 } from "next/server";
+
 import {
   unstable_cache,
 } from "next/cache";
@@ -17,10 +18,107 @@ export const revalidate =
 
 type PredictionData = {
   correct?: boolean;
+
   prediction?: {
     valueBet?: string;
   };
 };
+
+type MarketStats = {
+  settled: number;
+  correct: number;
+  accuracy: number;
+};
+
+function calculateAccuracy(
+  correct: number,
+  settled: number
+): number {
+  if (
+    settled <= 0
+  ) {
+    return 0;
+  }
+
+  return Number(
+    (
+      (
+        correct /
+        settled
+      ) *
+      100
+    ).toFixed(1)
+  );
+}
+
+function normalizeValueBet(
+  value: unknown
+): string {
+  return typeof value ===
+    "string"
+    ? value
+        .trim()
+        .toLowerCase()
+    : "";
+}
+
+function calculateMarketStats(
+  predictions:
+    PredictionData[],
+
+  matcher: (
+    valueBet: string
+  ) => boolean
+): MarketStats {
+  const marketPredictions =
+    predictions.filter(
+      (
+        prediction
+      ) => {
+        if (
+          prediction.correct !==
+            true &&
+          prediction.correct !==
+            false
+        ) {
+          return false;
+        }
+
+        const valueBet =
+          normalizeValueBet(
+            prediction
+              .prediction
+              ?.valueBet
+          );
+
+        return matcher(
+          valueBet
+        );
+      }
+    );
+
+  const settled =
+    marketPredictions.length;
+
+  const correct =
+    marketPredictions.filter(
+      (
+        prediction
+      ) =>
+        prediction.correct ===
+        true
+    ).length;
+
+  return {
+    settled,
+    correct,
+    accuracy:
+      calculateAccuracy(
+        correct,
+        settled
+      ),
+  };
+}
 
 const getCachedAccuracy =
   unstable_cache(
@@ -34,132 +132,152 @@ const getCachedAccuracy =
 
       const predictions =
         snapshot.docs.map(
-          (document) =>
-            document.data() as PredictionData
+          (
+            document
+          ) =>
+            document.data() as
+              PredictionData
         );
 
-      const total =
+      const totalPredictions =
         predictions.length;
 
-      if (total === 0) {
-        return {
-          success: true,
-          totalPredictions: 0,
-          overallAccuracy: 0,
-          homeWinAccuracy: 0,
-          over25Accuracy: 0,
-          bttsAccuracy: 0,
-          correct: 0,
-          incorrect: 0,
-        };
-      }
+      const settledPredictions =
+        predictions.filter(
+          (
+            prediction
+          ) =>
+            prediction.correct ===
+              true ||
+            prediction.correct ===
+              false
+        );
 
       const correct =
-        predictions.filter(
-          (prediction) =>
-            prediction.correct === true
+        settledPredictions.filter(
+          (
+            prediction
+          ) =>
+            prediction.correct ===
+            true
         ).length;
 
       const incorrect =
-        predictions.filter(
-          (prediction) =>
-            prediction.correct === false
+        settledPredictions.filter(
+          (
+            prediction
+          ) =>
+            prediction.correct ===
+            false
         ).length;
 
       const settledTotal =
-        correct + incorrect;
+        settledPredictions.length;
 
       const overallAccuracy =
-        settledTotal === 0
-          ? 0
-          : Number(
-              (
-                (correct /
-                  settledTotal) *
-                100
-              ).toFixed(1)
-            );
+        calculateAccuracy(
+          correct,
+          settledTotal
+        );
 
-      const homeWin =
-        predictions.filter(
-          (prediction) =>
-            prediction.correct ===
-              true &&
-            prediction.prediction
-              ?.valueBet
-              ?.toLowerCase()
-              .includes("home")
-        ).length;
+      const homeWinStats =
+        calculateMarketStats(
+          predictions,
+          (
+            valueBet
+          ) =>
+            valueBet.includes(
+              "home"
+            )
+        );
 
-      const over25 =
-        predictions.filter(
-          (prediction) =>
-            prediction.correct ===
-              true &&
-            prediction.prediction
-              ?.valueBet
-              ?.toLowerCase()
-              .includes("over")
-        ).length;
+      const over25Stats =
+        calculateMarketStats(
+          predictions,
+          (
+            valueBet
+          ) =>
+            valueBet.includes(
+              "over 2.5"
+            ) ||
+            valueBet.includes(
+              "over"
+            )
+        );
 
-      const btts =
-        predictions.filter(
-          (prediction) =>
-            prediction.correct ===
-              true &&
-            prediction.prediction
-              ?.valueBet
-              ?.toLowerCase()
-              .includes("btts")
-        ).length;
+      const bttsStats =
+        calculateMarketStats(
+          predictions,
+          (
+            valueBet
+          ) =>
+            valueBet.includes(
+              "btts"
+            )
+        );
 
       return {
         success: true,
-        totalPredictions:
-          total,
+
+        totalPredictions,
+
+        settledPredictions:
+          settledTotal,
+
         correct,
+
         incorrect,
+
         overallAccuracy,
 
         homeWinAccuracy:
-          total > 0
-            ? Number(
-                (
-                  (homeWin /
-                    total) *
-                  100
-                ).toFixed(1)
-              )
-            : 0,
+          homeWinStats.accuracy,
 
         over25Accuracy:
-          total > 0
-            ? Number(
-                (
-                  (over25 /
-                    total) *
-                  100
-                ).toFixed(1)
-              )
-            : 0,
+          over25Stats.accuracy,
 
         bttsAccuracy:
-          total > 0
-            ? Number(
-                (
-                  (btts /
-                    total) *
-                  100
-                ).toFixed(1)
-              )
-            : 0,
+          bttsStats.accuracy,
+
+        marketStats: {
+          homeWin: {
+            settled:
+              homeWinStats
+                .settled,
+
+            correct:
+              homeWinStats
+                .correct,
+          },
+
+          over25: {
+            settled:
+              over25Stats
+                .settled,
+
+            correct:
+              over25Stats
+                .correct,
+          },
+
+          btts: {
+            settled:
+              bttsStats
+                .settled,
+
+            correct:
+              bttsStats
+                .correct,
+          },
+        },
       };
     },
     [
       "zerra-ai-accuracy",
     ],
     {
-      revalidate: 3600,
+      revalidate:
+        3600,
     }
   );
 
@@ -172,6 +290,7 @@ export async function GET() {
       accuracy,
       {
         status: 200,
+
         headers: {
           "Cache-Control":
             "public, s-maxage=3600, stale-while-revalidate=86400",
@@ -192,10 +311,17 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        error: message,
+
+        error:
+          message,
       },
       {
         status: 500,
+
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
       }
     );
   }
