@@ -76,6 +76,78 @@ type PublicPredictionsResponse = {
   predictions?: PublicPredictionItem[];
 };
 
+type YesterdayGoalResultItem = {
+  id: string;
+  fixtureId: string;
+
+  competition: {
+    name: string;
+    country: string | null;
+  };
+
+  teams: {
+    home: {
+      name: string;
+    };
+
+    away: {
+      name: string;
+    };
+  };
+
+  fixtureDate: string | null;
+
+  prediction: {
+    market:
+      | "Over 2.5 Goals"
+      | "Under 2.5 Goals";
+
+    confidence: number;
+  };
+
+  result: {
+    correct: boolean;
+
+    status:
+      | "correct"
+      | "incorrect";
+
+    finalScore: string;
+
+    homeGoals: number;
+
+    awayGoals: number;
+
+    totalGoals: number;
+  };
+
+  settledAt: string | null;
+};
+
+type YesterdayGoalResultsResponse = {
+  success: boolean;
+
+  summary?: {
+    totalPredictions: number;
+    correctPredictions: number;
+    incorrectPredictions: number;
+    accuracyRate: number;
+  };
+
+  results?: YesterdayGoalResultItem[];
+};
+
+type YesterdayGoalResultsData = {
+  summary: {
+    totalPredictions: number;
+    correctPredictions: number;
+    incorrectPredictions: number;
+    accuracyRate: number;
+  };
+
+  results: YesterdayGoalResultItem[];
+};
+
 type PageProps = {
   params: Promise<{
     locale: string;
@@ -150,17 +222,6 @@ async function getFreePredictions(): Promise<
         data.predictions
       )
     ) {
-      /*
-       * Temporary UI rule:
-       *
-       * Show only the first 3 published
-       * predictions as free predictions.
-       *
-       * Later this will be connected to
-       * the Admin Free/VIP selection
-       * system without redesigning
-       * this UI.
-       */
       return data.predictions.slice(
         0,
         3
@@ -170,6 +231,54 @@ async function getFreePredictions(): Promise<
     return [];
   } catch {
     return [];
+  }
+}
+
+async function getYesterdayGoalResults(): Promise<
+  YesterdayGoalResultsData | null
+> {
+  try {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://zerra-prediction.vercel.app";
+
+    const response =
+      await fetch(
+        `${siteUrl}/api/predictions/yesterday-results?limit=6`,
+        {
+          next: {
+            revalidate: 300,
+          },
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      (await response.json()) as
+        YesterdayGoalResultsResponse;
+
+    if (
+      !data.success ||
+      !data.summary ||
+      !Array.isArray(
+        data.results
+      )
+    ) {
+      return null;
+    }
+
+    return {
+      summary:
+        data.summary,
+
+      results:
+        data.results,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -214,10 +323,12 @@ export default async function HomePage({
   const [
     fixtures,
     freePredictions,
+    yesterdayResults,
   ] =
     await Promise.all([
       getFixtures(),
       getFreePredictions(),
+      getYesterdayGoalResults(),
     ]);
 
   const featuredFixture =
@@ -338,7 +449,7 @@ export default async function HomePage({
 
       <section className="mx-auto max-w-7xl px-6 py-16">
         <SectionHeader
-          eyebrow="Today&apos;s Football"
+          eyebrow="Today's Football"
           title="Upcoming Matches"
           description="Real football fixtures currently available through the ZERRA football data pipeline."
           actionHref={getPath(
@@ -376,6 +487,93 @@ export default async function HomePage({
       </section>
 
       <section className="border-y border-[#e0ebe3] bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          <SectionHeader
+            eyebrow="Yesterday's Performance"
+            title="Yesterday's Goal Prediction Results"
+            description="See how ZERRA's Over/Under 2.5 goal predictions performed in yesterday's completed football matches."
+            actionHref={getPath(
+              "/results/yesterday"
+            )}
+            actionLabel="View all results"
+          />
+
+          {!yesterdayResults ? (
+            <EmptyState message="Yesterday's prediction results are temporarily unavailable." />
+          ) : yesterdayResults
+              .results
+              .length ===
+            0 ? (
+            <EmptyState message="No settled goal prediction results are available for yesterday yet." />
+          ) : (
+            <>
+              <YesterdaySummary
+                summary={
+                  yesterdayResults.summary
+                }
+              />
+
+              <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-[#dce8df]">
+                <div className="hidden grid-cols-[1.6fr_0.7fr_1fr_0.7fr_0.8fr_0.6fr] gap-4 border-b border-[#e7efe9] bg-[#f7faf8] px-6 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#839188] lg:grid">
+                  <span>
+                    Match
+                  </span>
+
+                  <span>
+                    Final Score
+                  </span>
+
+                  <span>
+                    ZERRA Prediction
+                  </span>
+
+                  <span>
+                    Actual Goals
+                  </span>
+
+                  <span>
+                    Result
+                  </span>
+
+                  <span>
+                    Confidence
+                  </span>
+                </div>
+
+                <div className="divide-y divide-[#e7efe9]">
+                  {yesterdayResults.results.map(
+                    (
+                      item
+                    ) => (
+                      <YesterdayResultRow
+                        key={
+                          item.id
+                        }
+                        item={
+                          item
+                        }
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <Link
+                  href={getPath(
+                    "/results/yesterday"
+                  )}
+                  className="inline-flex rounded-full border border-[#cfdcd2] bg-white px-7 py-3 text-sm font-black text-[#102117] transition hover:border-[#139653] hover:text-[#0d6f3d]"
+                >
+                  View All Yesterday Results →
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="border-b border-[#e0ebe3] bg-[#f7faf8]">
         <div className="mx-auto max-w-7xl px-6 py-16">
           <SectionHeader
             eyebrow="Daily Free Access"
@@ -739,6 +937,211 @@ function FreePredictionCard({
         Unlock full VIP prediction →
       </Link>
     </article>
+  );
+}
+
+function YesterdaySummary({
+  summary,
+}: {
+  summary:
+    YesterdayGoalResultsData["summary"];
+}) {
+  return (
+    <div className="mt-8 grid gap-4 rounded-[1.75rem] border border-[#dce8df] bg-[#fbfdfb] p-5 sm:grid-cols-2 lg:grid-cols-4">
+      <ResultStat
+        label="Correct Predictions"
+        value={String(
+          summary.correctPredictions
+        )}
+        detail="Successful goal predictions"
+        tone="success"
+      />
+
+      <ResultStat
+        label="Incorrect Predictions"
+        value={String(
+          summary.incorrectPredictions
+        )}
+        detail="Unsuccessful goal predictions"
+        tone="danger"
+      />
+
+      <ResultStat
+        label="Accuracy Rate"
+        value={`${summary.accuracyRate}%`}
+        detail={`${summary.correctPredictions} of ${summary.totalPredictions} correct`}
+        tone="success"
+      />
+
+      <ResultStat
+        label="Total Predictions"
+        value={String(
+          summary.totalPredictions
+        )}
+        detail="Yesterday's settled matches"
+        tone="default"
+      />
+    </div>
+  );
+}
+
+function ResultStat({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone:
+    | "success"
+    | "danger"
+    | "default";
+}) {
+  const valueClass =
+    tone === "success"
+      ? "text-[#139653]"
+      : tone === "danger"
+        ? "text-[#d84a4a]"
+        : "text-[#102117]";
+
+  return (
+    <div className="rounded-2xl border border-[#e1ebe4] bg-white p-5">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#839188]">
+        {label}
+      </p>
+
+      <p className={`mt-3 text-3xl font-black ${valueClass}`}>
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs leading-5 text-[#7d8b82]">
+        {detail}
+      </p>
+    </div>
+  );
+}
+
+function YesterdayResultRow({
+  item,
+}: {
+  item:
+    YesterdayGoalResultItem;
+}) {
+  return (
+    <article className="grid gap-5 bg-white px-6 py-5 transition hover:bg-[#fbfdfb] lg:grid-cols-[1.6fr_0.7fr_1fr_0.7fr_0.8fr_0.6fr] lg:items-center lg:gap-4">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#139653]">
+          {
+            item
+              .competition
+              .name
+          }
+        </p>
+
+        <p className="mt-2 font-black text-[#102117]">
+          {
+            item
+              .teams
+              .home
+              .name
+          }
+        </p>
+
+        <p className="mt-1 text-sm font-bold text-[#66756c]">
+          vs{" "}
+          {
+            item
+              .teams
+              .away
+              .name
+          }
+        </p>
+      </div>
+
+      <ResultCell
+        label="Final Score"
+        value={
+          item.result
+            .finalScore
+        }
+      />
+
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#839188] lg:hidden">
+          ZERRA Prediction
+        </p>
+
+        <p className="mt-1 text-sm font-black text-[#139653] lg:mt-0">
+          {
+            item
+              .prediction
+              .market
+          }
+        </p>
+      </div>
+
+      <ResultCell
+        label="Actual Goals"
+        value={`${item.result.totalGoals} Goals`}
+      />
+
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#839188] lg:hidden">
+          Result
+        </p>
+
+        <span
+          className={`mt-1 inline-flex rounded-full px-3 py-1.5 text-xs font-black lg:mt-0 ${
+            item.result
+              .correct
+              ? "bg-[#eaf7ef] text-[#0d7a40]"
+              : "bg-[#fff0f0] text-[#d43d3d]"
+          }`}
+        >
+          {item.result
+            .correct
+            ? "✓ Correct"
+            : "✕ Incorrect"}
+        </span>
+      </div>
+
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#839188] lg:hidden">
+          Confidence
+        </p>
+
+        <p className="mt-1 text-lg font-black text-[#102117] lg:mt-0">
+          {
+            item
+              .prediction
+              .confidence
+          }
+          %
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function ResultCell({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#839188] lg:hidden">
+        {label}
+      </p>
+
+      <p className="mt-1 text-sm font-black text-[#102117] lg:mt-0">
+        {value}
+      </p>
+    </div>
   );
 }
 
