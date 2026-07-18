@@ -1,8 +1,16 @@
 import "server-only";
 
 import {
-  recordLearningOutcomeSafely,
-} from "./recorder";
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+import {
+  evaluateLearningOutcome,
+} from "./evaluator";
+
+import type {
+  LearningRecord,
+} from "./types";
 
 type PredictionLearningInput = {
   predictionId: string;
@@ -41,11 +49,14 @@ type PredictionLearningInput = {
   } | null;
 };
 
+const COLLECTION =
+  "zaosLearning";
+
 function normalizeText(
   value: unknown
 ): string | null {
   return typeof value ===
-    "string" &&
+      "string" &&
     value.trim()
     ? value.trim()
     : null;
@@ -56,14 +67,73 @@ function normalizeNumber(
 ): number | null {
   return typeof value ===
       "number" &&
-    Number.isFinite(value)
+    Number.isFinite(
+      value
+    )
     ? value
     : null;
 }
 
+function normalizeIdPart(
+  value: string
+): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /[^a-z0-9-_]/g,
+      "-"
+    )
+    .replace(
+      /-+/g,
+      "-"
+    );
+}
+
+function createLearningRecordId(
+  predictionId: string
+): string {
+  /*
+   * Deterministic ID.
+   *
+   * The same prediction can never create
+   * multiple ZAOS learning records.
+   *
+   * Safe retries overwrite the same
+   * learning document instead of creating
+   * duplicates.
+   */
+  return `learning-prediction-${normalizeIdPart(
+    predictionId
+  )}`;
+}
+
 export async function recordPredictionLearning(
-  input: PredictionLearningInput
+  input:
+    PredictionLearningInput
 ): Promise<void> {
+  const predictionId =
+    normalizeText(
+      input.predictionId
+    );
+
+  const fixtureId =
+    normalizeText(
+      input.fixtureId
+    );
+
+  if (!predictionId) {
+    throw new Error(
+      "Prediction ID is required for prediction learning."
+    );
+  }
+
+  if (!fixtureId) {
+    throw new Error(
+      "Fixture ID is required for prediction learning."
+    );
+  }
+
   const valueBet =
     normalizeText(
       input.valueBet
@@ -99,121 +169,153 @@ export async function recordPredictionLearning(
       ? "correct"
       : "incorrect";
 
-  await recordLearningOutcomeSafely({
-    agent:
-      "prediction",
+  /*
+   * Reuse the existing ZAOS evaluator
+   * so prediction learning remains
+   * compatible with the global learning
+   * metrics and dashboard.
+   */
+  const evaluation =
+    evaluateLearningOutcome({
+      agent:
+        "prediction",
 
-    /*
-     * The prediction document becomes
-     * the learning system's reference ID.
-     */
-    recommendationId:
-      input.predictionId,
+      recommendationId:
+        predictionId,
 
-    recommendationType:
-      "prediction-settlement",
+      recommendationType:
+        "prediction-settlement",
 
-    /*
-     * A settled prediction is always
-     * considered completed.
-     *
-     * executionSuccess represents whether
-     * the prediction itself was correct.
-     */
-    executionSuccess:
-      input.correct,
-
-    executionCompleted:
-      true,
-
-    executionMessage:
-      `Prediction ${input.predictionId} was settled as ${outcomeLabel}. Final result: ${input.result}.`,
-
-    executionData: {
-      predictionId:
-        input.predictionId,
-
-      fixtureId:
-        input.fixtureId,
-
-      correct:
+      executionSuccess:
         input.correct,
 
-      result:
-        input.result,
+      executionCompleted:
+        true,
 
-      valueBet,
+      executionMessage:
+        `Prediction ${predictionId} was settled as ${outcomeLabel}. Final result: ${input.result}.`,
 
-      finalPrediction,
+      executionData: {
+        predictionId,
 
-      confidence,
+        fixtureId,
 
-      risk,
+        correct:
+          input.correct,
 
-      modelVersion,
+        result:
+          input.result,
 
-      exactScore,
+        valueBet,
 
-      actual:
-        input.actual ||
-        {},
-    },
+        finalPrediction,
 
-    tags: [
-      "prediction",
-      "settlement",
-      outcomeLabel,
+        confidence,
 
-      ...(valueBet
-        ? [
-            valueBet
-              .toLowerCase()
-              .replace(
-                /\s+/g,
-                "-"
-              ),
-          ]
-        : []),
+        risk,
 
-      ...(modelVersion
-        ? [
-            modelVersion
-              .toLowerCase(),
-          ]
-        : []),
-    ],
+        modelVersion,
 
-    metadata: {
-      source:
-        "prediction-settlement-engine",
+        exactScore,
 
-      predictionId:
-        input.predictionId,
+        actual:
+          input.actual ||
+          {},
+      },
 
-      fixtureId:
-        input.fixtureId,
+      tags: [
+        "prediction",
+        "settlement",
+        outcomeLabel,
 
-      correct:
-        input.correct,
+        ...(valueBet
+          ? [
+              valueBet
+                .toLowerCase()
+                .replace(
+                  /\s+/g,
+                  "-"
+                ),
+            ]
+          : []),
 
-      result:
-        input.result,
+        ...(modelVersion
+          ? [
+              modelVersion
+                .toLowerCase(),
+            ]
+          : []),
+      ],
 
-      modelVersion,
+      metadata: {
+        source:
+          "prediction-settlement-engine",
 
-      confidence,
+        predictionId,
 
-      risk,
+        fixtureId,
 
-      valueBet,
+        correct:
+          input.correct,
 
-      finalPrediction,
+        result:
+          input.result,
 
-      exactScore,
+        modelVersion,
 
-      actual:
-        input.actual ||
-        {},
-    },
-  });
+        confidence,
+
+        risk,
+
+        valueBet,
+
+        finalPrediction,
+
+        exactScore,
+
+        actual:
+          input.actual ||
+          {},
+      },
+    });
+
+  const deterministicId =
+    createLearningRecordId(
+      predictionId
+    );
+
+  const record:
+    LearningRecord = {
+      ...evaluation.record,
+
+      /*
+       * Replace the evaluator's UUID-based
+       * ID with a deterministic prediction
+       * learning ID.
+       */
+      id:
+        deterministicId,
+  };
+
+  /*
+   * set() on a deterministic document ID
+   * makes this operation idempotent.
+   *
+   * Retrying the same settled prediction
+   * updates the same learning record.
+   */
+  await adminDb
+    .collection(
+      COLLECTION
+    )
+    .doc(
+      deterministicId
+    )
+    .set(
+      record,
+      {
+        merge:
+          true,
+      }
+    );
 }
