@@ -1,20 +1,50 @@
-import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  unstable_cache,
+} from "next/cache";
 
-async function getMaintenanceMode() {
-  try {
-    const snap = await adminDb.collection("settings").doc("site").get();
-    return snap.data()?.maintenanceMode === true;
-  } catch {
-    return false;
-  }
-}
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+const getMaintenanceMode =
+  unstable_cache(
+    async () => {
+      try {
+        const snap =
+          await adminDb
+            .collection("settings")
+            .doc("site")
+            .get();
+
+        return (
+          snap.data()
+            ?.maintenanceMode ===
+          true
+        );
+      } catch (error) {
+        console.error(
+          "[MAINTENANCE_MODE_ERROR]",
+          error
+        );
+
+        return false;
+      }
+    },
+    [
+      "zerra-maintenance-mode",
+    ],
+    {
+      revalidate: 300,
+    }
+  );
 
 export default async function MaintenanceGate({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const maintenanceMode = await getMaintenanceMode();
+  const maintenanceMode =
+    await getMaintenanceMode();
 
   if (!maintenanceMode) {
     return <>{children}</>;
