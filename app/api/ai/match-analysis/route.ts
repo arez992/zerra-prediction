@@ -20,8 +20,11 @@ function getFixtureId(
   match: any
 ) {
   return String(
-    match?.fixture?.fixture?.id ||
-      match?.fixture?.id ||
+    match?.fixture
+      ?.fixture
+      ?.id ||
+      match?.fixture
+        ?.id ||
       match?.id ||
       "unknown"
   );
@@ -29,13 +32,18 @@ function getFixtureId(
 
 function getTeamName(
   match: any,
-  side: "home" | "away"
+  side:
+    | "home"
+    | "away"
 ): string {
   return (
     match?.fixture
-      ?.teams?.[side]?.name ||
+      ?.teams
+      ?.[side]
+      ?.name ||
     match?.teams
-      ?.[side]?.name ||
+      ?.[side]
+      ?.name ||
     (
       side === "home"
         ? "Home team"
@@ -86,7 +94,8 @@ function buildFallbackAnalysis(
 
   const confidence =
     Number(
-      prediction?.confidence ??
+      prediction
+        ?.confidence ??
       prediction
         ?.vipPrediction
         ?.confidence ??
@@ -172,6 +181,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
+
           error:
             "match and prediction are required",
         },
@@ -197,26 +207,30 @@ export async function POST(
         match
       );
 
+    /*
+     * Cache first.
+     *
+     * IMPORTANT:
+     * A cache hit performs no predictionHistory
+     * write. This keeps repeated match-page
+     * visits fast and avoids unnecessary
+     * Firestore writes.
+     */
     const cachedAnalysis =
       await getCachedAIAnalysis(
         cacheKey
       );
 
     if (cachedAnalysis) {
-      await savePredictionHistory({
-        fixtureId,
-        match,
-        prediction,
-        analysis:
-          cachedAnalysis,
-        cacheKey,
-      });
-
       return NextResponse.json({
         success: true,
+
         cached: true,
+
         fallback: false,
+
         context,
+
         analysis:
           cachedAnalysis,
       });
@@ -233,18 +247,24 @@ export async function POST(
         .OPENAI_API_KEY;
 
     /*
-     * OpenAI is an enhancement layer,
-     * not a dependency for the core
-     * ZERRA prediction engine.
+     * OpenAI is an enhancement layer.
+     *
+     * The core ZERRA prediction engine
+     * remains independent from OpenAI.
      */
     if (!apiKey) {
       return NextResponse.json({
         success: true,
+
         cached: false,
+
         fallback: true,
+
         fallbackReason:
           "openai-key-unavailable",
+
         context,
+
         analysis:
           fallbackAnalysis,
       });
@@ -286,7 +306,8 @@ Return JSON with this exact shape:
         await fetch(
           "https://api.openai.com/v1/responses",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               Authorization:
@@ -309,29 +330,41 @@ Return JSON with this exact shape:
     } catch {
       return NextResponse.json({
         success: true,
+
         cached: false,
+
         fallback: true,
+
         fallbackReason:
           "openai-network-error",
+
         context,
+
         analysis:
           fallbackAnalysis,
       });
     }
 
-    let data: any;
+    let data:
+      any;
 
     try {
       data =
-        await response.json();
+        await response
+          .json();
     } catch {
       return NextResponse.json({
         success: true,
+
         cached: false,
+
         fallback: true,
+
         fallbackReason:
           "openai-invalid-response",
+
         context,
+
         analysis:
           fallbackAnalysis,
       });
@@ -347,8 +380,10 @@ Return JSON with this exact shape:
         "[OPENAI_ANALYSIS_FALLBACK]",
         {
           fixtureId,
+
           status:
             response.status,
+
           code:
             errorCode,
         }
@@ -356,7 +391,9 @@ Return JSON with this exact shape:
 
       return NextResponse.json({
         success: true,
+
         cached: false,
+
         fallback: true,
 
         fallbackReason:
@@ -380,6 +417,9 @@ Return JSON with this exact shape:
     let analysis:
       any;
 
+    let usedFallback =
+      false;
+
     try {
       analysis =
         JSON.parse(
@@ -388,8 +428,18 @@ Return JSON with this exact shape:
     } catch {
       analysis =
         fallbackAnalysis;
+
+      usedFallback =
+        true;
     }
 
+    /*
+     * Save the generated analysis once.
+     *
+     * Future requests should use the cache
+     * and will not write predictionHistory
+     * again.
+     */
     await saveAIAnalysisCache(
       cacheKey,
       analysis,
@@ -398,17 +448,31 @@ Return JSON with this exact shape:
 
     await savePredictionHistory({
       fixtureId,
+
       match,
+
       prediction,
+
       analysis,
+
       cacheKey,
     });
 
     return NextResponse.json({
       success: true,
+
       cached: false,
-      fallback: false,
+
+      fallback:
+        usedFallback,
+
+      fallbackReason:
+        usedFallback
+          ? "openai-json-parse-error"
+          : undefined,
+
       context,
+
       analysis,
     });
   } catch (error) {
@@ -425,6 +489,7 @@ Return JSON with this exact shape:
     return NextResponse.json(
       {
         success: false,
+
         error:
           message,
       },
