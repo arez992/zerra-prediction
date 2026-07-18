@@ -18,17 +18,22 @@ import {
   validatePrediction,
 } from "@/lib/ai/validator";
 
+import {
+  recordPredictionLearning,
+} from "@/lib/zaos/learning/predictionLearning";
+
 const COLLECTION_NAME =
   "predictionHistory";
 
 const AUDIT_COLLECTION =
   "predictionAuditLogs";
 
-const FINISHED_STATUSES = new Set([
-  "FT",
-  "AET",
-  "PEN",
-]);
+const FINISHED_STATUSES =
+  new Set([
+    "FT",
+    "AET",
+    "PEN",
+  ]);
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
@@ -37,6 +42,7 @@ type FixtureLike = {
   fixture?: {
     id?: number | string;
     date?: string;
+
     status?: {
       short?: string;
       long?: string;
@@ -95,10 +101,12 @@ type StoredPrediction = {
   id: string;
   fixtureId: string;
   fixtureDate: string;
+
   prediction: Record<
     string,
     unknown
   >;
+
   data: DocumentData;
 };
 
@@ -106,24 +114,33 @@ export type PredictionSettlementItem = {
   predictionId: string;
   fixtureId: string;
   fixtureDate: string;
+
   settled: boolean;
   skipped: boolean;
+
   reason: string;
+
   correct: boolean | null;
   result: string | null;
 };
 
 export type PredictionSettlementSummary = {
   checkedAt: string;
+
   scannedPredictions: number;
   eligiblePredictions: number;
+
   uniqueFixtureDates: number;
   apiDateRequests: number;
+
   settledPredictions: number;
   skippedPredictions: number;
+
   missingFixtures: number;
   unfinishedFixtures: number;
-  items: PredictionSettlementItem[];
+
+  items:
+    PredictionSettlementItem[];
 };
 
 function normalizeLimit(
@@ -133,7 +150,9 @@ function normalizeLimit(
     Number(value);
 
   if (
-    !Number.isFinite(parsed)
+    !Number.isFinite(
+      parsed
+    )
   ) {
     return DEFAULT_LIMIT;
   }
@@ -142,7 +161,9 @@ function normalizeLimit(
     MAX_LIMIT,
     Math.max(
       1,
-      Math.floor(parsed)
+      Math.floor(
+        parsed
+      )
     )
   );
 }
@@ -151,13 +172,19 @@ function normalizeDate(
   value: unknown
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
 
   const date =
-    value.trim().slice(0, 10);
+    value
+      .trim()
+      .slice(
+        0,
+        10
+      );
 
   return /^\d{4}-\d{2}-\d{2}$/.test(
     date
@@ -177,7 +204,9 @@ function normalizeFixtureId(
   }
 
   const fixtureId =
-    String(value).trim();
+    String(
+      value
+    ).trim();
 
   return /^\d+$/.test(
     fixtureId
@@ -188,11 +217,17 @@ function normalizeFixtureId(
 
 function asRecord(
   value: unknown
-): Record<string, unknown> {
+): Record<
+  string,
+  unknown
+> {
   if (
     value &&
-    typeof value === "object" &&
-    !Array.isArray(value)
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
   ) {
     return value as Record<
       string,
@@ -203,9 +238,33 @@ function asRecord(
   return {};
 }
 
+function asString(
+  value: unknown
+): string | null {
+  return typeof value ===
+      "string" &&
+    value.trim()
+    ? value.trim()
+    : null;
+}
+
+function asNumber(
+  value: unknown
+): number | null {
+  return typeof value ===
+      "number" &&
+    Number.isFinite(
+      value
+    )
+    ? value
+    : null;
+}
+
 function toStoredPrediction(
   document:
-    QueryDocumentSnapshot<DocumentData>
+    QueryDocumentSnapshot<
+      DocumentData
+    >
 ): StoredPrediction | null {
   const data =
     document.data();
@@ -228,13 +287,18 @@ function toStoredPrediction(
   }
 
   return {
-    id: document.id,
+    id:
+      document.id,
+
     fixtureId,
+
     fixtureDate,
+
     prediction:
       asRecord(
         data.prediction
       ),
+
     data,
   };
 }
@@ -243,7 +307,9 @@ function getFixtureId(
   fixture: FixtureLike
 ): string {
   return normalizeFixtureId(
-    fixture.fixture?.id
+    fixture
+      .fixture
+      ?.id
   );
 }
 
@@ -251,8 +317,11 @@ function getStatus(
   fixture: FixtureLike
 ): string {
   return String(
-    fixture.fixture?.status
-      ?.short || ""
+    fixture
+      .fixture
+      ?.status
+      ?.short ||
+      ""
   )
     .trim()
     .toUpperCase();
@@ -271,10 +340,16 @@ function getFinalGoals(
     fixture.goals?.away;
 
   if (
-    typeof home !== "number" ||
-    !Number.isFinite(home) ||
-    typeof away !== "number" ||
-    !Number.isFinite(away)
+    typeof home !==
+      "number" ||
+    !Number.isFinite(
+      home
+    ) ||
+    typeof away !==
+      "number" ||
+    !Number.isFinite(
+      away
+    )
   ) {
     return null;
   }
@@ -289,7 +364,9 @@ function buildActualMetrics(
   fixture: FixtureLike
 ) {
   const goals =
-    getFinalGoals(fixture);
+    getFinalGoals(
+      fixture
+    );
 
   if (!goals) {
     return null;
@@ -300,38 +377,55 @@ function buildActualMetrics(
     goals.away;
 
   const actualWinner =
-    goals.home > goals.away
+    goals.home >
+    goals.away
       ? "home"
       : goals.away >
           goals.home
-      ? "away"
-      : "draw";
+        ? "away"
+        : "draw";
 
   return {
     homeGoals:
       goals.home,
+
     awayGoals:
       goals.away,
+
     totalGoals,
+
     goalDifference:
       goals.home -
       goals.away,
+
     actualWinner,
+
     btts:
-      goals.home > 0 &&
-      goals.away > 0,
+      goals.home >
+        0 &&
+      goals.away >
+        0,
+
     over25:
-      totalGoals > 2.5,
+      totalGoals >
+      2.5,
+
     under25:
-      totalGoals < 2.5,
+      totalGoals <
+      2.5,
+
     exactScore:
       `${goals.home}-${goals.away}`,
   };
 }
 
 function buildFixtureMap(
-  fixtures: FixtureLike[]
-): Map<string, FixtureLike> {
+  fixtures:
+    FixtureLike[]
+): Map<
+  string,
+  FixtureLike
+> {
   const map =
     new Map<
       string,
@@ -339,10 +433,13 @@ function buildFixtureMap(
     >();
 
   for (
-    const fixture of fixtures
+    const fixture
+    of fixtures
   ) {
     const fixtureId =
-      getFixtureId(fixture);
+      getFixtureId(
+        fixture
+      );
 
     if (fixtureId) {
       map.set(
@@ -359,7 +456,8 @@ async function loadUnsettledPredictions(
   limit: number
 ): Promise<{
   scanned: number;
-  eligible: StoredPrediction[];
+  eligible:
+    StoredPrediction[];
 }> {
   const snapshot =
     await adminDb
@@ -371,7 +469,9 @@ async function loadUnsettledPredictions(
         "==",
         false
       )
-      .limit(limit)
+      .limit(
+        limit
+      )
       .get();
 
   const eligible =
@@ -382,25 +482,153 @@ async function loadUnsettledPredictions(
       .filter(
         (
           item
-        ): item is StoredPrediction =>
-          item !== null
+        ): item is
+          StoredPrediction =>
+          item !==
+          null
       );
 
   return {
     scanned:
       snapshot.size,
+
     eligible,
   };
+}
+
+async function recordSettlementLearning(
+  stored:
+    StoredPrediction,
+
+  validation: {
+    correct:
+      boolean | null;
+
+    result:
+      string;
+  },
+
+  actualMetrics:
+    NonNullable<
+      ReturnType<
+        typeof buildActualMetrics
+      >
+    >
+): Promise<void> {
+  /*
+   * Only validated predictions
+   * can reach this function.
+   */
+  if (
+    typeof validation.correct !==
+    "boolean"
+  ) {
+    return;
+  }
+
+  const vipPrediction =
+    asRecord(
+      stored
+        .prediction
+        .vipPrediction
+    );
+
+  const model =
+    asRecord(
+      stored
+        .prediction
+        .model
+    );
+
+  const valueBet =
+    asString(
+      stored
+        .prediction
+        .valueBet
+    ) ||
+    asString(
+      vipPrediction
+        .valueBet
+    );
+
+  const finalPrediction =
+    asString(
+      vipPrediction
+        .finalPrediction
+    );
+
+  const confidence =
+    asNumber(
+      stored
+        .prediction
+        .confidence
+    ) ??
+    asNumber(
+      vipPrediction
+        .confidence
+    );
+
+  const risk =
+    asString(
+      stored
+        .prediction
+        .risk
+    );
+
+  const modelVersion =
+    asString(
+      model.version
+    );
+
+  const exactScore =
+    asString(
+      vipPrediction
+        .exactScore
+    );
+
+  await recordPredictionLearning({
+    predictionId:
+      stored.id,
+
+    fixtureId:
+      stored.fixtureId,
+
+    correct:
+      validation.correct,
+
+    result:
+      validation.result,
+
+    valueBet,
+
+    finalPrediction,
+
+    confidence,
+
+    risk,
+
+    modelVersion,
+
+    exactScore,
+
+    actual:
+      actualMetrics,
+  });
 }
 
 async function settlePrediction(
   stored:
     StoredPrediction,
+
   fixture:
     FixtureLike
-): Promise<PredictionSettlementItem> {
+): Promise<
+  PredictionSettlementItem
+> {
   const status =
-    getStatus(fixture);
+    getStatus(
+      fixture
+    );
 
   if (
     !FINISHED_STATUSES.has(
@@ -410,16 +638,30 @@ async function settlePrediction(
     return {
       predictionId:
         stored.id,
+
       fixtureId:
         stored.fixtureId,
+
       fixtureDate:
         stored.fixtureDate,
-      settled: false,
-      skipped: true,
+
+      settled:
+        false,
+
+      skipped:
+        true,
+
       reason:
-        `Fixture status is ${status || "unknown"}.`,
-      correct: null,
-      result: null,
+        `Fixture status is ${
+          status ||
+          "unknown"
+        }.`,
+
+      correct:
+        null,
+
+      result:
+        null,
     };
   }
 
@@ -428,20 +670,33 @@ async function settlePrediction(
       fixture
     );
 
-  if (!actualMetrics) {
+  if (
+    !actualMetrics
+  ) {
     return {
       predictionId:
         stored.id,
+
       fixtureId:
         stored.fixtureId,
+
       fixtureDate:
         stored.fixtureDate,
-      settled: false,
-      skipped: true,
+
+      settled:
+        false,
+
+      skipped:
+        true,
+
       reason:
         "Final score is unavailable.",
-      correct: null,
-      result: null,
+
+      correct:
+        null,
+
+      result:
+        null,
     };
   }
 
@@ -457,16 +712,25 @@ async function settlePrediction(
     return {
       predictionId:
         stored.id,
+
       fixtureId:
         stored.fixtureId,
+
       fixtureDate:
         stored.fixtureDate,
-      settled: false,
-      skipped: true,
+
+      settled:
+        false,
+
+      skipped:
+        true,
+
       reason:
         "Prediction market could not be validated.",
+
       correct:
         validation.correct,
+
       result:
         validation.result,
     };
@@ -477,7 +741,9 @@ async function settlePrediction(
       .collection(
         COLLECTION_NAME
       )
-      .doc(stored.id);
+      .doc(
+        stored.id
+      );
 
   const auditRef =
     adminDb
@@ -494,80 +760,130 @@ async function settlePrediction(
     {
       correct:
         validation.correct,
+
       result:
         validation.result,
-      resultChecked: true,
-      manuallyChecked: false,
+
+      resultChecked:
+        true,
+
+      manuallyChecked:
+        false,
+
       checkedAt:
-        FieldValue.serverTimestamp(),
+        FieldValue
+          .serverTimestamp(),
+
       settledAt:
-        FieldValue.serverTimestamp(),
+        FieldValue
+          .serverTimestamp(),
+
       updatedAt:
-        FieldValue.serverTimestamp(),
+        FieldValue
+          .serverTimestamp(),
+
       fixtureStatus: {
         short:
-          fixture.fixture?.status
-            ?.short || null,
+          fixture
+            .fixture
+            ?.status
+            ?.short ||
+          null,
+
         long:
-          fixture.fixture?.status
-            ?.long || null,
+          fixture
+            .fixture
+            ?.status
+            ?.long ||
+          null,
       },
+
       status:
         "settled",
+
       settlement: {
         source:
           "api-football",
+
         settledAutomatically:
           true,
+
         finalStatus:
           status,
+
         actual:
           actualMetrics,
+
         competition: {
           id:
-            fixture.league?.id ||
+            fixture
+              .league
+              ?.id ||
             null,
+
           name:
-            fixture.league
-              ?.name || null,
+            fixture
+              .league
+              ?.name ||
+            null,
+
           country:
-            fixture.league
+            fixture
+              .league
               ?.country ||
             null,
+
           season:
-            fixture.league
+            fixture
+              .league
               ?.season ||
             null,
+
           round:
-            fixture.league
-              ?.round || null,
+            fixture
+              .league
+              ?.round ||
+            null,
         },
+
         teams: {
           home: {
             id:
-              fixture.teams
-                ?.home?.id ||
+              fixture
+                .teams
+                ?.home
+                ?.id ||
               null,
+
             name:
-              fixture.teams
-                ?.home?.name ||
+              fixture
+                .teams
+                ?.home
+                ?.name ||
               null,
           },
+
           away: {
             id:
-              fixture.teams
-                ?.away?.id ||
+              fixture
+                .teams
+                ?.away
+                ?.id ||
               null,
+
             name:
-              fixture.teams
-                ?.away?.name ||
+              fixture
+                .teams
+                ?.away
+                ?.name ||
               null,
           },
         },
       },
     },
     {
-      merge: true,
+      merge:
+        true,
     }
   );
 
@@ -576,44 +892,105 @@ async function settlePrediction(
     {
       action:
         "settle",
+
       predictionId:
         stored.id,
+
       fixtureId:
         stored.fixtureId,
+
       fixtureDate:
         stored.fixtureDate,
+
       correct:
         validation.correct,
+
       result:
         validation.result,
+
       finalStatus:
         status,
+
       actual:
         actualMetrics,
+
       source:
         "api-football-settlement",
+
       performedBy:
         "prediction-settlement-engine",
+
       createdAt:
-        FieldValue.serverTimestamp(),
+        FieldValue
+          .serverTimestamp(),
     }
   );
 
+  /*
+   * The settlement is committed first.
+   *
+   * ZAOS learning is intentionally
+   * outside this Firestore batch.
+   *
+   * A learning failure must never
+   * roll back or invalidate a correct
+   * prediction settlement.
+   */
   await batch.commit();
+
+  try {
+    await recordSettlementLearning(
+      stored,
+      {
+        correct:
+          validation.correct,
+
+        result:
+          validation.result,
+      },
+      actualMetrics
+    );
+  } catch (error) {
+    console.error(
+      "[PREDICTION_LEARNING_BRIDGE_ERROR]",
+      {
+        predictionId:
+          stored.id,
+
+        fixtureId:
+          stored.fixtureId,
+
+        error:
+          error instanceof
+          Error
+            ? error.message
+            : "Unable to record prediction learning.",
+      }
+    );
+  }
 
   return {
     predictionId:
       stored.id,
+
     fixtureId:
       stored.fixtureId,
+
     fixtureDate:
       stored.fixtureDate,
-    settled: true,
-    skipped: false,
+
+    settled:
+      true,
+
+    skipped:
+      false,
+
     reason:
       "Prediction settled successfully.",
+
     correct:
       validation.correct,
+
     result:
       validation.result,
   };
@@ -623,10 +1000,13 @@ export async function settlePendingPredictions(
   options?: {
     limit?: number;
   }
-): Promise<PredictionSettlementSummary> {
+): Promise<
+  PredictionSettlementSummary
+> {
   const limit =
     normalizeLimit(
-      options?.limit
+      options
+        ?.limit
     );
 
   const {
@@ -644,11 +1024,13 @@ export async function settlePendingPredictions(
     >();
 
   for (
-    const prediction of eligible
+    const prediction
+    of eligible
   ) {
     const items =
       groupedByDate.get(
-        prediction.fixtureDate
+        prediction
+          .fixtureDate
       ) || [];
 
     items.push(
@@ -656,60 +1038,86 @@ export async function settlePendingPredictions(
     );
 
     groupedByDate.set(
-      prediction.fixtureDate,
+      prediction
+        .fixtureDate,
       items
     );
   }
 
   const items:
-    PredictionSettlementItem[] = [];
+    PredictionSettlementItem[] =
+      [];
 
-  let apiDateRequests = 0;
-  let missingFixtures = 0;
-  let unfinishedFixtures = 0;
+  let apiDateRequests =
+    0;
+
+  let missingFixtures =
+    0;
+
+  let unfinishedFixtures =
+    0;
 
   for (
     const [
       date,
       predictions,
-    ] of groupedByDate
+    ]
+    of groupedByDate
   ) {
     const fixtures =
       await getFixturesByDate(
         date
       );
 
-    apiDateRequests += 1;
+    apiDateRequests +=
+      1;
 
     const fixtureMap =
       buildFixtureMap(
-        fixtures as FixtureLike[]
+        fixtures as
+          FixtureLike[]
       );
 
     for (
-      const prediction of predictions
+      const prediction
+      of predictions
     ) {
       const fixture =
         fixtureMap.get(
-          prediction.fixtureId
+          prediction
+            .fixtureId
         );
 
       if (!fixture) {
-        missingFixtures += 1;
+        missingFixtures +=
+          1;
 
         items.push({
           predictionId:
             prediction.id,
+
           fixtureId:
-            prediction.fixtureId,
+            prediction
+              .fixtureId,
+
           fixtureDate:
-            prediction.fixtureDate,
-          settled: false,
-          skipped: true,
+            prediction
+              .fixtureDate,
+
+          settled:
+            false,
+
+          skipped:
+            true,
+
           reason:
             "Fixture was not found in the cached date response.",
-          correct: null,
-          result: null,
+
+          correct:
+            null,
+
+          result:
+            null,
         });
 
         continue;
@@ -717,10 +1125,13 @@ export async function settlePendingPredictions(
 
       if (
         !FINISHED_STATUSES.has(
-          getStatus(fixture)
+          getStatus(
+            fixture
+          )
         )
       ) {
-        unfinishedFixtures += 1;
+        unfinishedFixtures +=
+          1;
       }
 
       const result =
@@ -729,32 +1140,49 @@ export async function settlePendingPredictions(
           fixture
         );
 
-      items.push(result);
+      items.push(
+        result
+      );
     }
   }
 
   return {
     checkedAt:
-      new Date().toISOString(),
+      new Date()
+        .toISOString(),
+
     scannedPredictions:
       scanned,
+
     eligiblePredictions:
       eligible.length,
+
     uniqueFixtureDates:
-      groupedByDate.size,
+      groupedByDate
+        .size,
+
     apiDateRequests,
+
     settledPredictions:
       items.filter(
-        (item) =>
+        (
+          item
+        ) =>
           item.settled
       ).length,
+
     skippedPredictions:
       items.filter(
-        (item) =>
+        (
+          item
+        ) =>
           item.skipped
       ).length,
+
     missingFixtures,
+
     unfinishedFixtures,
+
     items,
   };
 }
