@@ -1,5 +1,10 @@
-import { calculateGoals } from "./goals";
-import { calculateRisk } from "./risk";
+import {
+  calculateGoals,
+} from "./goals";
+
+import {
+  calculateRisk,
+} from "./risk";
 
 import {
   calculateMatchIntelligence,
@@ -8,6 +13,11 @@ import {
 import {
   calculateDataCompleteness,
 } from "./data-completeness";
+
+import {
+  buildPerformanceFactors,
+  type PerformanceFactorSummary,
+} from "./factors";
 
 import type {
   DataCompletenessResult,
@@ -23,10 +33,10 @@ export type AIScoreResult =
   PredictionResult;
 
 const MODEL_VERSION =
-  "zerra-ai-v4.2";
+  "zerra-ai-v4.3-factor-confidence";
 
 const DATA_VERSION =
-  "fixture-intelligence-v3-data-completeness-v1";
+  "fixture-intelligence-v4-factor-architecture-v1";
 
 function clamp(
   value: number,
@@ -39,6 +49,22 @@ function clamp(
       minimum,
       value
     )
+  );
+}
+
+function round(
+  value: number,
+  decimals = 1
+): number {
+  const multiplier =
+    10 ** decimals;
+
+  return (
+    Math.round(
+      value *
+        multiplier
+    ) /
+    multiplier
   );
 }
 
@@ -79,7 +105,8 @@ function normalizeProbabilities(
       (
         safeHome /
         total
-      ) * 100
+      ) *
+        100
     );
 
   const normalizedAway =
@@ -87,7 +114,8 @@ function normalizeProbabilities(
       (
         safeAway /
         total
-      ) * 100
+      ) *
+        100
     );
 
   const normalizedDraw =
@@ -165,7 +193,8 @@ function buildMainProbabilities(
       (
         reliableDifference +
         2.5
-      ) / 9
+      ) /
+        9
     );
 
   const homeWin =
@@ -183,6 +212,108 @@ function buildMainProbabilities(
   );
 }
 
+/*
+ * Factor Architecture v4 does not
+ * replace the existing model abruptly.
+ *
+ * It applies a controlled adjustment
+ * to the established 1X2 probabilities.
+ *
+ * Maximum directional shift is kept
+ * intentionally small to avoid unstable
+ * prediction changes during rollout.
+ */
+function applyFactorInfluence(
+  baseProbabilities: {
+    homeWin: number;
+    draw: number;
+    awayWin: number;
+  },
+  factorSummary:
+    PerformanceFactorSummary
+): {
+  homeWin: number;
+  draw: number;
+  awayWin: number;
+} {
+  /*
+   * weightedScore:
+   *
+   * 50  = neutral
+   * >50 = home signal
+   * <50 = away signal
+   */
+  const directionalSignal =
+    clamp(
+      (
+        factorSummary
+          .weightedScore -
+        50
+      ) /
+        50,
+      -1,
+      1
+    );
+
+  const evidenceStrength =
+    clamp(
+      (
+        factorSummary
+          .weightedConfidence *
+          0.5 +
+        factorSummary
+          .weightedReliability *
+          0.5
+      ) /
+        100,
+      0,
+      1
+    );
+
+  /*
+   * At maximum evidence strength,
+   * factor architecture can move
+   * Home/Away by at most 8 points.
+   */
+  const maximumShift = 8;
+
+  const directionalShift =
+    directionalSignal *
+    maximumShift *
+    evidenceStrength;
+
+  /*
+   * High uncertainty slightly
+   * protects the draw probability
+   * instead of forcing a side.
+   */
+  const uncertaintyDrawBoost =
+    clamp(
+      (
+        factorSummary
+          .uncertainty -
+        50
+      ) *
+        0.04,
+      0,
+      2
+    );
+
+  return normalizeProbabilities(
+    baseProbabilities
+      .homeWin +
+      directionalShift,
+
+    baseProbabilities
+      .draw +
+      uncertaintyDrawBoost,
+
+    baseProbabilities
+      .awayWin -
+      directionalShift
+  );
+}
+
 function chooseFinalPrediction(
   markets:
     PredictionMarketProbabilities
@@ -191,18 +322,23 @@ function chooseFinalPrediction(
     {
       label:
         "Home Win",
+
       value:
         markets.homeWin,
     },
+
     {
       label:
         "Draw",
+
       value:
         markets.draw,
     },
+
     {
       label:
         "Away Win",
+
       value:
         markets.awayWin,
     },
@@ -220,27 +356,6 @@ function chooseFinalPrediction(
   return outcomes[0].label;
 }
 
-/*
- * Build one canonical exact-score
- * estimate.
- *
- * The result must remain consistent
- * with both:
- *
- * 1. Final 1X2 prediction
- * 2. Strongest Over/Under 2.5 signal
- *
- * Examples:
- *
- * Home Win + Under 2.5 -> 1-0
- * Home Win + Over 2.5  -> 2-1
- *
- * Away Win + Under 2.5 -> 0-1
- * Away Win + Over 2.5  -> 1-2
- *
- * Draw + Under 2.5     -> 1-1
- * Draw + Over 2.5      -> 2-2
- */
 function chooseExactScore(
   homeExpectedGoals: number,
   awayExpectedGoals: number,
@@ -268,12 +383,6 @@ function chooseExactScore(
     markets.over25 >
     markets.under25;
 
-  /*
-   * STEP 1:
-   *
-   * Align the estimated score
-   * with the final 1X2 prediction.
-   */
   if (
     finalPrediction ===
     "Home Win"
@@ -307,7 +416,8 @@ function chooseExactScore(
           (
             homeExpectedGoals +
             awayExpectedGoals
-          ) / 2
+          ) /
+            2
         )
       );
 
@@ -318,14 +428,6 @@ function chooseExactScore(
       averageGoals;
   }
 
-  /*
-   * STEP 2:
-   *
-   * Align the score with the
-   * stronger Over/Under 2.5
-   * market without breaking
-   * the final 1X2 prediction.
-   */
   if (
     prefersOver25
   ) {
@@ -376,16 +478,6 @@ function chooseExactScore(
     }
   }
 
-  /*
-   * STEP 3:
-   *
-   * Final safety check.
-   *
-   * This prevents any future
-   * calculation change from
-   * creating an inconsistent
-   * exact score.
-   */
   if (
     finalPrediction ===
       "Home Win" &&
@@ -423,6 +515,156 @@ function chooseExactScore(
   }
 
   return `${homeGoals}-${awayGoals}`;
+}
+
+/*
+ * Confidence Redesign v4
+ *
+ * Confidence is no longer derived
+ * mainly from prediction probability.
+ *
+ * It now combines:
+ *
+ * - probability separation
+ * - factor confidence
+ * - factor reliability
+ * - data completeness
+ * - freshness
+ * - model uncertainty
+ *
+ * Missing or weak evidence lowers
+ * confidence instead of creating
+ * fake certainty.
+ */
+function calculateV4Confidence(
+  markets:
+    PredictionMarketProbabilities,
+  factorSummary:
+    PerformanceFactorSummary,
+  dataCompleteness:
+    DataCompletenessResult
+): number {
+  const orderedOutcomes = [
+    markets.homeWin,
+    markets.draw,
+    markets.awayWin,
+  ].sort(
+    (
+      first,
+      second
+    ) =>
+      second -
+      first
+  );
+
+  const strongest =
+    orderedOutcomes[0];
+
+  const second =
+    orderedOutcomes[1];
+
+  const probabilityGap =
+    strongest -
+    second;
+
+  const probabilityEvidence =
+    clamp(
+      42 +
+        probabilityGap *
+          1.65,
+      35,
+      88
+    );
+
+  const factorEvidence =
+    (
+      factorSummary
+        .weightedConfidence *
+        0.55 +
+      factorSummary
+        .weightedReliability *
+        0.45
+    );
+
+  const dataEvidence =
+    (
+      dataCompleteness
+        .score *
+        0.5 +
+      dataCompleteness
+        .summary
+        .weightedReliability *
+        0.3 +
+      dataCompleteness
+        .summary
+        .weightedFreshness *
+        0.2
+    );
+
+  const baseConfidence =
+    probabilityEvidence *
+      0.38 +
+    factorEvidence *
+      0.34 +
+    dataEvidence *
+      0.28;
+
+  const uncertaintyPenalty =
+    factorSummary
+      .uncertainty *
+      0.22;
+
+  const criticalPenalty =
+    Math.min(
+      24,
+      dataCompleteness
+        .missingCritical
+        .length *
+        8
+    );
+
+  const warningPenalty =
+    Math.min(
+      8,
+      dataCompleteness
+        .warnings
+        .length *
+        2
+    );
+
+  const adjusted =
+    baseConfidence -
+    uncertaintyPenalty -
+    criticalPenalty -
+    warningPenalty;
+
+  /*
+   * Hard confidence caps.
+   *
+   * Poor data can never produce
+   * an artificially high score.
+   */
+  const maximumConfidence =
+    dataCompleteness
+      .vipReady
+      ? factorSummary
+          .uncertainty <=
+        25
+        ? 88
+        : 82
+      : dataCompleteness
+            .score >=
+          60
+        ? 64
+        : 54;
+
+  return Math.round(
+    clamp(
+      adjusted,
+      30,
+      maximumConfidence
+    )
+  );
 }
 
 function chooseValueBet(
@@ -505,142 +747,19 @@ function chooseValueBet(
   return "No Value";
 }
 
-function calculateBaseConfidence(
-  markets:
-    PredictionMarketProbabilities,
-  ratingDifference: number,
-  evidenceReliability: number
-): number {
-  const orderedOutcomes =
-    [
-      markets.homeWin,
-      markets.draw,
-      markets.awayWin,
-    ].sort(
-      (
-        first,
-        second
-      ) =>
-        second -
-        first
-    );
-
-  const strongestOutcome =
-    orderedOutcomes[0];
-
-  const secondOutcome =
-    orderedOutcomes[1];
-
-  const probabilityGap =
-    strongestOutcome -
-    secondOutcome;
-
-  const ratingSeparation =
-    clamp(
-      Math.abs(
-        ratingDifference
-      ),
-      0,
-      30
-    );
-
-  const rawConfidence =
-    38 +
-    probabilityGap *
-      0.75 +
-    ratingSeparation *
-      0.45 +
-    evidenceReliability *
-      16;
-
-  return Math.round(
-    clamp(
-      rawConfidence,
-      38,
-      88
-    )
-  );
-}
-
-function applyDataConfidenceAdjustment(
-  baseConfidence: number,
-  dataCompleteness:
-    DataCompletenessResult
-): number {
-  const completenessMultiplier =
-    0.62 +
-    (
-      dataCompleteness
-        .score /
-      100
-    ) *
-      0.38;
-
-  const reliabilityMultiplier =
-    0.72 +
-    (
-      dataCompleteness
-        .summary
-        .weightedReliability /
-      100
-    ) *
-      0.28;
-
-  const criticalPenalty =
-    Math.min(
-      24,
-      dataCompleteness
-        .missingCritical
-        .length *
-        7
-    );
-
-  const warningPenalty =
-    Math.min(
-      8,
-      dataCompleteness
-        .warnings
-        .length *
-        2
-    );
-
-  const adjusted =
-    baseConfidence *
-      completenessMultiplier *
-      reliabilityMultiplier -
-    criticalPenalty -
-    warningPenalty;
-
-  const maximumConfidence =
-    dataCompleteness
-      .vipReady
-      ? 88
-      : dataCompleteness
-            .score >=
-          60
-        ? 64
-        : 54;
-
-  return Math.round(
-    clamp(
-      adjusted,
-      30,
-      maximumConfidence
-    )
-  );
-}
-
 function riskFromScore(
   riskScore: number
 ): PredictionRisk {
   if (
-    riskScore >= 67
+    riskScore >=
+    67
   ) {
     return "High";
   }
 
   if (
-    riskScore >= 36
+    riskScore >=
+    36
   ) {
     return "Medium";
   }
@@ -648,14 +767,18 @@ function riskFromScore(
   return "Low";
 }
 
-function applyDataRiskAdjustment(
+function applyV4RiskAdjustment(
   baseRiskScore: number,
   dataCompleteness:
-    DataCompletenessResult
+    DataCompletenessResult,
+  factorSummary:
+    PerformanceFactorSummary
 ): {
   risk:
     PredictionRisk;
-  riskScore: number;
+
+  riskScore:
+    number;
 } {
   const completenessRisk =
     100 -
@@ -673,6 +796,10 @@ function applyDataRiskAdjustment(
     dataCompleteness
       .summary
       .weightedFreshness;
+
+  const factorUncertaintyRisk =
+    factorSummary
+      .uncertainty;
 
   const criticalPenalty =
     Math.min(
@@ -694,11 +821,13 @@ function applyDataRiskAdjustment(
 
   const dataRiskScore =
     completenessRisk *
-      0.45 +
+      0.3 +
     reliabilityRisk *
-      0.32 +
+      0.22 +
     freshnessRisk *
-      0.23 +
+      0.15 +
+    factorUncertaintyRisk *
+      0.33 +
     criticalPenalty +
     warningPenalty;
 
@@ -732,7 +861,9 @@ function buildPublicPrediction(
   markets:
     PredictionMarketProbabilities,
   dataCompleteness:
-    DataCompletenessResult
+    DataCompletenessResult,
+  factorSummary:
+    PerformanceFactorSummary
 ) {
   const keyInsights:
     string[] = [];
@@ -749,11 +880,31 @@ function buildPublicPrediction(
     58
   ) {
     keyInsights.push(
-      "The intelligence model detects a clear difference between the leading match outcomes."
+      "The prediction model identifies a measurable difference between the leading match outcomes."
     );
   } else {
     keyInsights.push(
       "The match remains relatively balanced across the main outcome probabilities."
+    );
+  }
+
+  if (
+    factorSummary
+      .weightedScore >=
+    56
+  ) {
+    keyInsights.push(
+      "The combined performance factors lean toward the home team."
+    );
+  }
+
+  if (
+    factorSummary
+      .weightedScore <=
+    44
+  ) {
+    keyInsights.push(
+      "The combined performance factors lean toward the away team."
     );
   }
 
@@ -785,6 +936,16 @@ function buildPublicPrediction(
   }
 
   if (
+    factorSummary
+      .uncertainty >=
+    45
+  ) {
+    keyInsights.push(
+      "Model uncertainty remains elevated, so confidence is intentionally limited."
+    );
+  }
+
+  if (
     dataCompleteness
       .vipReady
   ) {
@@ -799,7 +960,7 @@ function buildPublicPrediction(
 
   return {
     overview:
-      "ZERRA AI evaluated attack quality, defensive stability, venue strength, recent form, momentum, goal signals, prediction risk, and source-data completeness.",
+      "ZERRA AI v4.3 evaluated weighted performance factors, attack and defense strength, venue performance, recent form, goal signals, model uncertainty, risk, and source-data completeness.",
 
     risk,
     riskScore,
@@ -808,7 +969,7 @@ function buildPublicPrediction(
     teaser:
       dataCompleteness
         .vipReady
-        ? "The final prediction, confidence score, exact-score estimate, and value selection are reserved for VIP."
+        ? "The final prediction, confidence score, exact-score estimate, and model selection are reserved for VIP."
         : "VIP prediction details are withheld until the available match data meets the required quality threshold.",
   };
 }
@@ -871,6 +1032,57 @@ function buildDataReasoning(
   return reasoning;
 }
 
+function buildFactorReasoning(
+  factorSummary:
+    PerformanceFactorSummary
+): string[] {
+  const reasoning = [
+    `Performance factor score is ${factorSummary.weightedScore}/100, where 50 represents a balanced matchup.`,
+
+    `Factor confidence is ${factorSummary.weightedConfidence}% with weighted reliability of ${factorSummary.weightedReliability}%.`,
+
+    `Estimated model uncertainty is ${factorSummary.uncertainty}%.`,
+
+    `Available prediction factors: ${factorSummary.availableFactors}/${factorSummary.totalFactors}.`,
+  ];
+
+  const strongestFactors =
+    factorSummary
+      .factors
+      .filter(
+        (
+          factor
+        ) =>
+          factor
+            .availability
+      )
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          second.weight -
+          first.weight
+      )
+      .slice(
+        0,
+        5
+      );
+
+  strongestFactors
+    .forEach(
+      (
+        factor
+      ) => {
+        reasoning.push(
+          `${factor.key}: ${factor.reason}`
+        );
+      }
+    );
+
+  return reasoning;
+}
+
 export function calculateAIScore(
   match: any
 ): AIScoreResult {
@@ -893,6 +1105,22 @@ export function calculateAIScore(
     calculateGoals(
       match
     );
+
+  /*
+   * Factor Architecture v4
+   *
+   * This consumes data already present
+   * in the prediction pipeline.
+   *
+   * It creates zero new API calls.
+   */
+  const factorSummary =
+    buildPerformanceFactors({
+      match,
+      intelligence,
+      goals,
+      dataCompleteness,
+    });
 
   const homeMatchupRating =
     intelligence
@@ -952,7 +1180,7 @@ export function calculateAIScore(
     ) *
       0.1;
 
-  const mainProbabilities =
+  const baseProbabilities =
     buildMainProbabilities(
       homeMatchupRating,
       awayMatchupRating,
@@ -960,10 +1188,19 @@ export function calculateAIScore(
         .evidenceReliability
     );
 
+  /*
+   * Controlled v4 factor influence.
+   */
+  const adjustedProbabilities =
+    applyFactorInfluence(
+      baseProbabilities,
+      factorSummary
+    );
+
   const markets:
     PredictionMarketProbabilities =
     {
-      ...mainProbabilities,
+      ...adjustedProbabilities,
 
       over25:
         goals.over25,
@@ -975,18 +1212,10 @@ export function calculateAIScore(
         goals.btts,
     };
 
-  const baseConfidence =
-    calculateBaseConfidence(
-      markets,
-      intelligence
-        .ratingDifference,
-      intelligence
-        .evidenceReliability
-    );
-
   const confidence =
-    applyDataConfidenceAdjustment(
-      baseConfidence,
+    calculateV4Confidence(
+      markets,
+      factorSummary,
       dataCompleteness
     );
 
@@ -998,10 +1227,11 @@ export function calculateAIScore(
     );
 
   const riskResult =
-    applyDataRiskAdjustment(
+    applyV4RiskAdjustment(
       baseRiskResult
         .riskScore,
-      dataCompleteness
+      dataCompleteness,
+      factorSummary
     );
 
   const valueBet =
@@ -1012,14 +1242,6 @@ export function calculateAIScore(
       riskResult.risk
     );
 
-  /*
-   * One canonical 1X2 prediction
-   * is selected first.
-   *
-   * The exact-score estimate is
-   * then aligned with that result
-   * and the Over/Under market.
-   */
   const calculatedFinalPrediction =
     chooseFinalPrediction(
       markets
@@ -1050,52 +1272,56 @@ export function calculateAIScore(
       riskResult.risk,
       riskResult.riskScore,
       markets,
-      dataCompleteness
+      dataCompleteness,
+      factorSummary
     );
 
-  const vipReasoning =
-    [
-      `Home overall rating is ${intelligence.home.overallRating}/100 and away overall rating is ${intelligence.away.overallRating}/100.`,
+  const vipReasoning = [
+    `Home overall rating is ${intelligence.home.overallRating}/100 and away overall rating is ${intelligence.away.overallRating}/100.`,
 
-      `The rating difference is ${intelligence.ratingDifference} points with evidence reliability of ${Math.round(
-        intelligence
-          .evidenceReliability *
-          100
-      )}%.`,
+    `The intelligence rating difference is ${intelligence.ratingDifference} points.`,
 
-      `Home attack and defense ratings are ${intelligence.home.attackRating} and ${intelligence.home.defenseRating}.`,
+    `Home attack and defense ratings are ${intelligence.home.attackRating} and ${intelligence.home.defenseRating}.`,
 
-      `Away attack and defense ratings are ${intelligence.away.attackRating} and ${intelligence.away.defenseRating}.`,
+    `Away attack and defense ratings are ${intelligence.away.attackRating} and ${intelligence.away.defenseRating}.`,
 
-      `Recent form ratings are ${intelligence.home.formRating} for the home team and ${intelligence.away.formRating} for the away team.`,
+    `Recent form ratings are ${intelligence.home.formRating} for the home team and ${intelligence.away.formRating} for the away team.`,
 
-      `Momentum ratings are ${intelligence.home.momentumRating} for the home team and ${intelligence.away.momentumRating} for the away team.`,
+    `Momentum ratings are ${intelligence.home.momentumRating} for the home team and ${intelligence.away.momentumRating} for the away team.`,
 
-      `Expected goals are ${goals.homeExpectedGoals.toFixed(
-        2
-      )} for the home team and ${goals.awayExpectedGoals.toFixed(
-        2
-      )} for the away team.`,
+    `Expected goals are ${goals.homeExpectedGoals.toFixed(
+      2
+    )} for the home team and ${goals.awayExpectedGoals.toFixed(
+      2
+    )} for the away team.`,
 
-      `The final match outcome is ${finalPrediction} and the consistent exact-score estimate is ${exactScore}.`,
+    `Factor Architecture v4 produced a directional score of ${factorSummary.weightedScore}/100.`,
 
-      `The exact-score estimate is aligned with the model's stronger ${
-        markets.over25 >
-        markets.under25
-          ? "Over 2.5"
-          : "Under 2.5"
-      } goal-market signal.`,
+    `Factor confidence is ${factorSummary.weightedConfidence}%, factor reliability is ${factorSummary.weightedReliability}%, and model uncertainty is ${factorSummary.uncertainty}%.`,
 
-      `Base model confidence was ${baseConfidence}% and data-adjusted confidence is ${confidence}%.`,
+    `The final match outcome is ${finalPrediction} and the consistent exact-score estimate is ${exactScore}.`,
 
-      `The prediction risk is ${riskResult.risk} with a data-adjusted score of ${riskResult.riskScore}/100.`,
+    `The exact-score estimate is aligned with the model's stronger ${
+      markets.over25 >
+      markets.under25
+        ? "Over 2.5"
+        : "Under 2.5"
+    } goal-market signal.`,
 
-      `The selected value signal is ${valueBet}.`,
+    `Confidence Redesign v4 produced a final confidence of ${confidence}%.`,
 
-      ...buildDataReasoning(
-        dataCompleteness
-      ),
-    ];
+    `The prediction risk is ${riskResult.risk} with an adjusted score of ${riskResult.riskScore}/100.`,
+
+    `The selected model signal is ${valueBet}.`,
+
+    ...buildFactorReasoning(
+      factorSummary
+    ),
+
+    ...buildDataReasoning(
+      dataCompleteness
+    ),
+  ];
 
   return {
     confidence,
