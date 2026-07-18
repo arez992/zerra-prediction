@@ -85,7 +85,7 @@ Return JSON with this exact shape:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-5.5-mini",
+        model: "gpt-5-mini",
         input: prompt,
       }),
     });
