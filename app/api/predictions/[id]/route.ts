@@ -2,17 +2,26 @@ import {
   NextRequest,
   NextResponse,
 } from "next/server";
+
 import type {
   DocumentData,
 } from "firebase-admin/firestore";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const runtime =
+  "nodejs";
 
-const COLLECTION_NAME = "predictionHistory";
+export const dynamic =
+  "force-dynamic";
+
+export const revalidate =
+  0;
+
+const COLLECTION_NAME =
+  "predictionHistory";
 
 type RouteContext = {
   params: Promise<{
@@ -31,10 +40,13 @@ function serializeTimestamp(
     value &&
     typeof value === "object" &&
     "toDate" in value &&
-    typeof (value as TimestampLike).toDate ===
-      "function"
+    typeof (
+      value as TimestampLike
+    ).toDate === "function"
   ) {
-    return (value as TimestampLike)
+    return (
+      value as TimestampLike
+    )
       .toDate()
       .toISOString();
   }
@@ -83,7 +95,9 @@ function toPublicPrediction(
     data.publicPrediction &&
     typeof data.publicPrediction ===
       "object" &&
-    !Array.isArray(data.publicPrediction)
+    !Array.isArray(
+      data.publicPrediction
+    )
       ? (data.publicPrediction as Record<
           string,
           unknown
@@ -92,8 +106,11 @@ function toPublicPrediction(
 
   const competition =
     data.competition &&
-    typeof data.competition === "object" &&
-    !Array.isArray(data.competition)
+    typeof data.competition ===
+      "object" &&
+    !Array.isArray(
+      data.competition
+    )
       ? (data.competition as Record<
           string,
           unknown
@@ -102,7 +119,8 @@ function toPublicPrediction(
 
   const teams =
     data.teams &&
-    typeof data.teams === "object" &&
+    typeof data.teams ===
+      "object" &&
     !Array.isArray(data.teams)
       ? (data.teams as Record<
           string,
@@ -112,8 +130,11 @@ function toPublicPrediction(
 
   const homeTeam =
     teams.home &&
-    typeof teams.home === "object" &&
-    !Array.isArray(teams.home)
+    typeof teams.home ===
+      "object" &&
+    !Array.isArray(
+      teams.home
+    )
       ? (teams.home as Record<
           string,
           unknown
@@ -122,8 +143,11 @@ function toPublicPrediction(
 
   const awayTeam =
     teams.away &&
-    typeof teams.away === "object" &&
-    !Array.isArray(teams.away)
+    typeof teams.away ===
+      "object" &&
+    !Array.isArray(
+      teams.away
+    )
       ? (teams.away as Record<
           string,
           unknown
@@ -132,8 +156,11 @@ function toPublicPrediction(
 
   const fixtureStatus =
     data.fixtureStatus &&
-    typeof data.fixtureStatus === "object" &&
-    !Array.isArray(data.fixtureStatus)
+    typeof data.fixtureStatus ===
+      "object" &&
+    !Array.isArray(
+      data.fixtureStatus
+    )
       ? (data.fixtureStatus as Record<
           string,
           unknown
@@ -142,11 +169,18 @@ function toPublicPrediction(
 
   return {
     id,
-    fixtureId:
-      normalizeText(data.fixtureId) ||
-      id.replace(/^fixture-/, ""),
 
-    sport: "Football",
+    fixtureId:
+      normalizeText(
+        data.fixtureId
+      ) ||
+      id.replace(
+        /^fixture-/,
+        ""
+      ),
+
+    sport:
+      "Football",
 
     competition: {
       name:
@@ -154,14 +188,17 @@ function toPublicPrediction(
           competition.name,
           "Football"
         ),
+
       country:
         normalizeText(
           competition.country
         ) || null,
+
       round:
         normalizeText(
           competition.round
         ) || null,
+
       season:
         typeof competition.season ===
           "number" &&
@@ -180,6 +217,7 @@ function toPublicPrediction(
             "Home team"
           ),
       },
+
       away: {
         name:
           normalizeText(
@@ -193,7 +231,9 @@ function toPublicPrediction(
       serializeTimestamp(
         data.fixtureDate
       ) ||
-      normalizeText(data.fixtureDate) ||
+      normalizeText(
+        data.fixtureDate
+      ) ||
       null,
 
     fixtureStatus: {
@@ -201,6 +241,7 @@ function toPublicPrediction(
         normalizeText(
           fixtureStatus.short
         ) || null,
+
       long:
         normalizeText(
           fixtureStatus.long
@@ -213,11 +254,13 @@ function toPublicPrediction(
           publicPrediction.overview,
           "Public match analysis is available."
         ),
+
       risk:
         normalizeText(
           publicPrediction.risk,
           "Medium"
         ),
+
       riskScore:
         typeof publicPrediction.riskScore ===
           "number" &&
@@ -226,10 +269,12 @@ function toPublicPrediction(
         )
           ? publicPrediction.riskScore
           : null,
+
       keyInsights:
         normalizeStringArray(
           publicPrediction.keyInsights
         ),
+
       teaser:
         normalizeText(
           publicPrediction.teaser,
@@ -241,6 +286,7 @@ function toPublicPrediction(
       serializeTimestamp(
         data.publishedAt
       ),
+
     updatedAt:
       serializeTimestamp(
         data.updatedAt
@@ -255,14 +301,20 @@ function getErrorStatus(
     message.toLowerCase();
 
   if (
-    normalized.includes("required") ||
-    normalized.includes("invalid")
+    normalized.includes(
+      "required"
+    ) ||
+    normalized.includes(
+      "invalid"
+    )
   ) {
     return 400;
   }
 
   if (
-    normalized.includes("not found")
+    normalized.includes(
+      "not found"
+    )
   ) {
     return 404;
   }
@@ -274,7 +326,9 @@ async function findPublishedPrediction(
   rawId: string
 ) {
   const id =
-    decodeURIComponent(rawId).trim();
+    decodeURIComponent(
+      rawId
+    ).trim();
 
   if (!id) {
     throw new Error(
@@ -282,22 +336,32 @@ async function findPublishedPrediction(
     );
   }
 
+  /*
+   * First try the exact document ID.
+   * Example: fixture-123
+   */
   const directDocument =
     await adminDb
-      .collection(COLLECTION_NAME)
+      .collection(
+        COLLECTION_NAME
+      )
       .doc(id)
       .get();
 
   if (
     directDocument.exists &&
-    directDocument.data()?.status ===
+    directDocument.data()
+      ?.status ===
       "published"
   ) {
     return directDocument;
   }
 
   const normalizedFixtureId =
-    id.replace(/^fixture-/, "");
+    id.replace(
+      /^fixture-/,
+      ""
+    );
 
   if (
     !/^\d+$/.test(
@@ -307,25 +371,44 @@ async function findPublishedPrediction(
     return null;
   }
 
-  const deterministicDocument =
-    await adminDb
-      .collection(COLLECTION_NAME)
-      .doc(
-        `fixture-${normalizedFixtureId}`
-      )
-      .get();
-
+  /*
+   * Avoid reading the same deterministic
+   * document twice when id is already
+   * fixture-{id}.
+   */
   if (
-    deterministicDocument.exists &&
-    deterministicDocument.data()?.status ===
-      "published"
+    id !==
+    `fixture-${normalizedFixtureId}`
   ) {
-    return deterministicDocument;
+    const deterministicDocument =
+      await adminDb
+        .collection(
+          COLLECTION_NAME
+        )
+        .doc(
+          `fixture-${normalizedFixtureId}`
+        )
+        .get();
+
+    if (
+      deterministicDocument.exists &&
+      deterministicDocument.data()
+        ?.status ===
+        "published"
+    ) {
+      return deterministicDocument;
+    }
   }
 
+  /*
+   * Legacy fallback:
+   * find by fixtureId + published status.
+   */
   const fixtureQuery =
     await adminDb
-      .collection(COLLECTION_NAME)
+      .collection(
+        COLLECTION_NAME
+      )
       .where(
         "fixtureId",
         "==",
@@ -339,7 +422,9 @@ async function findPublishedPrediction(
       .limit(1)
       .get();
 
-  if (!fixtureQuery.empty) {
+  if (
+    !fixtureQuery.empty
+  ) {
     return fixtureQuery.docs[0];
   }
 
@@ -351,11 +436,15 @@ export async function GET(
   context: RouteContext
 ) {
   try {
-    const { id } =
+    const {
+      id,
+    } =
       await context.params;
 
     const document =
-      await findPublishedPrediction(id);
+      await findPublishedPrediction(
+        id
+      );
 
     if (!document) {
       return NextResponse.json(
@@ -377,10 +466,12 @@ export async function GET(
     return NextResponse.json(
       {
         success: true,
+
         prediction:
           toPublicPrediction(
             document.id,
-            document.data() || {}
+            document.data() ||
+              {}
           ),
       },
       {
@@ -405,13 +496,17 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-        error: message,
+        error:
+          message,
       },
       {
         status:
-          getErrorStatus(message),
+          getErrorStatus(
+            message
+          ),
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control":
+            "no-store",
         },
       }
     );
