@@ -52,13 +52,22 @@ function normalizeProbabilities(
   awayWin: number;
 } {
   const safeHome =
-    Math.max(1, homeWin);
+    Math.max(
+      1,
+      homeWin
+    );
 
   const safeDraw =
-    Math.max(1, draw);
+    Math.max(
+      1,
+      draw
+    );
 
   const safeAway =
-    Math.max(1, awayWin);
+    Math.max(
+      1,
+      awayWin
+    );
 
   const total =
     safeHome +
@@ -105,7 +114,9 @@ function sigmoid(
     1 /
     (
       1 +
-      Math.exp(-value)
+      Math.exp(
+        -value
+      )
     )
   );
 }
@@ -127,7 +138,8 @@ function buildMainProbabilities(
     ratingDifference *
     (
       0.65 +
-      evidenceReliability * 0.35
+      evidenceReliability *
+        0.35
     );
 
   const absoluteDifference =
@@ -138,7 +150,8 @@ function buildMainProbabilities(
   const drawProbability =
     clamp(
       31 -
-      absoluteDifference * 0.42,
+        absoluteDifference *
+          0.42,
       16,
       31
     );
@@ -176,24 +189,30 @@ function chooseFinalPrediction(
 ): string {
   const outcomes = [
     {
-      label: "Home Win",
+      label:
+        "Home Win",
       value:
         markets.homeWin,
     },
     {
-      label: "Draw",
+      label:
+        "Draw",
       value:
         markets.draw,
     },
     {
-      label: "Away Win",
+      label:
+        "Away Win",
       value:
         markets.awayWin,
     },
   ];
 
   outcomes.sort(
-    (first, second) =>
+    (
+      first,
+      second
+    ) =>
       second.value -
       first.value
   );
@@ -201,11 +220,33 @@ function chooseFinalPrediction(
   return outcomes[0].label;
 }
 
+/*
+ * Build one canonical exact-score
+ * estimate.
+ *
+ * The result must remain consistent
+ * with both:
+ *
+ * 1. Final 1X2 prediction
+ * 2. Strongest Over/Under 2.5 signal
+ *
+ * Examples:
+ *
+ * Home Win + Under 2.5 -> 1-0
+ * Home Win + Over 2.5  -> 2-1
+ *
+ * Away Win + Under 2.5 -> 0-1
+ * Away Win + Over 2.5  -> 1-2
+ *
+ * Draw + Under 2.5     -> 1-1
+ * Draw + Over 2.5      -> 2-2
+ */
 function chooseExactScore(
   homeExpectedGoals: number,
   awayExpectedGoals: number,
   markets:
-    PredictionMarketProbabilities
+    PredictionMarketProbabilities,
+  finalPrediction: string
 ): string {
   let homeGoals =
     Math.max(
@@ -227,65 +268,158 @@ function chooseExactScore(
     markets.over25 >
     markets.under25;
 
-  const prefersUnder25 =
-    markets.under25 >=
-    markets.over25;
-
+  /*
+   * STEP 1:
+   *
+   * Align the estimated score
+   * with the final 1X2 prediction.
+   */
   if (
-    prefersUnder25 &&
-    homeGoals + awayGoals >= 3
+    finalPrediction ===
+    "Home Win"
   ) {
-    while (
-      homeGoals +
-        awayGoals >
-      2
+    if (
+      homeGoals <=
+      awayGoals
     ) {
-      if (
-        homeGoals >
-        awayGoals &&
-        homeGoals > 0
-      ) {
-        homeGoals -= 1;
-      } else if (
-        awayGoals >
-        homeGoals &&
-        awayGoals > 0
-      ) {
-        awayGoals -= 1;
-      } else if (
-        homeExpectedGoals >=
-          awayExpectedGoals &&
-        homeGoals > 0
-      ) {
-        homeGoals -= 1;
-      } else if (
-        awayGoals > 0
-      ) {
-        awayGoals -= 1;
-      } else {
-        break;
-      }
+      homeGoals =
+        awayGoals + 1;
     }
+  } else if (
+    finalPrediction ===
+    "Away Win"
+  ) {
+    if (
+      awayGoals <=
+      homeGoals
+    ) {
+      awayGoals =
+        homeGoals + 1;
+    }
+  } else if (
+    finalPrediction ===
+    "Draw"
+  ) {
+    const averageGoals =
+      Math.max(
+        0,
+        Math.round(
+          (
+            homeExpectedGoals +
+            awayExpectedGoals
+          ) / 2
+        )
+      );
+
+    homeGoals =
+      averageGoals;
+
+    awayGoals =
+      averageGoals;
   }
 
+  /*
+   * STEP 2:
+   *
+   * Align the score with the
+   * stronger Over/Under 2.5
+   * market without breaking
+   * the final 1X2 prediction.
+   */
   if (
-    prefersOver25 &&
-    homeGoals + awayGoals <= 2
+    prefersOver25
   ) {
-    while (
+    if (
       homeGoals +
         awayGoals <
       3
     ) {
       if (
-        homeExpectedGoals >=
-        awayExpectedGoals
+        finalPrediction ===
+        "Home Win"
       ) {
-        homeGoals += 1;
+        homeGoals = 2;
+        awayGoals = 1;
+      } else if (
+        finalPrediction ===
+        "Away Win"
+      ) {
+        homeGoals = 1;
+        awayGoals = 2;
       } else {
-        awayGoals += 1;
+        homeGoals = 2;
+        awayGoals = 2;
       }
     }
+  } else {
+    if (
+      homeGoals +
+        awayGoals >
+      2
+    ) {
+      if (
+        finalPrediction ===
+        "Home Win"
+      ) {
+        homeGoals = 1;
+        awayGoals = 0;
+      } else if (
+        finalPrediction ===
+        "Away Win"
+      ) {
+        homeGoals = 0;
+        awayGoals = 1;
+      } else {
+        homeGoals = 1;
+        awayGoals = 1;
+      }
+    }
+  }
+
+  /*
+   * STEP 3:
+   *
+   * Final safety check.
+   *
+   * This prevents any future
+   * calculation change from
+   * creating an inconsistent
+   * exact score.
+   */
+  if (
+    finalPrediction ===
+      "Home Win" &&
+    homeGoals <=
+      awayGoals
+  ) {
+    homeGoals =
+      awayGoals + 1;
+  }
+
+  if (
+    finalPrediction ===
+      "Away Win" &&
+    awayGoals <=
+      homeGoals
+  ) {
+    awayGoals =
+      homeGoals + 1;
+  }
+
+  if (
+    finalPrediction ===
+    "Draw"
+  ) {
+    const drawGoals =
+      prefersOver25
+        ? 2
+        : 1;
+
+    homeGoals =
+      drawGoals;
+
+    awayGoals =
+      drawGoals;
   }
 
   return `${homeGoals}-${awayGoals}`;
@@ -297,10 +431,12 @@ function chooseValueBet(
   confidence: number,
   dataCompleteness:
     DataCompletenessResult,
-  risk: PredictionRisk
+  risk:
+    PredictionRisk
 ): string {
   if (
-    !dataCompleteness.vipReady
+    !dataCompleteness
+      .vipReady
   ) {
     return "No Value";
   }
@@ -308,7 +444,8 @@ function chooseValueBet(
   const minimumConfidence =
     risk === "High"
       ? 70
-      : risk === "Medium"
+      : risk ===
+          "Medium"
         ? 63
         : 58;
 
@@ -320,39 +457,47 @@ function chooseValueBet(
   }
 
   if (
-    markets.homeWin >= 62
+    markets.homeWin >=
+    62
   ) {
     return "Home Win";
   }
 
   if (
-    markets.awayWin >= 62
+    markets.awayWin >=
+    62
   ) {
     return "Away Win";
   }
 
   if (
-    markets.over25 >= 70
+    markets.over25 >=
+    70
   ) {
     return "Over 2.5 Goals";
   }
 
   if (
-    markets.under25 >= 70
+    markets.under25 >=
+    70
   ) {
     return "Under 2.5 Goals";
   }
 
   if (
-    markets.btts >= 70
+    markets.btts >=
+    70
   ) {
     return "BTTS Yes";
   }
 
   if (
-    markets.draw >= 34 &&
-    confidence >= 65 &&
-    risk !== "High"
+    markets.draw >=
+      34 &&
+    confidence >=
+      65 &&
+    risk !==
+      "High"
   ) {
     return "Draw";
   }
@@ -366,14 +511,19 @@ function calculateBaseConfidence(
   ratingDifference: number,
   evidenceReliability: number
 ): number {
-  const orderedOutcomes = [
-    markets.homeWin,
-    markets.draw,
-    markets.awayWin,
-  ].sort(
-    (first, second) =>
-      second - first
-  );
+  const orderedOutcomes =
+    [
+      markets.homeWin,
+      markets.draw,
+      markets.awayWin,
+    ].sort(
+      (
+        first,
+        second
+      ) =>
+        second -
+        first
+    );
 
   const strongestOutcome =
     orderedOutcomes[0];
@@ -396,9 +546,12 @@ function calculateBaseConfidence(
 
   const rawConfidence =
     38 +
-    probabilityGap * 0.75 +
-    ratingSeparation * 0.45 +
-    evidenceReliability * 16;
+    probabilityGap *
+      0.75 +
+    ratingSeparation *
+      0.45 +
+    evidenceReliability *
+      16;
 
   return Math.round(
     clamp(
@@ -417,9 +570,11 @@ function applyDataConfidenceAdjustment(
   const completenessMultiplier =
     0.62 +
     (
-      dataCompleteness.score /
+      dataCompleteness
+        .score /
       100
-    ) * 0.38;
+    ) *
+      0.38;
 
   const reliabilityMultiplier =
     0.72 +
@@ -428,14 +583,16 @@ function applyDataConfidenceAdjustment(
         .summary
         .weightedReliability /
       100
-    ) * 0.28;
+    ) *
+      0.28;
 
   const criticalPenalty =
     Math.min(
       24,
       dataCompleteness
         .missingCritical
-        .length * 7
+        .length *
+        7
     );
 
   const warningPenalty =
@@ -443,20 +600,24 @@ function applyDataConfidenceAdjustment(
       8,
       dataCompleteness
         .warnings
-        .length * 2
+        .length *
+        2
     );
 
   const adjusted =
     baseConfidence *
-    completenessMultiplier *
-    reliabilityMultiplier -
+      completenessMultiplier *
+      reliabilityMultiplier -
     criticalPenalty -
     warningPenalty;
 
   const maximumConfidence =
-    dataCompleteness.vipReady
+    dataCompleteness
+      .vipReady
       ? 88
-      : dataCompleteness.score >= 60
+      : dataCompleteness
+            .score >=
+          60
         ? 64
         : 54;
 
@@ -472,11 +633,15 @@ function applyDataConfidenceAdjustment(
 function riskFromScore(
   riskScore: number
 ): PredictionRisk {
-  if (riskScore >= 67) {
+  if (
+    riskScore >= 67
+  ) {
     return "High";
   }
 
-  if (riskScore >= 36) {
+  if (
+    riskScore >= 36
+  ) {
     return "Medium";
   }
 
@@ -488,12 +653,14 @@ function applyDataRiskAdjustment(
   dataCompleteness:
     DataCompletenessResult
 ): {
-  risk: PredictionRisk;
+  risk:
+    PredictionRisk;
   riskScore: number;
 } {
   const completenessRisk =
     100 -
-    dataCompleteness.score;
+    dataCompleteness
+      .score;
 
   const reliabilityRisk =
     100 -
@@ -512,7 +679,8 @@ function applyDataRiskAdjustment(
       32,
       dataCompleteness
         .missingCritical
-        .length * 9
+        .length *
+        9
     );
 
   const warningPenalty =
@@ -520,13 +688,17 @@ function applyDataRiskAdjustment(
       12,
       dataCompleteness
         .warnings
-        .length * 3
+        .length *
+        3
     );
 
   const dataRiskScore =
-    completenessRisk * 0.45 +
-    reliabilityRisk * 0.32 +
-    freshnessRisk * 0.23 +
+    completenessRisk *
+      0.45 +
+    reliabilityRisk *
+      0.32 +
+    freshnessRisk *
+      0.23 +
     criticalPenalty +
     warningPenalty;
 
@@ -554,7 +726,8 @@ function applyDataRiskAdjustment(
 }
 
 function buildPublicPrediction(
-  risk: PredictionRisk,
+  risk:
+    PredictionRisk,
   riskScore: number,
   markets:
     PredictionMarketProbabilities,
@@ -572,7 +745,8 @@ function buildPublicPrediction(
     );
 
   if (
-    strongestOutcome >= 58
+    strongestOutcome >=
+    58
   ) {
     keyInsights.push(
       "The intelligence model detects a clear difference between the leading match outcomes."
@@ -584,7 +758,8 @@ function buildPublicPrediction(
   }
 
   if (
-    markets.over25 >= 65
+    markets.over25 >=
+    65
   ) {
     keyInsights.push(
       "The goal model identifies an elevated scoring environment."
@@ -592,7 +767,8 @@ function buildPublicPrediction(
   }
 
   if (
-    markets.under25 >= 65
+    markets.under25 >=
+    65
   ) {
     keyInsights.push(
       "The goal model identifies a lower-scoring match environment."
@@ -600,7 +776,8 @@ function buildPublicPrediction(
   }
 
   if (
-    markets.btts >= 60
+    markets.btts >=
+    60
   ) {
     keyInsights.push(
       "Both teams show a positive scoring signal."
@@ -608,7 +785,8 @@ function buildPublicPrediction(
   }
 
   if (
-    dataCompleteness.vipReady
+    dataCompleteness
+      .vipReady
   ) {
     keyInsights.push(
       `Prediction data quality is ${dataCompleteness.level} with a completeness score of ${dataCompleteness.score}/100.`
@@ -628,7 +806,8 @@ function buildPublicPrediction(
     keyInsights,
 
     teaser:
-      dataCompleteness.vipReady
+      dataCompleteness
+        .vipReady
         ? "The final prediction, confidence score, exact-score estimate, and value selection are reserved for VIP."
         : "VIP prediction details are withheld until the available match data meets the required quality threshold.",
   };
@@ -645,13 +824,20 @@ function buildDataReasoning(
 
     `Available evidence factors: ${dataCompleteness.summary.availableFactors}/${dataCompleteness.summary.totalFactors}.`,
 
-    `VIP readiness is ${dataCompleteness.vipReady ? "approved" : "not approved"}.`,
+    `VIP readiness is ${
+      dataCompleteness
+        .vipReady
+        ? "approved"
+        : "not approved"
+    }.`,
   ];
 
   dataCompleteness
     .missingCritical
     .forEach(
-      (item) => {
+      (
+        item
+      ) => {
         reasoning.push(
           `Critical data issue: ${item}`
         );
@@ -661,7 +847,9 @@ function buildDataReasoning(
   dataCompleteness
     .missingOptional
     .forEach(
-      (item) => {
+      (
+        item
+      ) => {
         reasoning.push(
           `Optional data gap: ${item}`
         );
@@ -671,7 +859,9 @@ function buildDataReasoning(
   dataCompleteness
     .warnings
     .forEach(
-      (item) => {
+      (
+        item
+      ) => {
         reasoning.push(
           `Data warning: ${item}`
         );
@@ -700,41 +890,67 @@ export function calculateAIScore(
     });
 
   const goals =
-    calculateGoals(match);
+    calculateGoals(
+      match
+    );
 
   const homeMatchupRating =
-    intelligence.home
-      .overallRating * 0.45 +
-    intelligence.home
-      .attackRating * 0.2 +
-    intelligence.home
-      .venueRating * 0.15 +
-    intelligence.home
-      .formRating * 0.1 +
-    intelligence.home
-      .momentumRating * 0.1 +
+    intelligence
+      .home
+      .overallRating *
+      0.45 +
+    intelligence
+      .home
+      .attackRating *
+      0.2 +
+    intelligence
+      .home
+      .venueRating *
+      0.15 +
+    intelligence
+      .home
+      .formRating *
+      0.1 +
+    intelligence
+      .home
+      .momentumRating *
+      0.1 +
     (
       100 -
-      intelligence.away
+      intelligence
+        .away
         .defenseRating
-    ) * 0.1;
+    ) *
+      0.1;
 
   const awayMatchupRating =
-    intelligence.away
-      .overallRating * 0.45 +
-    intelligence.away
-      .attackRating * 0.2 +
-    intelligence.away
-      .venueRating * 0.15 +
-    intelligence.away
-      .formRating * 0.1 +
-    intelligence.away
-      .momentumRating * 0.1 +
+    intelligence
+      .away
+      .overallRating *
+      0.45 +
+    intelligence
+      .away
+      .attackRating *
+      0.2 +
+    intelligence
+      .away
+      .venueRating *
+      0.15 +
+    intelligence
+      .away
+      .formRating *
+      0.1 +
+    intelligence
+      .away
+      .momentumRating *
+      0.1 +
     (
       100 -
-      intelligence.home
+      intelligence
+        .home
         .defenseRating
-    ) * 0.1;
+    ) *
+      0.1;
 
   const mainProbabilities =
     buildMainProbabilities(
@@ -745,7 +961,8 @@ export function calculateAIScore(
     );
 
   const markets:
-    PredictionMarketProbabilities = {
+    PredictionMarketProbabilities =
+    {
       ...mainProbabilities,
 
       over25:
@@ -782,7 +999,8 @@ export function calculateAIScore(
 
   const riskResult =
     applyDataRiskAdjustment(
-      baseRiskResult.riskScore,
+      baseRiskResult
+        .riskScore,
       dataCompleteness
     );
 
@@ -794,6 +1012,14 @@ export function calculateAIScore(
       riskResult.risk
     );
 
+  /*
+   * One canonical 1X2 prediction
+   * is selected first.
+   *
+   * The exact-score estimate is
+   * then aligned with that result
+   * and the Over/Under market.
+   */
   const calculatedFinalPrediction =
     chooseFinalPrediction(
       markets
@@ -803,16 +1029,19 @@ export function calculateAIScore(
     chooseExactScore(
       goals.homeExpectedGoals,
       goals.awayExpectedGoals,
-      markets
+      markets,
+      calculatedFinalPrediction
     );
 
   const finalPrediction =
-    dataCompleteness.vipReady
+    dataCompleteness
+      .vipReady
       ? calculatedFinalPrediction
       : "Insufficient Data";
 
   const exactScore =
-    dataCompleteness.vipReady
+    dataCompleteness
+      .vipReady
       ? calculatedExactScore
       : "N/A";
 
@@ -824,44 +1053,49 @@ export function calculateAIScore(
       dataCompleteness
     );
 
-  const vipReasoning = [
-    `Home overall rating is ${intelligence.home.overallRating}/100 and away overall rating is ${intelligence.away.overallRating}/100.`,
+  const vipReasoning =
+    [
+      `Home overall rating is ${intelligence.home.overallRating}/100 and away overall rating is ${intelligence.away.overallRating}/100.`,
 
-    `The rating difference is ${intelligence.ratingDifference} points with evidence reliability of ${Math.round(
-      intelligence.evidenceReliability * 100
-    )}%.`,
+      `The rating difference is ${intelligence.ratingDifference} points with evidence reliability of ${Math.round(
+        intelligence
+          .evidenceReliability *
+          100
+      )}%.`,
 
-    `Home attack and defense ratings are ${intelligence.home.attackRating} and ${intelligence.home.defenseRating}.`,
+      `Home attack and defense ratings are ${intelligence.home.attackRating} and ${intelligence.home.defenseRating}.`,
 
-    `Away attack and defense ratings are ${intelligence.away.attackRating} and ${intelligence.away.defenseRating}.`,
+      `Away attack and defense ratings are ${intelligence.away.attackRating} and ${intelligence.away.defenseRating}.`,
 
-    `Recent form ratings are ${intelligence.home.formRating} for the home team and ${intelligence.away.formRating} for the away team.`,
+      `Recent form ratings are ${intelligence.home.formRating} for the home team and ${intelligence.away.formRating} for the away team.`,
 
-    `Momentum ratings are ${intelligence.home.momentumRating} for the home team and ${intelligence.away.momentumRating} for the away team.`,
+      `Momentum ratings are ${intelligence.home.momentumRating} for the home team and ${intelligence.away.momentumRating} for the away team.`,
 
-    `Expected goals are ${goals.homeExpectedGoals.toFixed(
-      2
-    )} for the home team and ${goals.awayExpectedGoals.toFixed(
-      2
-    )} for the away team.`,
+      `Expected goals are ${goals.homeExpectedGoals.toFixed(
+        2
+      )} for the home team and ${goals.awayExpectedGoals.toFixed(
+        2
+      )} for the away team.`,
 
-    `The exact-score estimate is ${exactScore}, aligned with the model's stronger ${
-      markets.over25 >
-      markets.under25
-        ? "Over 2.5"
-        : "Under 2.5"
-    } goal-market signal.`,
+      `The final match outcome is ${finalPrediction} and the consistent exact-score estimate is ${exactScore}.`,
 
-    `Base model confidence was ${baseConfidence}% and data-adjusted confidence is ${confidence}%.`,
+      `The exact-score estimate is aligned with the model's stronger ${
+        markets.over25 >
+        markets.under25
+          ? "Over 2.5"
+          : "Under 2.5"
+      } goal-market signal.`,
 
-    `The prediction risk is ${riskResult.risk} with a data-adjusted score of ${riskResult.riskScore}/100.`,
+      `Base model confidence was ${baseConfidence}% and data-adjusted confidence is ${confidence}%.`,
 
-    `The selected value signal is ${valueBet}.`,
+      `The prediction risk is ${riskResult.risk} with a data-adjusted score of ${riskResult.riskScore}/100.`,
 
-    ...buildDataReasoning(
-      dataCompleteness
-    ),
-  ];
+      `The selected value signal is ${valueBet}.`,
+
+      ...buildDataReasoning(
+        dataCompleteness
+      ),
+    ];
 
   return {
     confidence,
@@ -933,17 +1167,24 @@ export function calculateAIScore(
         DATA_VERSION,
 
       generatedAt:
-        generatedAt.toISOString(),
+        generatedAt
+          .toISOString(),
     },
 
     review: {
-      approved: false,
-      reviewedBy: null,
-      reviewedAt: null,
+      approved:
+        false,
+
+      reviewedBy:
+        null,
+
+      reviewedAt:
+        null,
     },
 
     status:
-      dataCompleteness.vipReady
+      dataCompleteness
+        .vipReady
         ? "review"
         : "draft",
   };
