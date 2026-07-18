@@ -1,11 +1,48 @@
 import { cookies } from "next/headers";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+
+import {
+  adminAuth,
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+function getErrorDetails(
+  error: unknown
+) {
+  if (error instanceof Error) {
+    const code =
+      "code" in error
+        ? String(
+            (
+              error as Error & {
+                code?: unknown;
+              }
+            ).code
+          )
+        : null;
+
+    return {
+      name: error.name,
+      message: error.message,
+      code,
+    };
+  }
+
+  return {
+    name: "UnknownError",
+    message: String(error),
+    code: null,
+  };
+}
 
 export async function getServerAdminUser() {
   try {
-    const cookieStore = await cookies();
+    const cookieStore =
+      await cookies();
+
     const sessionCookie =
-      cookieStore.get("firebaseSession")?.value;
+      cookieStore.get(
+        "firebaseSession"
+      )?.value;
 
     if (!sessionCookie) {
       console.error(
@@ -25,8 +62,11 @@ export async function getServerAdminUser() {
         );
     } catch (error) {
       console.error(
-        "[SERVER_ADMIN_AUTH] verifySessionCookie failed:",
-        error
+        `[SERVER_ADMIN_AUTH_SESSION_ERROR] ${JSON.stringify(
+          getErrorDetails(
+            error
+          )
+        )}`
       );
 
       return null;
@@ -50,8 +90,11 @@ export async function getServerAdminUser() {
         .get();
     } catch (error) {
       console.error(
-        "[SERVER_ADMIN_AUTH] Firestore user lookup failed:",
-        error
+        `[SERVER_ADMIN_AUTH_FIRESTORE_ERROR] ${JSON.stringify(
+          getErrorDetails(
+            error
+          )
+        )}`
       );
 
       return null;
@@ -66,7 +109,8 @@ export async function getServerAdminUser() {
       return null;
     }
 
-    const user = userDoc.data();
+    const user =
+      userDoc.data();
 
     console.log(
       "[SERVER_ADMIN_AUTH] User document loaded:",
@@ -77,7 +121,9 @@ export async function getServerAdminUser() {
       }
     );
 
-    if (user?.role !== "admin") {
+    if (
+      user?.role !== "admin"
+    ) {
       console.error(
         "[SERVER_ADMIN_AUTH] User is not admin:",
         {
@@ -94,12 +140,15 @@ export async function getServerAdminUser() {
       uid: decoded.uid,
       email:
         decoded.email || null,
-      role: "admin",
+      role: "admin" as const,
     };
   } catch (error) {
     console.error(
-      "[SERVER_ADMIN_AUTH] Unexpected failure:",
-      error
+      `[SERVER_ADMIN_AUTH_UNEXPECTED_ERROR] ${JSON.stringify(
+        getErrorDetails(
+          error
+        )
+      )}`
     );
 
     return null;
