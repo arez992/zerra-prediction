@@ -1,30 +1,57 @@
 async function getAccuracy() {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://zerra-prediction.vercel.app";
 
-    const res = await fetch(`${siteUrl}/api/ai/accuracy`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${siteUrl}/api/ai/accuracy`,
+      {
+        next: {
+          revalidate: 3600,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return null;
+    }
 
     const data = await res.json();
 
-    if (data?.success) return data;
+    if (data?.success) {
+      return data;
+    }
 
     return null;
-  } catch {
+  } catch (error) {
+    console.error(
+      "[AI_ACCURACY_CARD_ERROR]",
+      error
+    );
+
     return null;
   }
 }
 
 export default async function AIAccuracyCard() {
-  const accuracy = await getAccuracy();
+  const accuracy =
+    await getAccuracy();
 
-  const overall = accuracy?.overallAccuracy ?? 0;
-  const over25 = accuracy?.over25Accuracy ?? 0;
-  const btts = accuracy?.bttsAccuracy ?? 0;
-  const homeWin = accuracy?.homeWinAccuracy ?? 0;
-  const total = accuracy?.totalPredictions ?? 0;
+  const overall =
+    accuracy?.overallAccuracy ?? 0;
+
+  const over25 =
+    accuracy?.over25Accuracy ?? 0;
+
+  const btts =
+    accuracy?.bttsAccuracy ?? 0;
+
+  const homeWin =
+    accuracy?.homeWinAccuracy ?? 0;
+
+  const total =
+    accuracy?.totalPredictions ?? 0;
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-12">
@@ -45,15 +72,31 @@ export default async function AIAccuracyCard() {
             </p>
 
             <p className="mt-4 text-sm font-bold text-white/40">
-              Total tracked predictions: {total}
+              Total tracked predictions:{" "}
+              {total}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Stat title="Overall Accuracy" value={`${overall}%`} />
-            <Stat title="Over/Under" value={`${over25}%`} />
-            <Stat title="BTTS" value={`${btts}%`} />
-            <Stat title="Home Win" value={`${homeWin}%`} />
+            <Stat
+              title="Overall Accuracy"
+              value={`${overall}%`}
+            />
+
+            <Stat
+              title="Over/Under"
+              value={`${over25}%`}
+            />
+
+            <Stat
+              title="BTTS"
+              value={`${btts}%`}
+            />
+
+            <Stat
+              title="Home Win"
+              value={`${homeWin}%`}
+            />
           </div>
         </div>
       </div>
@@ -61,11 +104,22 @@ export default async function AIAccuracyCard() {
   );
 }
 
-function Stat({ title, value }: { title: string; value: string }) {
+function Stat({
+  title,
+  value,
+}: {
+  title: string;
+  value: string;
+}) {
   return (
     <div className="rounded-3xl border border-white/10 bg-black/30 p-5 text-center">
-      <p className="text-sm text-white/50">{title}</p>
-      <p className="mt-2 text-4xl font-black text-[#D4AF37]">{value}</p>
+      <p className="text-sm text-white/50">
+        {title}
+      </p>
+
+      <p className="mt-2 text-4xl font-black text-[#D4AF37]">
+        {value}
+      </p>
     </div>
   );
 }
