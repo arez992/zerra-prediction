@@ -19,19 +19,43 @@ type UseDashboardPredictionsOptions = {
   enabled: boolean;
 };
 
-type PredictionRequestResult = {
-  fixtureId: number;
-  prediction: PredictionResult | null;
-  error: boolean;
+type BatchPredictionItem = {
+  vipPrediction?: {
+    confidence?: unknown;
+    exactScore?: unknown;
+    valueBet?: unknown;
+    finalPrediction?: unknown;
+    reasoning?: unknown;
+    markets?: {
+      homeWin?: unknown;
+      draw?: unknown;
+      awayWin?: unknown;
+      over25?: unknown;
+      under25?: unknown;
+      btts?: unknown;
+    };
+  };
+};
+
+type BatchResponse = {
+  success?: boolean;
+  predictions?: Record<
+    string,
+    BatchPredictionItem
+  >;
+  error?: string;
 };
 
 function normalizeNumber(
   value: unknown,
   fallback = 0
 ): number {
-  const parsedValue = Number(value);
+  const parsedValue =
+    Number(value);
 
-  return Number.isFinite(parsedValue)
+  return Number.isFinite(
+    parsedValue
+  )
     ? parsedValue
     : fallback;
 }
@@ -39,268 +63,100 @@ function normalizeNumber(
 function normalizePercent(
   value: unknown
 ): number {
-  const parsedValue =
-    normalizeNumber(value);
-
   return Math.max(
     0,
-    Math.min(100, parsedValue)
+    Math.min(
+      100,
+      normalizeNumber(value)
+    )
   );
 }
 
 function extractPrediction(
-  payload: unknown
+  item: BatchPredictionItem | undefined
 ): PredictionResult | null {
+  const vipPrediction =
+    item?.vipPrediction;
+
   if (
-    !payload ||
-    typeof payload !== "object"
+    !vipPrediction ||
+    typeof vipPrediction !==
+      "object"
   ) {
     return null;
   }
 
-  const response = payload as Record<
-    string,
-    any
-  >;
+  const markets =
+    vipPrediction.markets &&
+    typeof vipPrediction.markets ===
+      "object"
+      ? vipPrediction.markets
+      : {};
 
-  /*
-   * Current VIP API response:
-   *
-   * {
-   *   prediction: {
-   *     vipPrediction: {
-   *       confidence,
-   *       exactScore,
-   *       valueBet,
-   *       markets: {
-   *         homeWin,
-   *         draw,
-   *         awayWin,
-   *         over25,
-   *         under25,
-   *         btts
-   *       }
-   *     }
-   *   }
-   * }
-   */
-  const vipPrediction =
-    response?.prediction?.vipPrediction;
+  return {
+    homeWin: normalizePercent(
+      markets.homeWin
+    ),
 
-  if (
-    vipPrediction &&
-    typeof vipPrediction === "object"
-  ) {
-    const markets =
-      vipPrediction.markets &&
-      typeof vipPrediction.markets ===
-        "object"
-        ? vipPrediction.markets
-        : {};
+    draw: normalizePercent(
+      markets.draw
+    ),
 
-    return {
-      homeWin: normalizePercent(
-        markets.homeWin
-      ),
-      draw: normalizePercent(
-        markets.draw
-      ),
-      awayWin: normalizePercent(
-        markets.awayWin
-      ),
-      confidence: normalizePercent(
+    awayWin: normalizePercent(
+      markets.awayWin
+    ),
+
+    confidence:
+      normalizePercent(
         vipPrediction.confidence
       ),
 
-      over25: normalizePercent(
+    over25:
+      normalizePercent(
         markets.over25
       ),
-      under25: normalizePercent(
+
+    under25:
+      normalizePercent(
         markets.under25
       ),
-      btts: normalizePercent(
+
+    btts:
+      normalizePercent(
         markets.btts
       ),
 
-      exactScore:
-        typeof vipPrediction.exactScore ===
-        "string"
-          ? vipPrediction.exactScore
-          : "",
+    exactScore:
+      typeof vipPrediction.exactScore ===
+      "string"
+        ? vipPrediction.exactScore
+        : "",
 
-      valueBet:
-        typeof vipPrediction.valueBet ===
-        "string"
-          ? vipPrediction.valueBet
-          : "",
+    valueBet:
+      typeof vipPrediction.valueBet ===
+      "string"
+        ? vipPrediction.valueBet
+        : "",
 
-      finalPrediction:
-        typeof vipPrediction.finalPrediction ===
-        "string"
-          ? vipPrediction.finalPrediction
-          : "",
+    finalPrediction:
+      typeof vipPrediction.finalPrediction ===
+      "string"
+        ? vipPrediction.finalPrediction
+        : "",
 
-      reasoning: Array.isArray(
+    reasoning:
+      Array.isArray(
         vipPrediction.reasoning
       )
         ? vipPrediction.reasoning.filter(
             (
-              item: unknown
+              item
             ): item is string =>
-              typeof item === "string"
+              typeof item ===
+              "string"
           )
         : [],
-    } as unknown as PredictionResult;
-  }
-
-  /*
-   * Legacy flat prediction:
-   *
-   * {
-   *   prediction: {
-   *     homeWin,
-   *     draw,
-   *     awayWin,
-   *     confidence
-   *   }
-   * }
-   */
-  const directPrediction =
-    response?.prediction;
-
-  if (
-    directPrediction &&
-    typeof directPrediction ===
-      "object" &&
-    directPrediction.homeWin !==
-      undefined
-  ) {
-    return directPrediction as PredictionResult;
-  }
-
-  /*
-   * Legacy wrapped response:
-   *
-   * {
-   *   data: {
-   *     prediction: {...}
-   *   }
-   * }
-   */
-  const wrappedPrediction =
-    response?.data?.prediction;
-
-  if (
-    wrappedPrediction &&
-    typeof wrappedPrediction ===
-      "object"
-  ) {
-    return wrappedPrediction as PredictionResult;
-  }
-
-  /*
-   * Legacy flat data response:
-   *
-   * {
-   *   data: {
-   *     homeWin,
-   *     draw,
-   *     awayWin
-   *   }
-   * }
-   */
-  if (
-    response?.data &&
-    typeof response.data ===
-      "object" &&
-    response.data.homeWin !== undefined
-  ) {
-    return response.data as PredictionResult;
-  }
-
-  return null;
-}
-
-async function requestPrediction(
-  fixtureId: number,
-  signal: AbortSignal
-): Promise<PredictionRequestResult> {
-  try {
-    const response = await fetch(
-      `/api/vip/predictions/${fixtureId}`,
-      {
-        method: "GET",
-        cache: "no-store",
-        signal,
-        headers: {
-          Accept: "application/json",
-        },
-      }
-    );
-
-    /*
-     * 404 واتە prediction ـی ئەم یارییە
-     * هێشتا publish نەکراوە.
-     * ئەمە server error نییە.
-     */
-    if (response.status === 404) {
-      return {
-        fixtureId,
-        prediction: null,
-        error: false,
-      };
-    }
-
-    /*
-     * 401/403 واتە کێشەی access یان session.
-     */
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      return {
-        fixtureId,
-        prediction: null,
-        error: true,
-      };
-    }
-
-    if (!response.ok) {
-      return {
-        fixtureId,
-        prediction: null,
-        error: true,
-      };
-    }
-
-    const payload: unknown =
-      await response.json();
-
-    return {
-      fixtureId,
-      prediction:
-        extractPrediction(payload),
-      error: false,
-    };
-  } catch (error) {
-    if (
-      error instanceof DOMException &&
-      error.name === "AbortError"
-    ) {
-      throw error;
-    }
-
-    console.error(
-      `[DASHBOARD_PREDICTION_ERROR:${fixtureId}]`,
-      error
-    );
-
-    return {
-      fixtureId,
-      prediction: null,
-      error: true,
-    };
-  }
+  } as unknown as PredictionResult;
 }
 
 export function useDashboardPredictions({
@@ -310,54 +166,72 @@ export function useDashboardPredictions({
   const [
     predictions,
     setPredictions,
-  ] = useState<PredictionMap>({});
+  ] =
+    useState<PredictionMap>({});
 
   const [
     loadingIds,
     setLoadingIds,
-  ] = useState<Set<number>>(
-    () => new Set()
-  );
+  ] =
+    useState<Set<number>>(
+      () => new Set()
+    );
 
   const [
     errorIds,
     setErrorIds,
-  ] = useState<Set<number>>(
-    () => new Set()
-  );
+  ] =
+    useState<Set<number>>(
+      () => new Set()
+    );
 
-  const requestedIdsRef = useRef<
-    Set<number>
-  >(new Set());
+  const requestedIdsRef =
+    useRef<Set<number>>(
+      new Set()
+    );
 
-  const stableIds = useMemo(() => {
-    return Array.from(
-      new Set(
-        fixtureIds.filter(
-          (id) =>
-            Number.isInteger(id) &&
-            id > 0
+  const stableIds =
+    useMemo(() => {
+      return Array.from(
+        new Set(
+          fixtureIds.filter(
+            (id) =>
+              Number.isInteger(
+                id
+              ) &&
+              id > 0
+          )
         )
-      )
-    ).sort((first, second) => {
-      return first - second;
-    });
-  }, [fixtureIds]);
+      ).sort(
+        (
+          first,
+          second
+        ) =>
+          first - second
+      );
+    }, [fixtureIds]);
 
-  const idsKey = stableIds.join(",");
+  const idsKey =
+    stableIds.join(",");
 
   useEffect(() => {
     if (!enabled) {
       requestedIdsRef.current.clear();
 
       setPredictions({});
-      setLoadingIds(new Set());
-      setErrorIds(new Set());
+      setLoadingIds(
+        new Set()
+      );
+      setErrorIds(
+        new Set()
+      );
 
       return;
     }
 
-    if (stableIds.length === 0) {
+    if (
+      stableIds.length === 0
+    ) {
       return;
     }
 
@@ -369,7 +243,9 @@ export function useDashboardPredictions({
           )
       );
 
-    if (idsToLoad.length === 0) {
+    if (
+      idsToLoad.length === 0
+    ) {
       return;
     }
 
@@ -384,41 +260,71 @@ export function useDashboardPredictions({
     const controller =
       new AbortController();
 
-    setLoadingIds((current) => {
-      const next = new Set(current);
+    setLoadingIds(
+      (current) => {
+        const next =
+          new Set(current);
 
-      idsToLoad.forEach(
-        (fixtureId) => {
-          next.add(fixtureId);
-        }
-      );
+        idsToLoad.forEach(
+          (fixtureId) => {
+            next.add(
+              fixtureId
+            );
+          }
+        );
 
-      return next;
-    });
+        return next;
+      }
+    );
 
-    setErrorIds((current) => {
-      const next = new Set(current);
+    setErrorIds(
+      (current) => {
+        const next =
+          new Set(current);
 
-      idsToLoad.forEach(
-        (fixtureId) => {
-          next.delete(fixtureId);
-        }
-      );
+        idsToLoad.forEach(
+          (fixtureId) => {
+            next.delete(
+              fixtureId
+            );
+          }
+        );
 
-      return next;
-    });
+        return next;
+      }
+    );
 
     async function loadPredictions() {
       try {
-        const results =
-          await Promise.all(
-            idsToLoad.map(
-              (fixtureId) =>
-                requestPrediction(
-                  fixtureId,
-                  controller.signal
-                )
-            )
+        const response =
+          await fetch(
+            "/api/vip/predictions",
+            {
+              method:
+                "POST",
+
+              cache:
+                "no-store",
+
+              signal:
+                controller.signal,
+
+              headers: {
+                Accept:
+                  "application/json",
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify(
+                  {
+                    fixtureIds:
+                      idsToLoad,
+                  }
+                ),
+            }
           );
 
         if (
@@ -427,18 +333,60 @@ export function useDashboardPredictions({
           return;
         }
 
+        if (
+          !response.ok
+        ) {
+          setErrorIds(
+            (current) => {
+              const next =
+                new Set(
+                  current
+                );
+
+              idsToLoad.forEach(
+                (
+                  fixtureId
+                ) => {
+                  next.add(
+                    fixtureId
+                  );
+                }
+              );
+
+              return next;
+            }
+          );
+
+          return;
+        }
+
+        const payload =
+          (await response.json()) as BatchResponse;
+
+        const batchPredictions =
+          payload.predictions ||
+          {};
+
         setPredictions(
           (current) => {
             const next = {
               ...current,
             };
 
-            results.forEach(
-              (result) => {
+            idsToLoad.forEach(
+              (
+                fixtureId
+              ) => {
                 next[
-                  result.fixtureId
+                  fixtureId
                 ] =
-                  result.prediction;
+                  extractPrediction(
+                    batchPredictions[
+                      String(
+                        fixtureId
+                      )
+                    ]
+                  );
               }
             );
 
@@ -446,26 +394,26 @@ export function useDashboardPredictions({
           }
         );
 
-        setErrorIds((current) => {
-          const next =
-            new Set(current);
+        setErrorIds(
+          (current) => {
+            const next =
+              new Set(
+                current
+              );
 
-          results.forEach(
-            (result) => {
-              if (result.error) {
-                next.add(
-                  result.fixtureId
-                );
-              } else {
+            idsToLoad.forEach(
+              (
+                fixtureId
+              ) => {
                 next.delete(
-                  result.fixtureId
+                  fixtureId
                 );
               }
-            }
-          );
+            );
 
-          return next;
-        });
+            return next;
+          }
+        );
       } catch (error) {
         if (
           error instanceof
@@ -477,8 +425,29 @@ export function useDashboardPredictions({
         }
 
         console.error(
-          "[DASHBOARD_PREDICTIONS_LOAD_ERROR]",
+          "[DASHBOARD_PREDICTIONS_BATCH_ERROR]",
           error
+        );
+
+        setErrorIds(
+          (current) => {
+            const next =
+              new Set(
+                current
+              );
+
+            idsToLoad.forEach(
+              (
+                fixtureId
+              ) => {
+                next.add(
+                  fixtureId
+                );
+              }
+            );
+
+            return next;
+          }
         );
       } finally {
         if (
@@ -487,10 +456,14 @@ export function useDashboardPredictions({
           setLoadingIds(
             (current) => {
               const next =
-                new Set(current);
+                new Set(
+                  current
+                );
 
               idsToLoad.forEach(
-                (fixtureId) => {
+                (
+                  fixtureId
+                ) => {
                   next.delete(
                     fixtureId
                   );
@@ -509,11 +482,6 @@ export function useDashboardPredictions({
     return () => {
       controller.abort();
 
-      /*
-       * ئەگەر request ـەکە لەبەر
-       * گۆڕانی page یان fixture abort بوو،
-       * ڕێگە دەدەین دواتر دووبارە load بکرێت.
-       */
       idsToLoad.forEach(
         (fixtureId) => {
           requestedIdsRef.current.delete(
@@ -522,7 +490,10 @@ export function useDashboardPredictions({
         }
       );
     };
-  }, [enabled, idsKey]);
+  }, [
+    enabled,
+    idsKey,
+  ]);
 
   return {
     predictions,
