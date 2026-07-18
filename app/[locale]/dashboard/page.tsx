@@ -30,6 +30,12 @@ type SortType =
   | "time"
   | "confidence";
 
+type LeagueItem = {
+  key: string;
+  name: string;
+  count: number;
+};
+
 const LIVE_STATUSES = [
   "1H",
   "2H",
@@ -52,8 +58,7 @@ function formatDateValue(
 
   const month =
     String(
-      date.getMonth() +
-        1
+      date.getMonth() + 1
     ).padStart(
       2,
       "0"
@@ -81,8 +86,7 @@ function getTomorrow() {
     new Date();
 
   date.setDate(
-    date.getDate() +
-      1
+    date.getDate() + 1
   );
 
   return formatDateValue(
@@ -92,7 +96,7 @@ function getTomorrow() {
 
 function formatMatchTime(
   value?: string
-) {
+): string {
   if (!value) {
     return "TBD";
   }
@@ -117,6 +121,17 @@ function formatMatchTime(
         "2-digit",
     }
   ).format(date);
+}
+
+function normalizeLeagueKey(
+  value: string
+): string {
+  return value
+    .toLowerCase()
+    .replace(
+      /[^a-z0-9\u00c0-\u024f]+/g,
+      ""
+    );
 }
 
 function getGoalPrediction(
@@ -145,6 +160,7 @@ function getGoalPrediction(
     return {
       label:
         "Over 2.5 Goals",
+
       confidence:
         over25,
     };
@@ -153,6 +169,7 @@ function getGoalPrediction(
   return {
     label:
       "Under 2.5 Goals",
+
     confidence:
       under25,
   };
@@ -187,7 +204,9 @@ export default function DashboardPage() {
     loading,
     setLoading,
   ] =
-    useState(true);
+    useState(
+      true
+    );
 
   const [
     activeFilter,
@@ -225,6 +244,14 @@ export default function DashboardPage() {
   ] =
     useState<SortType>(
       "time"
+    );
+
+  const [
+    showAllLeagues,
+    setShowAllLeagues,
+  ] =
+    useState(
+      false
     );
 
   useEffect(() => {
@@ -327,57 +354,101 @@ export default function DashboardPage() {
   ]);
 
   const leagues =
-    useMemo(
+    useMemo<
+      LeagueItem[]
+    >(
       () => {
         const map =
           new Map<
             string,
-            number
+            LeagueItem
           >();
 
         fixtures.forEach(
           (
             match
           ) => {
-            const name =
-              match?.league
-                ?.name;
+            const rawName =
+              String(
+                match
+                  ?.league
+                  ?.name ||
+                  ""
+              ).trim();
 
             if (
-              !name
+              !rawName
             ) {
               return;
             }
 
+            const key =
+              normalizeLeagueKey(
+                rawName
+              );
+
+            const current =
+              map.get(
+                key
+              );
+
+            if (
+              current
+            ) {
+              current.count +=
+                1;
+
+              return;
+            }
+
             map.set(
-              name,
-              (
-                map.get(
-                  name
-                ) ||
-                0
-              ) +
-                1
+              key,
+              {
+                key,
+                name:
+                  rawName,
+                count:
+                  1,
+              }
             );
           }
         );
 
         return Array.from(
-          map.entries()
+          map.values()
         ).sort(
           (
             first,
             second
-          ) =>
-            first[0].localeCompare(
-              second[0]
-            )
+          ) => {
+            if (
+              second.count !==
+              first.count
+            ) {
+              return (
+                second.count -
+                first.count
+              );
+            }
+
+            return first.name.localeCompare(
+              second.name
+            );
+          }
         );
       },
       [
         fixtures,
       ]
     );
+
+  const visibleLeagues =
+    showAllLeagues
+      ? leagues
+      : leagues.slice(
+          0,
+          10
+        );
 
   const live =
     useMemo(
@@ -443,100 +514,108 @@ export default function DashboardPage() {
             .trim()
             .toLowerCase();
 
-        const filtered =
-          fixtures.filter(
-            (
+        return fixtures.filter(
+          (
+            match
+          ) => {
+            const status =
               match
-            ) => {
-              const status =
-                match
-                  ?.fixture
-                  ?.status
-                  ?.short;
+                ?.fixture
+                ?.status
+                ?.short;
 
-              const matchesFilter =
-                activeFilter ===
-                "live"
-                  ? LIVE_STATUSES.includes(
+            const matchesFilter =
+              activeFilter ===
+              "live"
+                ? LIVE_STATUSES.includes(
+                    status
+                  )
+                : activeFilter ===
+                    "finished"
+                  ? FINISHED_STATUSES.includes(
                       status
                     )
                   : activeFilter ===
-                      "finished"
-                    ? FINISHED_STATUSES.includes(
-                        status
-                      )
-                    : activeFilter ===
-                        "upcoming"
-                      ? status ===
-                        "NS"
-                      : true;
+                      "upcoming"
+                    ? status ===
+                      "NS"
+                    : true;
 
-              const matchesLeague =
-                selectedLeague ===
-                  "all" ||
+            const leagueName =
+              String(
                 match
                   ?.league
-                  ?.name ===
-                  selectedLeague;
+                  ?.name ||
+                  ""
+              );
 
-              const country =
+            const leagueKey =
+              normalizeLeagueKey(
+                leagueName
+              );
+
+            const matchesLeague =
+              selectedLeague ===
+                "all" ||
+              leagueKey ===
+                selectedLeague;
+
+            const country =
+              String(
                 match
                   ?.league
-                  ?.country ??
-                "";
+                  ?.country ||
+                  ""
+              );
 
-              const home =
+            const home =
+              String(
                 match
                   ?.teams
                   ?.home
-                  ?.name ??
-                "";
+                  ?.name ||
+                  ""
+              );
 
-              const away =
+            const away =
+              String(
                 match
                   ?.teams
                   ?.away
-                  ?.name ??
-                "";
-
-              const league =
-                match
-                  ?.league
-                  ?.name ??
-                "";
-
-              const matchesSearch =
-                !search ||
-                home
-                  .toLowerCase()
-                  .includes(
-                    search
-                  ) ||
-                away
-                  .toLowerCase()
-                  .includes(
-                    search
-                  ) ||
-                league
-                  .toLowerCase()
-                  .includes(
-                    search
-                  ) ||
-                country
-                  .toLowerCase()
-                  .includes(
-                    search
-                  );
-
-              return (
-                matchesFilter &&
-                matchesLeague &&
-                matchesSearch
+                  ?.name ||
+                  ""
               );
-            }
-          );
 
-        return filtered;
+            const matchesSearch =
+              !search ||
+              home
+                .toLowerCase()
+                .includes(
+                  search
+                ) ||
+              away
+                .toLowerCase()
+                .includes(
+                  search
+                ) ||
+              leagueName
+                .toLowerCase()
+                .includes(
+                  search
+                ) ||
+              country
+                .toLowerCase()
+                .includes(
+                  search
+                );
+
+            return (
+              matchesFilter &&
+              matchesLeague &&
+              matchesSearch
+            );
+          }
+        );
       },
       [
         fixtures,
@@ -600,7 +679,7 @@ export default function DashboardPage() {
 
         if (
           sortType ===
-          "confidence" &&
+            "confidence" &&
           isVip
         ) {
           items.sort(
@@ -648,28 +727,19 @@ export default function DashboardPage() {
           (
             first,
             second
-          ) => {
-            const firstTime =
-              new Date(
-                first
-                  ?.fixture
-                  ?.date ??
-                  0
-              ).getTime();
-
-            const secondTime =
-              new Date(
-                second
-                  ?.fixture
-                  ?.date ??
-                  0
-              ).getTime();
-
-            return (
-              firstTime -
-              secondTime
-            );
-          }
+          ) =>
+            new Date(
+              first
+                ?.fixture
+                ?.date ??
+                0
+            ).getTime() -
+            new Date(
+              second
+                ?.fixture
+                ?.date ??
+                0
+            ).getTime()
         );
 
         return items;
@@ -767,162 +837,15 @@ export default function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7faf8] text-[#102117]">
-      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[230px_minmax(0,1fr)_280px]">
-        <aside className="hidden border-r border-[#e1e9e3] bg-white px-5 py-8 lg:block">
-          <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[#8a978e]">
-            Predictions
-          </p>
-
-          <div className="mt-4 grid gap-2">
-            {filters.map(
-              (
-                filter
-              ) => (
-                <button
-                  key={
-                    filter.value
-                  }
-                  type="button"
-                  onClick={() =>
-                    setActiveFilter(
-                      filter.value
-                    )
-                  }
-                  className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-bold transition ${
-                    activeFilter ===
-                    filter.value
-                      ? "bg-[#eaf7ef] text-[#0d7a40]"
-                      : "text-[#506056] hover:bg-[#f5f8f6]"
-                  }`}
-                >
-                  <span>
-                    {
-                      filter.label
-                    }
-                  </span>
-
-                  <span className="text-xs">
-                    {
-                      filter.count
-                    }
-                  </span>
-                </button>
-              )
-            )}
-          </div>
-
-          <div className="mt-8 border-t border-[#e7eee9] pt-6">
-            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[#8a978e]">
-              Filter by Competition
+    <main className="min-h-screen bg-[#f8faf8] text-[#102117]">
+      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)_290px]">
+        <aside className="hidden border-r border-[#e1e9e3] bg-white lg:block">
+          <div className="sticky top-[76px] max-h-[calc(100vh-76px)] overflow-y-auto px-5 py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8a978e]">
+              Predictions
             </p>
 
-            <div className="mt-4 grid gap-1">
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedLeague(
-                    "all"
-                  )
-                }
-                className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-sm font-bold ${
-                  selectedLeague ===
-                  "all"
-                    ? "bg-[#eaf7ef] text-[#0d7a40]"
-                    : "text-[#5f6d64] hover:bg-[#f5f8f6]"
-                }`}
-              >
-                <span>
-                  All Competitions
-                </span>
-
-                <span className="text-xs">
-                  {
-                    fixtures.length
-                  }
-                </span>
-              </button>
-
-              {leagues.map(
-                ([
-                  league,
-                  count,
-                ]) => (
-                  <button
-                    key={
-                      league
-                    }
-                    type="button"
-                    onClick={() =>
-                      setSelectedLeague(
-                        league
-                      )
-                    }
-                    className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-left text-sm font-bold ${
-                      selectedLeague ===
-                      league
-                        ? "bg-[#eaf7ef] text-[#0d7a40]"
-                        : "text-[#5f6d64] hover:bg-[#f5f8f6]"
-                    }`}
-                  >
-                    <span className="truncate">
-                      {
-                        league
-                      }
-                    </span>
-
-                    <span className="ml-2 text-xs">
-                      {
-                        count
-                      }
-                    </span>
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-
-          <div className="mt-8 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
-            <p className="text-sm font-black text-[#102117]">
-              Upgrade to VIP
-            </p>
-
-            <p className="mt-2 text-xs leading-6 text-[#66756c]">
-              Access full prediction
-              intelligence,
-              confidence signals,
-              exact scores, and
-              premium match analysis.
-            </p>
-
-            <Link
-              href={`/${locale}/vip`}
-              className="mt-5 flex justify-center rounded-xl bg-[#139653] px-4 py-3 text-sm font-black text-white"
-            >
-              View VIP Plans →
-            </Link>
-          </div>
-        </aside>
-
-        <section className="min-w-0 px-4 py-8 md:px-7 lg:px-8">
-          <div>
-            <p className="text-sm font-bold text-[#139653]">
-              ZERRA Football
-            </p>
-
-            <h1 className="mt-2 text-4xl font-black tracking-tight">
-              All Predictions
-            </h1>
-
-            <p className="mt-2 text-sm text-[#66756c]">
-              AI-powered football
-              predictions and real
-              fixture intelligence.
-            </p>
-          </div>
-
-          <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-[#dce8df] bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-4 grid gap-1.5">
               {filters.map(
                 (
                   filter
@@ -937,17 +860,20 @@ export default function DashboardPage() {
                         filter.value
                       )
                     }
-                    className={`rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                    className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-bold transition ${
                       activeFilter ===
                       filter.value
-                        ? "bg-[#139653] text-white"
-                        : "bg-[#f7faf8] text-[#506056] hover:bg-[#eaf7ef]"
+                        ? "bg-[#e8f6ed] text-[#08763b]"
+                        : "text-[#506056] hover:bg-[#f5f8f6]"
                     }`}
                   >
-                    {
-                      filter.label
-                    }{" "}
-                    <span className="ml-1 opacity-70">
+                    <span>
+                      {
+                        filter.label
+                      }
+                    </span>
+
+                    <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px]">
                       {
                         filter.count
                       }
@@ -957,57 +883,229 @@ export default function DashboardPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedDate(
+            <div className="mt-7 border-t border-[#e7eee9] pt-6">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8a978e]">
+                Filter by Competition
+              </p>
+
+              <div className="mt-3 grid gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedLeague(
+                      "all"
+                    )
+                  }
+                  className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-left text-sm font-bold ${
+                    selectedLeague ===
+                    "all"
+                      ? "bg-[#e8f6ed] text-[#08763b]"
+                      : "text-[#5f6d64] hover:bg-[#f5f8f6]"
+                  }`}
+                >
+                  <span>
+                    All Competitions
+                  </span>
+
+                  <span className="text-[10px]">
+                    {
+                      fixtures.length
+                    }
+                  </span>
+                </button>
+
+                {visibleLeagues.map(
+                  (
+                    league
+                  ) => (
+                    <button
+                      key={
+                        league.key
+                      }
+                      type="button"
+                      onClick={() =>
+                        setSelectedLeague(
+                          league.key
+                        )
+                      }
+                      className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-left text-sm font-bold ${
+                        selectedLeague ===
+                        league.key
+                          ? "bg-[#e8f6ed] text-[#08763b]"
+                          : "text-[#5f6d64] hover:bg-[#f5f8f6]"
+                      }`}
+                    >
+                      <span className="min-w-0 truncate">
+                        {
+                          league.name
+                        }
+                      </span>
+
+                      <span className="ml-3 shrink-0 text-[10px]">
+                        {
+                          league.count
+                        }
+                      </span>
+                    </button>
+                  )
+                )}
+
+                {leagues.length >
+                  10 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowAllLeagues(
+                        (
+                          current
+                        ) =>
+                          !current
+                      )
+                    }
+                    className="mt-1 rounded-xl px-4 py-2.5 text-left text-xs font-black text-[#139653] transition hover:bg-[#eaf7ef]"
+                  >
+                    {showAllLeagues
+                      ? "Show Less ↑"
+                      : `More Competitions (${leagues.length - 10}) ↓`}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {!isVip && (
+              <div className="mt-7 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
+                <p className="text-sm font-black">
+                  Upgrade to VIP
+                </p>
+
+                <p className="mt-2 text-xs leading-6 text-[#66756c]">
+                  Unlock full AI
+                  predictions,
+                  confidence signals,
+                  exact-score
+                  estimates, and
+                  premium analysis.
+                </p>
+
+                <Link
+                  href={`/${locale}/vip`}
+                  className="mt-5 flex justify-center rounded-xl bg-[#139653] px-4 py-3 text-xs font-black text-white transition hover:bg-[#0d7a40]"
+                >
+                  View VIP Plans →
+                </Link>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <section className="min-w-0 px-4 py-8 md:px-7 lg:px-8">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#139653]">
+              ZERRA Predictions
+            </p>
+
+            <h1 className="mt-2 text-4xl font-black tracking-tight">
+              All Predictions
+            </h1>
+
+            <p className="mt-2 text-sm text-[#66756c]">
+              AI-powered
+              predictions for real
+              upcoming football
+              matches.
+            </p>
+          </div>
+
+          <div className="mt-7 rounded-2xl border border-[#dce8df] bg-white p-3 shadow-[0_4px_20px_rgba(20,70,40,0.03)]">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {filters.map(
+                  (
+                    filter
+                  ) => (
+                    <button
+                      key={
+                        filter.value
+                      }
+                      type="button"
+                      onClick={() =>
+                        setActiveFilter(
+                          filter.value
+                        )
+                      }
+                      className={`rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                        activeFilter ===
+                        filter.value
+                          ? "bg-[#139653] text-white shadow-sm"
+                          : "bg-[#f7faf8] text-[#506056] hover:bg-[#eaf7ef]"
+                      }`}
+                    >
+                      {
+                        filter.label
+                      }
+
+                      <span className="ml-2 opacity-60">
+                        {
+                          filter.count
+                        }
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedDate(
+                      getToday()
+                    )
+                  }
+                  className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                    selectedDate ===
                     getToday()
-                  )
-                }
-                className={`rounded-xl px-4 py-2.5 text-sm font-bold ${
-                  selectedDate ===
-                  getToday()
-                    ? "bg-[#eaf7ef] text-[#0d7a40]"
-                    : "bg-[#f7faf8] text-[#66756c]"
-                }`}
-              >
-                Today
-              </button>
+                      ? "bg-[#e8f6ed] text-[#08763b]"
+                      : "bg-[#f7faf8] text-[#66756c]"
+                  }`}
+                >
+                  Today
+                </button>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedDate(
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedDate(
+                      getTomorrow()
+                    )
+                  }
+                  className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                    selectedDate ===
                     getTomorrow()
-                  )
-                }
-                className={`rounded-xl px-4 py-2.5 text-sm font-bold ${
-                  selectedDate ===
-                  getTomorrow()
-                    ? "bg-[#eaf7ef] text-[#0d7a40]"
-                    : "bg-[#f7faf8] text-[#66756c]"
-                }`}
-              >
-                Tomorrow
-              </button>
+                      ? "bg-[#e8f6ed] text-[#08763b]"
+                      : "bg-[#f7faf8] text-[#66756c]"
+                  }`}
+                >
+                  Tomorrow
+                </button>
 
-              <input
-                type="date"
-                value={
-                  selectedDate
-                }
-                onChange={(
-                  event
-                ) =>
-                  setSelectedDate(
+                <input
+                  type="date"
+                  value={
+                    selectedDate
+                  }
+                  onChange={(
                     event
-                      .target
-                      .value
-                  )
-                }
-                className="rounded-xl border border-[#dce8df] bg-white px-4 py-2.5 text-sm font-bold text-[#506056] outline-none focus:border-[#139653]"
-              />
+                  ) =>
+                    setSelectedDate(
+                      event
+                        .target
+                        .value
+                    )
+                  }
+                  className="rounded-xl border border-[#dce8df] bg-white px-4 py-2.5 text-sm font-bold text-[#506056] outline-none focus:border-[#139653]"
+                />
+              </div>
             </div>
           </div>
 
@@ -1050,19 +1148,19 @@ export default function DashboardPage() {
               </option>
 
               {leagues.map(
-                ([
-                  league,
-                ]) => (
+                (
+                  league
+                ) => (
                   <option
                     key={
-                      league
+                      league.key
                     }
                     value={
-                      league
+                      league.key
                     }
                   >
                     {
-                      league
+                      league.name
                     }
                   </option>
                 )
@@ -1079,7 +1177,8 @@ export default function DashboardPage() {
                 setSortType(
                   event
                     .target
-                    .value as SortType
+                    .value as
+                    SortType
                 )
               }
               className="rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm font-bold text-[#506056] outline-none"
@@ -1099,11 +1198,11 @@ export default function DashboardPage() {
             </select>
           </div>
 
-          <div className="mt-7">
+          <div className="mt-6">
             {loading ||
             vipLoading ? (
               <div className="rounded-2xl border border-[#dce8df] bg-white p-12 text-center">
-                <p className="font-black text-[#102117]">
+                <p className="font-black">
                   Loading football
                   fixtures...
                 </p>
@@ -1122,8 +1221,8 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-[#dce8df] bg-white">
-                <div className="hidden grid-cols-[1.7fr_0.55fr_1fr_0.55fr_0.4fr] gap-4 border-b border-[#e7eee9] bg-[#f7faf8] px-5 py-4 text-[10px] font-black uppercase tracking-[0.13em] text-[#89968d] xl:grid">
+              <div className="overflow-hidden rounded-2xl border border-[#dce8df] bg-white shadow-[0_6px_30px_rgba(20,70,40,0.04)]">
+                <div className="hidden grid-cols-[1.8fr_0.55fr_1.05fr_0.6fr_0.4fr] gap-5 border-b border-[#e7eee9] bg-[#f7faf8] px-5 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#89968d] xl:grid">
                   <span>
                     Match
                   </span>
@@ -1162,16 +1261,6 @@ export default function DashboardPage() {
                           fixtureId
                         ];
 
-                      const isPredictionLoading =
-                        loadingPredictionIds.has(
-                          fixtureId
-                        );
-
-                      const hasPredictionError =
-                        predictionErrorIds.has(
-                          fixtureId
-                        );
-
                       const goalPrediction =
                         getGoalPrediction(
                           prediction
@@ -1198,10 +1287,14 @@ export default function DashboardPage() {
                             goalPrediction
                           }
                           loadingPrediction={
-                            isPredictionLoading
+                            loadingPredictionIds.has(
+                              fixtureId
+                            )
                           }
                           predictionError={
-                            hasPredictionError
+                            predictionErrorIds.has(
+                              fixtureId
+                            )
                           }
                         />
                       );
@@ -1214,120 +1307,128 @@ export default function DashboardPage() {
 
           <p className="mt-5 text-sm text-[#7d8b82]">
             Showing{" "}
-            {
-              sortedFixtures.length
-            }{" "}
-            of{" "}
-            {
-              fixtures.length
-            }{" "}
-            matches
+            <strong className="text-[#102117]">
+              {
+                sortedFixtures.length
+              }
+            </strong>{" "}
+            filtered matches from{" "}
+            <strong className="text-[#102117]">
+              {
+                fixtures.length
+              }
+            </strong>{" "}
+            total.
           </p>
         </section>
 
-        <aside className="hidden border-l border-[#e1e9e3] bg-[#fbfdfb] px-5 py-8 xl:block">
-          <div className="rounded-2xl border border-[#dce8df] bg-white p-5">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#839188]">
-              Prediction Overview
-            </p>
+        <aside className="hidden border-l border-[#e1e9e3] bg-[#fbfdfb] xl:block">
+          <div className="sticky top-[76px] max-h-[calc(100vh-76px)] overflow-y-auto px-5 py-8">
+            <div className="rounded-2xl border border-[#dce8df] bg-white p-5 shadow-[0_6px_25px_rgba(20,70,40,0.03)]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#839188]">
+                Prediction Performance
+              </p>
 
-            <div className="mt-6 flex items-center justify-center">
-              <div className="flex h-32 w-32 items-center justify-center rounded-full border-[12px] border-[#eaf7ef]">
-                <div className="text-center">
-                  <p className="text-3xl font-black text-[#139653]">
-                    {averageConfidence !==
-                    null
-                      ? `${averageConfidence}%`
-                      : "—"}
-                  </p>
+              <div className="mt-6 flex justify-center">
+                <div className="flex h-36 w-36 items-center justify-center rounded-full border-[11px] border-[#e8f6ed]">
+                  <div className="text-center">
+                    <p className="text-3xl font-black text-[#139653]">
+                      {averageConfidence !==
+                      null
+                        ? `${averageConfidence}%`
+                        : "—"}
+                    </p>
 
-                  <p className="text-[10px] font-bold text-[#7d8b82]">
-                    Avg Confidence
-                  </p>
+                    <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-[#89968d]">
+                      Avg Confidence
+                    </p>
+                  </div>
                 </div>
+              </div>
+
+              <div className="mt-6 grid gap-2.5">
+                <SideStat
+                  label="Matches"
+                  value={
+                    fixtures.length
+                  }
+                />
+
+                <SideStat
+                  label="Live"
+                  value={
+                    live
+                  }
+                />
+
+                <SideStat
+                  label="Upcoming"
+                  value={
+                    upcoming
+                  }
+                />
+
+                <SideStat
+                  label="AI Predictions"
+                  value={
+                    loadedPredictions.length
+                  }
+                />
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3">
-              <SideStat
-                label="Matches"
-                value={
-                  fixtures.length
-                }
-              />
-
-              <SideStat
-                label="Live"
-                value={
-                  live
-                }
-              />
-
-              <SideStat
-                label="Upcoming"
-                value={
-                  upcoming
-                }
-              />
-
-              <SideStat
-                label="AI Predictions"
-                value={
-                  loadedPredictions.length
-                }
-              />
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-[#dce8df] bg-white p-5">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#839188]">
-              How ZERRA Predicts
-            </p>
-
-            <div className="mt-5 grid gap-5">
-              <FeatureItem
-                title="AI Intelligence"
-                description="Match data is processed through the ZERRA prediction engine."
-              />
-
-              <FeatureItem
-                title="Real Football Data"
-                description="Fixture and competition data come from the live football pipeline."
-              />
-
-              <FeatureItem
-                title="Confidence Signals"
-                description="Model confidence reflects the strength and quality of available evidence."
-              />
-            </div>
-          </div>
-
-          {!isVip && (
-            <div className="mt-5 rounded-2xl bg-[#102117] p-6 text-white">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f3c84b]">
-                ZERRA VIP
+            <div className="mt-5 rounded-2xl border border-[#dce8df] bg-white p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#839188]">
+                How We Predict
               </p>
 
-              <h3 className="mt-3 text-2xl font-black">
-                Unlock VIP Predictions
-              </h3>
+              <div className="mt-5 grid gap-5">
+                <FeatureItem
+                  title="Advanced AI"
+                  description="ZERRA evaluates football data through its prediction and intelligence engine."
+                />
 
-              <p className="mt-3 text-sm leading-6 text-white/65">
-                Get full prediction
-                intelligence,
-                confidence signals,
-                exact-score estimates,
-                and premium analysis.
-              </p>
+                <FeatureItem
+                  title="Real-time Data"
+                  description="Fixtures and competition information come from the live football data pipeline."
+                />
 
-              <Link
-                href={`/${locale}/vip`}
-                className="mt-5 flex justify-center rounded-xl bg-[#f1c84b] px-4 py-3 text-sm font-black text-[#102117]"
-              >
-                Upgrade to VIP →
-              </Link>
+                <FeatureItem
+                  title="Confidence Analysis"
+                  description="Confidence reflects model evidence, reliability, uncertainty, and data quality."
+                />
+              </div>
             </div>
-          )}
+
+            {!isVip && (
+              <div className="mt-5 rounded-2xl bg-[#102117] p-6 text-white">
+                <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[#f3c84b]">
+                  ZERRA VIP
+                </p>
+
+                <h3 className="mt-3 text-2xl font-black">
+                  Unlock VIP
+                  Predictions
+                </h3>
+
+                <p className="mt-3 text-sm leading-6 text-white/65">
+                  Access full AI
+                  predictions,
+                  confidence signals,
+                  exact scores, and
+                  premium match
+                  intelligence.
+                </p>
+
+                <Link
+                  href={`/${locale}/vip`}
+                  className="mt-5 flex justify-center rounded-xl bg-[#f1c84b] px-4 py-3 text-sm font-black text-[#102117]"
+                >
+                  Upgrade to VIP →
+                </Link>
+              </div>
+            )}
+          </div>
         </aside>
       </div>
     </main>
@@ -1380,25 +1481,22 @@ function PredictionRow({
   return (
     <Link
       href={`/${locale}/match/${fixtureId}`}
-      className="grid gap-5 px-5 py-5 transition hover:bg-[#fbfdfb] xl:grid-cols-[1.7fr_0.55fr_1fr_0.55fr_0.4fr] xl:items-center xl:gap-4"
+      className="grid gap-5 px-5 py-5 transition hover:bg-[#fbfdfb] xl:grid-cols-[1.8fr_0.55fr_1.05fr_0.6fr_0.4fr] xl:items-center xl:gap-5"
     >
       <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#139653]">
+        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#139653]">
           {league}
         </p>
 
-        <div className="mt-3 flex items-center gap-3">
-          {home?.logo ? (
-            <img
-              src={
-                home.logo
-              }
-              alt={
-                home.name
-              }
-              className="h-9 w-9 object-contain"
-            />
-          ) : null}
+        <div className="mt-3 grid grid-cols-[40px_minmax(0,1fr)_28px_40px] items-center gap-3">
+          <TeamLogo
+            logo={
+              home?.logo
+            }
+            name={
+              home?.name
+            }
+          />
 
           <div className="min-w-0">
             <p className="truncate text-sm font-black">
@@ -1406,27 +1504,24 @@ function PredictionRow({
                 "Home Team"}
             </p>
 
-            <p className="mt-1 text-xs font-bold text-[#8a978e]">
-              vs
-            </p>
-
-            <p className="mt-1 truncate text-sm font-black">
+            <p className="mt-1 truncate text-sm font-black text-[#506056]">
               {away?.name ||
                 "Away Team"}
             </p>
           </div>
 
-          {away?.logo ? (
-            <img
-              src={
-                away.logo
-              }
-              alt={
-                away.name
-              }
-              className="ml-auto h-9 w-9 object-contain"
-            />
-          ) : null}
+          <span className="text-center text-[10px] font-black uppercase text-[#a0aaa3]">
+            vs
+          </span>
+
+          <TeamLogo
+            logo={
+              away?.logo
+            }
+            name={
+              away?.name
+            }
+          />
         </div>
       </div>
 
@@ -1447,21 +1542,32 @@ function PredictionRow({
         {!isVip ? (
           <div className="mt-1">
             <p className="text-sm font-black text-[#b58a16]">
-              VIP Locked
+              VIP Prediction
             </p>
 
             <p className="mt-1 text-xs text-[#8a978e]">
-              Unlock full prediction
+              Locked for VIP
+              members
             </p>
           </div>
         ) : loadingPrediction ? (
           <p className="mt-1 text-sm font-bold text-[#7d8b82]">
-            Loading prediction...
+            Loading AI
+            prediction...
           </p>
         ) : predictionError ? (
-          <p className="mt-1 text-sm font-bold text-[#d84a4a]">
-            Prediction unavailable
-          </p>
+          <div className="mt-1">
+            <p className="text-sm font-black text-[#a66b00]">
+              AI prediction
+              temporarily
+              unavailable
+            </p>
+
+            <p className="mt-1 text-[11px] text-[#8a978e]">
+              Match data remains
+              available
+            </p>
+          </div>
         ) : goalPrediction ? (
           <div className="mt-1">
             <p className="text-sm font-black text-[#139653]">
@@ -1470,18 +1576,18 @@ function PredictionRow({
               }
             </p>
 
-            {prediction?.exactScore ? (
+            {prediction?.exactScore && (
               <p className="mt-1 text-xs text-[#7d8b82]">
                 Exact score:{" "}
                 {
                   prediction.exactScore
                 }
               </p>
-            ) : null}
+            )}
           </div>
         ) : (
           <p className="mt-1 text-sm font-bold text-[#7d8b82]">
-            No prediction
+            Prediction pending
           </p>
         )}
       </div>
@@ -1502,7 +1608,7 @@ function PredictionRow({
             </span>
           </div>
         ) : (
-          <p className="mt-1 text-sm font-black text-[#8a978e]">
+          <p className="mt-1 text-sm font-black text-[#9aa49d]">
             —
           </p>
         )}
@@ -1514,9 +1620,9 @@ function PredictionRow({
         </DashboardLabel>
 
         <span
-          className={`mt-1 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase ${
+          className={`mt-1 inline-flex rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wide ${
             isVip
-              ? "bg-[#eaf7ef] text-[#0d7a40]"
+              ? "bg-[#e8f6ed] text-[#08763b]"
               : "bg-[#fff6d9] text-[#a57900]"
           }`}
         >
@@ -1526,6 +1632,41 @@ function PredictionRow({
         </span>
       </div>
     </Link>
+  );
+}
+
+function TeamLogo({
+  logo,
+  name,
+}: {
+  logo?: string;
+  name?: string;
+}) {
+  if (
+    logo
+  ) {
+    return (
+      <img
+        src={logo}
+        alt={
+          name ||
+          "Team"
+        }
+        className="h-10 w-10 object-contain"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eaf7ef] text-sm font-black text-[#139653]">
+      {(name ||
+        "T")
+        .slice(
+          0,
+          1
+        )
+        .toUpperCase()}
+    </div>
   );
 }
 
@@ -1542,7 +1683,7 @@ function DashboardCell({
         {label}
       </DashboardLabel>
 
-      <p className="mt-1 text-sm font-black text-[#102117]">
+      <p className="mt-1 text-sm font-black">
         {value}
       </p>
     </div>
@@ -1556,7 +1697,7 @@ function DashboardLabel({
     React.ReactNode;
 }) {
   return (
-    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a978e] xl:hidden">
+    <p className="text-[9px] font-black uppercase tracking-[0.13em] text-[#8a978e] xl:hidden">
       {children}
     </p>
   );
@@ -1575,7 +1716,7 @@ function SideStat({
         {label}
       </span>
 
-      <span className="text-sm font-black text-[#102117]">
+      <span className="text-sm font-black">
         {value}
       </span>
     </div>
@@ -1591,7 +1732,7 @@ function FeatureItem({
 }) {
   return (
     <div>
-      <p className="text-sm font-black text-[#102117]">
+      <p className="text-sm font-black">
         {title}
       </p>
 
