@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
+import { unstable_cache } from "next/cache";
 
 import { adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 type SeoPageDocument = {
@@ -28,12 +28,15 @@ function getBaseUrl(): string {
   return normalizedUrl.replace(/\/+$/, "");
 }
 
-function normalizeCanonicalPath(value: unknown): string | null {
+function normalizeCanonicalPath(
+  value: unknown
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
-  const trimmedValue = value.trim();
+  const trimmedValue =
+    value.trim();
 
   if (!trimmedValue) {
     return null;
@@ -41,10 +44,17 @@ function normalizeCanonicalPath(value: unknown): string | null {
 
   try {
     if (
-      trimmedValue.startsWith("http://") ||
-      trimmedValue.startsWith("https://")
+      trimmedValue.startsWith(
+        "http://"
+      ) ||
+      trimmedValue.startsWith(
+        "https://"
+      )
     ) {
-      const parsedUrl = new URL(trimmedValue);
+      const parsedUrl =
+        new URL(
+          trimmedValue
+        );
 
       return `${parsedUrl.pathname}${parsedUrl.search}`;
     }
@@ -52,12 +62,16 @@ function normalizeCanonicalPath(value: unknown): string | null {
     return null;
   }
 
-  return trimmedValue.startsWith("/")
+  return trimmedValue.startsWith(
+    "/"
+  )
     ? trimmedValue
     : `/${trimmedValue}`;
 }
 
-function serializeDate(value: unknown): Date | undefined {
+function serializeDate(
+  value: unknown
+): Date | undefined {
   if (value instanceof Date) {
     return value;
   }
@@ -66,23 +80,35 @@ function serializeDate(value: unknown): Date | undefined {
     value &&
     typeof value === "object" &&
     "toDate" in value &&
-    typeof (value as { toDate?: unknown }).toDate === "function"
-  ) {
-    const convertedDate = (
+    typeof (
       value as {
-        toDate: () => Date;
+        toDate?: unknown;
       }
-    ).toDate();
+    ).toDate === "function"
+  ) {
+    const convertedDate =
+      (
+        value as {
+          toDate: () => Date;
+        }
+      ).toDate();
 
-    return Number.isNaN(convertedDate.getTime())
+    return Number.isNaN(
+      convertedDate.getTime()
+    )
       ? undefined
       : convertedDate;
   }
 
-  if (typeof value === "string") {
-    const parsedDate = new Date(value);
+  if (
+    typeof value === "string"
+  ) {
+    const parsedDate =
+      new Date(value);
 
-    return Number.isNaN(parsedDate.getTime())
+    return Number.isNaN(
+      parsedDate.getTime()
+    )
       ? undefined
       : parsedDate;
   }
@@ -90,109 +116,167 @@ function serializeDate(value: unknown): Date | undefined {
   return undefined;
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = getBaseUrl();
-  const generatedAt = new Date();
+const getPublishedSeoPages =
+  unstable_cache(
+    async () => {
+      const snapshot =
+        await adminDb
+          .collection(
+            "seoPageDrafts"
+          )
+          .where(
+            "status",
+            "==",
+            "published"
+          )
+          .get();
 
-  const staticEntries: MetadataRoute.Sitemap = [
-    {
-      url: baseUrl,
-      lastModified: generatedAt,
-      changeFrequency: "daily",
-      priority: 1,
+      return snapshot.docs.map(
+        (document) => ({
+          id: document.id,
+          data:
+            document.data() as SeoPageDocument,
+        })
+      );
     },
+    [
+      "zerra-sitemap-published-seo-pages",
+    ],
     {
-      url: `${baseUrl}/en`,
-      lastModified: generatedAt,
-      changeFrequency: "daily",
-      priority: 1,
-    },
-    {
-      url: `${baseUrl}/en/predictions`,
-      lastModified: generatedAt,
-      changeFrequency: "hourly",
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/en/football-predictions`,
-      lastModified: generatedAt,
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/en/ai-accuracy`,
-      lastModified: generatedAt,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${baseUrl}/en/vip`,
-      lastModified: generatedAt,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-  ];
+      revalidate: 3600,
+    }
+  );
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const baseUrl =
+    getBaseUrl();
+
+  const generatedAt =
+    new Date();
+
+  const staticEntries: MetadataRoute.Sitemap =
+    [
+      {
+        url: baseUrl,
+        lastModified:
+          generatedAt,
+        changeFrequency:
+          "daily",
+        priority: 1,
+      },
+      {
+        url: `${baseUrl}/en`,
+        lastModified:
+          generatedAt,
+        changeFrequency:
+          "daily",
+        priority: 1,
+      },
+      {
+        url: `${baseUrl}/en/predictions`,
+        lastModified:
+          generatedAt,
+        changeFrequency:
+          "hourly",
+        priority: 0.9,
+      },
+      {
+        url: `${baseUrl}/en/football-predictions`,
+        lastModified:
+          generatedAt,
+        changeFrequency:
+          "daily",
+        priority: 0.8,
+      },
+      {
+        url: `${baseUrl}/en/ai-accuracy`,
+        lastModified:
+          generatedAt,
+        changeFrequency:
+          "weekly",
+        priority: 0.7,
+      },
+      {
+        url: `${baseUrl}/en/vip`,
+        lastModified:
+          generatedAt,
+        changeFrequency:
+          "weekly",
+        priority: 0.7,
+      },
+    ];
 
   try {
-    const publishedSnapshot = await adminDb
-      .collection("seoPageDrafts")
-      .where("status", "==", "published")
-      .get();
+    const publishedPages =
+      await getPublishedSeoPages();
 
     const dynamicEntries: MetadataRoute.Sitemap =
-      publishedSnapshot.docs.flatMap((document) => {
-        const data = document.data() as SeoPageDocument;
+      publishedPages.flatMap(
+        ({
+          id,
+          data,
+        }) => {
+          const canonicalPath =
+            normalizeCanonicalPath(
+              data.canonicalPath
+            );
 
-        const canonicalPath = normalizeCanonicalPath(
-          data.canonicalPath
-        );
+          if (
+            !canonicalPath
+          ) {
+            console.warn(
+              `[SITEMAP] Skipping published SEO page without a valid canonicalPath: ${id}`
+            );
 
-        if (!canonicalPath) {
-          console.warn(
-            `[SITEMAP] Skipping published SEO page without a valid canonicalPath: ${document.id}`
-          );
+            return [];
+          }
 
-          return [];
+          const lastModified =
+            serializeDate(
+              data.updatedAt
+            ) ||
+            serializeDate(
+              data.publishedAt
+            ) ||
+            generatedAt;
+
+          return [
+            {
+              url: `${baseUrl}${canonicalPath}`,
+              lastModified,
+              changeFrequency:
+                "daily" as const,
+              priority: 0.8,
+            },
+          ];
         }
+      );
 
-        const lastModified =
-          serializeDate(data.updatedAt) ||
-          serializeDate(data.publishedAt) ||
-          generatedAt;
-
-        return [
-          {
-            url: `${baseUrl}${canonicalPath}`,
-            lastModified,
-            changeFrequency: "daily" as const,
-            priority: 0.8,
-          },
-        ];
-      });
-
-    const uniqueEntries = new Map<
-      string,
-      MetadataRoute.Sitemap[number]
-    >();
+    const uniqueEntries =
+      new Map<
+        string,
+        MetadataRoute.Sitemap[number]
+      >();
 
     for (const entry of [
       ...staticEntries,
       ...dynamicEntries,
     ]) {
-      uniqueEntries.set(entry.url, entry);
+      uniqueEntries.set(
+        entry.url,
+        entry
+      );
     }
 
-    return Array.from(uniqueEntries.values());
+    return Array.from(
+      uniqueEntries.values()
+    );
   } catch (error) {
     console.error(
       "[SITEMAP_GENERATION_ERROR]",
       error
     );
 
-    /*
-     * Keep the sitemap available even if Firestore
-     * temporarily fails.
-     */
     return staticEntries;
   }
 }

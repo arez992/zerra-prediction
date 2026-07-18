@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useParams } from "next/navigation";
+
 import MatchHeader from "@/components/match/MatchHeader";
 import PredictionPanel from "@/components/match/PredictionPanel";
 import StatsPanel from "@/components/match/StatsPanel";
 import TimelinePanel from "@/components/match/TimelinePanel";
 import LineupsPanel from "@/components/match/LineupsPanel";
+
 import AIConfidence from "@/components/ai/AIConfidence";
 import WinProbability from "@/components/ai/WinProbability";
 import GoalPrediction from "@/components/ai/GoalPrediction";
@@ -15,36 +21,133 @@ import RiskMeter from "@/components/ai/RiskMeter";
 import ValueBet from "@/components/ai/ValueBet";
 import MatchVerdict from "@/components/ai/MatchVerdict";
 import AIAnalysis from "@/components/ai/AIAnalysis";
+
 import VipGate from "@/components/vip/VipGate";
-import { calculatePrediction } from "@/lib/ai/prediction";
-import { generateExplanation } from "@/lib/ai/explanation";
+
+import {
+  calculatePrediction,
+} from "@/lib/ai/prediction";
+
+import {
+  generateExplanation,
+} from "@/lib/ai/explanation";
 
 export default function MatchDetailsPage() {
-  const params = useParams();
-  const fixtureId = params.id as string;
+  const params =
+    useParams();
 
-  const [loading, setLoading] = useState(true);
-  const [match, setMatch] = useState<any>(null);
+  const fixtureId =
+    params.id as string;
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    match,
+    setMatch,
+  ] = useState<any>(null);
 
   useEffect(() => {
+    const controller =
+      new AbortController();
+
     async function loadMatch() {
       try {
-        const res = await fetch(
-          `/api/sports/football/match?fixture=${fixtureId}`,
-          { cache: "no-store" }
+        setLoading(true);
+
+        const res =
+          await fetch(
+            `/api/sports/football/match?fixture=${fixtureId}`,
+            {
+              cache:
+                "no-store",
+              signal:
+                controller.signal,
+            }
+          );
+
+        if (!res.ok) {
+          throw new Error(
+            "Match request failed"
+          );
+        }
+
+        const data =
+          await res.json();
+
+        if (
+          !controller.signal.aborted
+        ) {
+          setMatch(data);
+        }
+      } catch (error) {
+        if (
+          error instanceof
+            DOMException &&
+          error.name ===
+            "AbortError"
+        ) {
+          return;
+        }
+
+        console.error(
+          "Failed to load match:",
+          error
         );
 
-        const data = await res.json();
-        setMatch(data);
-      } catch (error) {
-        console.error("Failed to load match:", error);
+        if (
+          !controller.signal.aborted
+        ) {
+          setMatch(null);
+        }
       } finally {
-        setLoading(false);
+        if (
+          !controller.signal.aborted
+        ) {
+          setLoading(false);
+        }
       }
     }
 
-    if (fixtureId) loadMatch();
+    if (fixtureId) {
+      void loadMatch();
+    }
+
+    return () => {
+      controller.abort();
+    };
   }, [fixtureId]);
+
+  const prediction =
+    useMemo(() => {
+      if (!match?.fixture) {
+        return null;
+      }
+
+      return calculatePrediction(
+        match
+      );
+    }, [match]);
+
+  const explanation =
+    useMemo(() => {
+      if (
+        !match?.fixture ||
+        !prediction
+      ) {
+        return null;
+      }
+
+      return generateExplanation(
+        match,
+        prediction
+      );
+    }, [
+      match,
+      prediction,
+    ]);
 
   if (loading) {
     return (
@@ -56,34 +159,49 @@ export default function MatchDetailsPage() {
     );
   }
 
-  if (!match?.fixture) {
+  if (
+    !match?.fixture ||
+    !prediction ||
+    !explanation
+  ) {
     return (
       <main className="mx-auto max-w-7xl px-4 py-10 text-white">
-        <Link href="/en/dashboard" className="text-sm font-bold text-[#D4AF37]">
+        <Link
+          href="/en/dashboard"
+          className="text-sm font-bold text-[#D4AF37]"
+        >
           ← Back to Dashboard
         </Link>
 
         <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/30 bg-[#0B1220] p-8 text-center shadow-2xl">
-          <h1 className="text-4xl font-black">Match Data Unavailable</h1>
+          <h1 className="text-4xl font-black">
+            Match Data Unavailable
+          </h1>
+
           <p className="mx-auto mt-4 max-w-2xl text-white/60">
-            Match details are not available right now.
+            Match details are not
+            available right now.
           </p>
         </section>
       </main>
     );
   }
 
-  const prediction = calculatePrediction(match);
-  const explanation = generateExplanation(match, prediction);
-
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 text-white">
-      <Link href="/en/dashboard" className="text-sm font-bold text-[#D4AF37]">
+      <Link
+        href="/en/dashboard"
+        className="text-sm font-bold text-[#D4AF37]"
+      >
         ← Back to Dashboard
       </Link>
 
       <div className="mt-8">
-        <MatchHeader fixture={match.fixture} />
+        <MatchHeader
+          fixture={
+            match.fixture
+          }
+        />
       </div>
 
       <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/30 bg-[#0B1220] p-6 shadow-2xl">
@@ -101,36 +219,71 @@ export default function MatchDetailsPage() {
             fallbackText="Upgrade to VIP to unlock full win probability, goal forecast, risk meter, value bet detection, GPT match analysis, and AI verdict for this match."
           >
             <div className="grid gap-6 lg:grid-cols-2">
-              <AIConfidence score={prediction.confidence} />
+              <AIConfidence
+                score={
+                  prediction.confidence
+                }
+              />
 
               <WinProbability
-                home={prediction.homeWin}
-                draw={prediction.draw}
-                away={prediction.awayWin}
+                home={
+                  prediction.homeWin
+                }
+                draw={
+                  prediction.draw
+                }
+                away={
+                  prediction.awayWin
+                }
               />
 
               <GoalPrediction
-                over25={prediction.over25}
-                under25={prediction.under25}
-                btts={prediction.btts}
+                over25={
+                  prediction.over25
+                }
+                under25={
+                  prediction.under25
+                }
+                btts={
+                  prediction.btts
+                }
               />
 
-              <RiskMeter risk={prediction.risk} />
+              <RiskMeter
+                risk={
+                  prediction.risk
+                }
+              />
 
               <ValueBet
-                pick={prediction.valueBet}
-                valueScore={prediction.confidence}
+                pick={
+                  prediction.valueBet
+                }
+                valueScore={
+                  prediction.confidence
+                }
               />
 
               <MatchVerdict
-                confidence={prediction.confidence}
-                summary={explanation.summary}
-                reasons={explanation.reasons}
+                confidence={
+                  prediction.confidence
+                }
+                summary={
+                  explanation.summary
+                }
+                reasons={
+                  explanation.reasons
+                }
               />
             </div>
 
             <div className="mt-8">
-              <AIAnalysis match={match} prediction={prediction} />
+              <AIAnalysis
+                match={match}
+                prediction={
+                  prediction
+                }
+              />
             </div>
           </VipGate>
         </div>
@@ -138,24 +291,53 @@ export default function MatchDetailsPage() {
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <PredictionPanel
-  confidence={prediction.confidence}
-  homeWin={prediction.homeWin}
-  draw={prediction.draw}
-  awayWin={prediction.awayWin}
-  over25={prediction.over25}
-  under25={prediction.under25}
-  risk={prediction.risk}
-  valueBet={prediction.valueBet}
-/>
-        <StatsPanel statistics={match.statistics} />
+          confidence={
+            prediction.confidence
+          }
+          homeWin={
+            prediction.homeWin
+          }
+          draw={
+            prediction.draw
+          }
+          awayWin={
+            prediction.awayWin
+          }
+          over25={
+            prediction.over25
+          }
+          under25={
+            prediction.under25
+          }
+          risk={
+            prediction.risk
+          }
+          valueBet={
+            prediction.valueBet
+          }
+        />
+
+        <StatsPanel
+          statistics={
+            match.statistics
+          }
+        />
       </section>
 
       <div className="mt-8">
-        <TimelinePanel events={match.events} />
+        <TimelinePanel
+          events={
+            match.events
+          }
+        />
       </div>
 
       <div className="mt-8">
-        <LineupsPanel lineups={match.lineups} />
+        <LineupsPanel
+          lineups={
+            match.lineups
+          }
+        />
       </div>
     </main>
   );
