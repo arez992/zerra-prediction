@@ -1,75 +1,130 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import {
+  useEffect,
+  useState,
+} from "react";
+import {
+  onAuthStateChanged,
+  signOut,
+} from "firebase/auth";
+
+import {
+  auth,
+} from "@/lib/firebase";
+
+import {
+  useVip,
+} from "@/components/providers/VipProvider";
 
 const navLinks = [
-  { label: "Home", href: "/en" },
-  { label: "Dashboard", href: "/en/dashboard" },
-  { label: "Predictions", href: "/en/predictions" },
-  { label: "VIP", href: "/en/vip" },
+  {
+    label: "Home",
+    href: "/en",
+  },
+  {
+    label: "Dashboard",
+    href: "/en/dashboard",
+  },
+  {
+    label: "Predictions",
+    href: "/en/predictions",
+  },
+  {
+    label: "VIP",
+    href: "/en/vip",
+  },
 ];
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isVip, setIsVip] = useState(false);
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const [
+    email,
+    setEmail,
+  ] = useState("");
+
+  const {
+    isAdmin,
+    isVip,
+  } = useVip();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setEmail("");
-        setIsAdmin(false);
-        setIsVip(false);
-        return;
-      }
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        (user) => {
+          setEmail(
+            user?.email || ""
+          );
+        }
+      );
 
-      setEmail(user.email || "");
-
-      const snap = await getDoc(doc(db, "users", user.uid));
-      const data = snap.exists() ? snap.data() : null;
-
-      setIsAdmin(data?.role === "admin");
-      setIsVip(data?.isVip === true);
-    });
-
-    return () => unsubscribe();
+    return () =>
+      unsubscribe();
   }, []);
 
   async function handleLogout() {
     await signOut(auth);
-    await fetch("/api/auth/session", { method: "DELETE" });
+
+    await fetch(
+      "/api/auth/session",
+      {
+        method: "DELETE",
+      }
+    );
 
     setEmail("");
-    setIsAdmin(false);
-    setIsVip(false);
     setOpen(false);
-    window.location.href = "/en";
+
+    window.location.href =
+      "/en";
   }
 
-  const isLoggedIn = Boolean(email);
+  const isLoggedIn =
+    Boolean(email);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050816]/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 text-white md:px-6">
-        <Link href="/en" className="flex flex-col" onClick={() => setOpen(false)}>
-          <span className="text-xl font-black tracking-wider text-[#D4AF37]">ZERRA</span>
-          <span className="text-xs text-white/50">AI Football Prediction</span>
+        <Link
+          href="/en"
+          className="flex flex-col"
+          onClick={() =>
+            setOpen(false)
+          }
+        >
+          <span className="text-xl font-black tracking-wider text-[#D4AF37]">
+            ZERRA
+          </span>
+
+          <span className="text-xs text-white/50">
+            AI Football Prediction
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm font-bold text-white/70 md:flex">
-          {navLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="transition hover:text-[#D4AF37]">
-              {item.label}
-            </Link>
-          ))}
+          {navLinks.map(
+            (item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="transition hover:text-[#D4AF37]"
+              >
+                {item.label}
+              </Link>
+            )
+          )}
 
           {isAdmin && (
-            <Link href="/en/admin" className="text-[#D4AF37] transition hover:text-white">
+            <Link
+              href="/en/admin"
+              className="text-[#D4AF37] transition hover:text-white"
+            >
               Admin
             </Link>
           )}
@@ -88,56 +143,118 @@ export default function Navbar() {
                 </span>
               )}
 
-              <button onClick={handleLogout} className="text-sm font-bold text-white/60 hover:text-white">
+              <button
+                onClick={
+                  handleLogout
+                }
+                className="text-sm font-bold text-white/60 hover:text-white"
+              >
                 Logout
               </button>
             </>
           ) : (
-            <Link href="/en/login" className="text-sm font-bold text-white/60 hover:text-white">
+            <Link
+              href="/en/login"
+              className="text-sm font-bold text-white/60 hover:text-white"
+            >
               Login
             </Link>
           )}
 
-          <Link href="/en/vip" className="rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-black text-black">
+          <Link
+            href="/en/vip"
+            className="rounded-full bg-[#D4AF37] px-5 py-2 text-sm font-black text-black"
+          >
             Go VIP
           </Link>
         </div>
 
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() =>
+            setOpen(
+              (value) =>
+                !value
+            )
+          }
           className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white md:hidden"
         >
-          {open ? "Close" : "Menu"}
+          {open
+            ? "Close"
+            : "Menu"}
         </button>
       </div>
 
       {open && (
         <div className="border-t border-white/10 bg-[#050816] px-4 py-4 md:hidden">
           <nav className="mx-auto grid max-w-7xl gap-3">
-            {navLinks.map((item) => (
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="rounded-2xl bg-white/5 px-4 py-3 font-bold text-white/80">
-                {item.label}
-              </Link>
-            ))}
+            {navLinks.map(
+              (item) => (
+                <Link
+                  key={
+                    item.href
+                  }
+                  href={
+                    item.href
+                  }
+                  onClick={() =>
+                    setOpen(
+                      false
+                    )
+                  }
+                  className="rounded-2xl bg-white/5 px-4 py-3 font-bold text-white/80"
+                >
+                  {
+                    item.label
+                  }
+                </Link>
+              )
+            )}
 
             {isAdmin && (
-              <Link href="/en/admin" onClick={() => setOpen(false)} className="rounded-2xl bg-[#D4AF37]/10 px-4 py-3 font-black text-[#D4AF37]">
+              <Link
+                href="/en/admin"
+                onClick={() =>
+                  setOpen(
+                    false
+                  )
+                }
+                className="rounded-2xl bg-[#D4AF37]/10 px-4 py-3 font-black text-[#D4AF37]"
+              >
                 Admin
               </Link>
             )}
 
             {isLoggedIn ? (
-              <button onClick={handleLogout} className="rounded-2xl bg-white/5 px-4 py-3 text-left font-bold text-white/80">
+              <button
+                onClick={
+                  handleLogout
+                }
+                className="rounded-2xl bg-white/5 px-4 py-3 text-left font-bold text-white/80"
+              >
                 Logout
               </button>
             ) : (
-              <Link href="/en/login" onClick={() => setOpen(false)} className="rounded-2xl bg-white/5 px-4 py-3 font-bold text-white/80">
+              <Link
+                href="/en/login"
+                onClick={() =>
+                  setOpen(
+                    false
+                  )
+                }
+                className="rounded-2xl bg-white/5 px-4 py-3 font-bold text-white/80"
+              >
                 Login
               </Link>
             )}
 
-            <Link href="/en/vip" onClick={() => setOpen(false)} className="rounded-2xl bg-[#D4AF37] px-4 py-3 text-center font-black text-black">
+            <Link
+              href="/en/vip"
+              onClick={() =>
+                setOpen(false)
+              }
+              className="rounded-2xl bg-[#D4AF37] px-4 py-3 text-center font-black text-black"
+            >
               Go VIP
             </Link>
           </nav>
