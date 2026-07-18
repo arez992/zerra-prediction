@@ -5,48 +5,16 @@ import {
   adminDb,
 } from "@/lib/firebaseAdmin";
 
-function getErrorDetails(
-  error: unknown
-) {
-  if (error instanceof Error) {
-    const code =
-      "code" in error
-        ? String(
-            (
-              error as Error & {
-                code?: unknown;
-              }
-            ).code
-          )
-        : null;
-
-    return {
-      name: error.name,
-      message: error.message,
-      code,
-    };
-  }
-
-  return {
-    name: "UnknownError",
-    message: String(error),
-    code: null,
-  };
-}
-
 export async function getServerAdminUser() {
   try {
-    const cookieStore =
-      await cookies();
+    const cookieStore = await cookies();
 
     const sessionCookie =
-      cookieStore.get(
-        "firebaseSession"
-      )?.value;
+      cookieStore.get("firebaseSession")?.value;
 
     if (!sessionCookie) {
       console.error(
-        "[SERVER_ADMIN_AUTH] Missing firebaseSession cookie"
+        "[ADMIN_AUTH] NO_COOKIE"
       );
 
       return null;
@@ -61,25 +29,17 @@ export async function getServerAdminUser() {
           true
         );
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
       console.error(
-        `[SERVER_ADMIN_AUTH_SESSION_ERROR] ${JSON.stringify(
-          getErrorDetails(
-            error
-          )
-        )}`
+        `[ADMIN_AUTH] SESSION_ERROR ${message}`
       );
 
       return null;
     }
-
-    console.log(
-      "[SERVER_ADMIN_AUTH] Session verified:",
-      {
-        uid: decoded.uid,
-        email:
-          decoded.email || null,
-      }
-    );
 
     let userDoc;
 
@@ -89,12 +49,26 @@ export async function getServerAdminUser() {
         .doc(decoded.uid)
         .get();
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
+      const code =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error
+          ? String(
+              (
+                error as {
+                  code?: unknown;
+                }
+              ).code
+            )
+          : "unknown";
+
       console.error(
-        `[SERVER_ADMIN_AUTH_FIRESTORE_ERROR] ${JSON.stringify(
-          getErrorDetails(
-            error
-          )
-        )}`
+        `[FS_ERROR] ${code} ${message}`
       );
 
       return null;
@@ -102,35 +76,19 @@ export async function getServerAdminUser() {
 
     if (!userDoc.exists) {
       console.error(
-        "[SERVER_ADMIN_AUTH] User document does not exist:",
-        decoded.uid
+        "[ADMIN_AUTH] USER_NOT_FOUND"
       );
 
       return null;
     }
 
-    const user =
-      userDoc.data();
+    const user = userDoc.data();
 
-    console.log(
-      "[SERVER_ADMIN_AUTH] User document loaded:",
-      {
-        uid: decoded.uid,
-        role:
-          user?.role ?? null,
-      }
-    );
-
-    if (
-      user?.role !== "admin"
-    ) {
+    if (user?.role !== "admin") {
       console.error(
-        "[SERVER_ADMIN_AUTH] User is not admin:",
-        {
-          uid: decoded.uid,
-          role:
-            user?.role ?? null,
-        }
+        `[ADMIN_AUTH] WRONG_ROLE ${
+          user?.role ?? "none"
+        }`
       );
 
       return null;
@@ -143,12 +101,13 @@ export async function getServerAdminUser() {
       role: "admin" as const,
     };
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
     console.error(
-      `[SERVER_ADMIN_AUTH_UNEXPECTED_ERROR] ${JSON.stringify(
-        getErrorDetails(
-          error
-        )
-      )}`
+      `[ADMIN_AUTH] UNKNOWN_ERROR ${message}`
     );
 
     return null;
