@@ -1,8 +1,10 @@
 import { calculateGoals } from "./goals";
 import { calculateRisk } from "./risk";
+
 import {
   calculateMatchIntelligence,
 } from "./intelligence";
+
 import {
   calculateDataCompleteness,
 } from "./data-completeness";
@@ -38,18 +40,6 @@ function clamp(
       value
     )
   );
-}
-
-function round(
-  value: number,
-  decimals = 1
-): number {
-  const multiplier =
-    10 ** decimals;
-
-  return Math.round(
-    value * multiplier
-  ) / multiplier;
 }
 
 function normalizeProbabilities(
@@ -213,19 +203,92 @@ function chooseFinalPrediction(
 
 function chooseExactScore(
   homeExpectedGoals: number,
-  awayExpectedGoals: number
+  awayExpectedGoals: number,
+  markets:
+    PredictionMarketProbabilities
 ): string {
-  return `${Math.max(
-    0,
-    Math.round(
-      homeExpectedGoals
-    )
-  )}-${Math.max(
-    0,
-    Math.round(
-      awayExpectedGoals
-    )
-  )}`;
+  let homeGoals =
+    Math.max(
+      0,
+      Math.round(
+        homeExpectedGoals
+      )
+    );
+
+  let awayGoals =
+    Math.max(
+      0,
+      Math.round(
+        awayExpectedGoals
+      )
+    );
+
+  const prefersOver25 =
+    markets.over25 >
+    markets.under25;
+
+  const prefersUnder25 =
+    markets.under25 >=
+    markets.over25;
+
+  if (
+    prefersUnder25 &&
+    homeGoals + awayGoals >= 3
+  ) {
+    while (
+      homeGoals +
+        awayGoals >
+      2
+    ) {
+      if (
+        homeGoals >
+        awayGoals &&
+        homeGoals > 0
+      ) {
+        homeGoals -= 1;
+      } else if (
+        awayGoals >
+        homeGoals &&
+        awayGoals > 0
+      ) {
+        awayGoals -= 1;
+      } else if (
+        homeExpectedGoals >=
+          awayExpectedGoals &&
+        homeGoals > 0
+      ) {
+        homeGoals -= 1;
+      } else if (
+        awayGoals > 0
+      ) {
+        awayGoals -= 1;
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (
+    prefersOver25 &&
+    homeGoals + awayGoals <= 2
+  ) {
+    while (
+      homeGoals +
+        awayGoals <
+      3
+    ) {
+      if (
+        homeExpectedGoals >=
+        awayExpectedGoals
+      ) {
+        homeGoals += 1;
+      } else {
+        awayGoals += 1;
+      }
+    }
+  }
+
+  return `${homeGoals}-${awayGoals}`;
 }
 
 function chooseValueBet(
@@ -233,11 +296,25 @@ function chooseValueBet(
     PredictionMarketProbabilities,
   confidence: number,
   dataCompleteness:
-    DataCompletenessResult
+    DataCompletenessResult,
+  risk: PredictionRisk
 ): string {
   if (
-    !dataCompleteness.vipReady ||
-    confidence < 58
+    !dataCompleteness.vipReady
+  ) {
+    return "No Value";
+  }
+
+  const minimumConfidence =
+    risk === "High"
+      ? 70
+      : risk === "Medium"
+        ? 63
+        : 58;
+
+  if (
+    confidence <
+    minimumConfidence
   ) {
     return "No Value";
   }
@@ -261,6 +338,12 @@ function chooseValueBet(
   }
 
   if (
+    markets.under25 >= 70
+  ) {
+    return "Under 2.5 Goals";
+  }
+
+  if (
     markets.btts >= 70
   ) {
     return "BTTS Yes";
@@ -268,7 +351,8 @@ function chooseValueBet(
 
   if (
     markets.draw >= 34 &&
-    confidence >= 60
+    confidence >= 65 &&
+    risk !== "High"
   ) {
     return "Draw";
   }
@@ -373,8 +457,8 @@ function applyDataConfidenceAdjustment(
     dataCompleteness.vipReady
       ? 88
       : dataCompleteness.score >= 60
-      ? 64
-      : 54;
+        ? 64
+        : 54;
 
   return Math.round(
     clamp(
@@ -504,6 +588,14 @@ function buildPublicPrediction(
   ) {
     keyInsights.push(
       "The goal model identifies an elevated scoring environment."
+    );
+  }
+
+  if (
+    markets.under25 >= 65
+  ) {
+    keyInsights.push(
+      "The goal model identifies a lower-scoring match environment."
     );
   }
 
@@ -698,7 +790,8 @@ export function calculateAIScore(
     chooseValueBet(
       markets,
       confidence,
-      dataCompleteness
+      dataCompleteness,
+      riskResult.risk
     );
 
   const calculatedFinalPrediction =
@@ -709,7 +802,8 @@ export function calculateAIScore(
   const calculatedExactScore =
     chooseExactScore(
       goals.homeExpectedGoals,
-      goals.awayExpectedGoals
+      goals.awayExpectedGoals,
+      markets
     );
 
   const finalPrediction =
@@ -750,6 +844,13 @@ export function calculateAIScore(
     )} for the home team and ${goals.awayExpectedGoals.toFixed(
       2
     )} for the away team.`,
+
+    `The exact-score estimate is ${exactScore}, aligned with the model's stronger ${
+      markets.over25 >
+      markets.under25
+        ? "Over 2.5"
+        : "Under 2.5"
+    } goal-market signal.`,
 
     `Base model confidence was ${baseConfidence}% and data-adjusted confidence is ${confidence}%.`,
 

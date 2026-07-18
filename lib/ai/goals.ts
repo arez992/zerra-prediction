@@ -231,14 +231,6 @@ function calculateBTTSProbability(
   homeExpectedGoals: number,
   awayExpectedGoals: number
 ): number {
-  /*
-   * P(Home scores and Away scores)
-   *
-   * = 1
-   * - P(Home scores 0)
-   * - P(Away scores 0)
-   * + P(Both score 0)
-   */
   const probability =
     1 -
     Math.exp(
@@ -314,13 +306,6 @@ export function calculateGoals(
       ?.teamSeasonStatistics
       ?.away;
 
-  /*
-   * Home expected goals:
-   *
-   * Home team's scoring average at home
-   * combined with away team's conceding
-   * average away from home.
-   */
   const homeScoringAverage =
     getAverage(
       homeStatistics
@@ -339,13 +324,6 @@ export function calculateGoals(
       "away"
     );
 
-  /*
-   * Away expected goals:
-   *
-   * Away team's scoring average away
-   * combined with home team's conceding
-   * average at home.
-   */
   const awayScoringAverage =
     getAverage(
       awayStatistics
@@ -388,7 +366,6 @@ export function calculateGoals(
         homeStatistics,
         "home"
       ),
-
       calculateReliability(
         awayStatistics,
         "away"
@@ -401,7 +378,6 @@ export function calculateGoals(
         awayStatistics,
         "away"
       ),
-
       calculateReliability(
         homeStatistics,
         "home"
@@ -422,10 +398,6 @@ export function calculateGoals(
       awayReliability
     );
 
-  /*
-   * Clean-sheet and failed-to-score
-   * rates provide small adjustments.
-   */
   const homeMatches =
     getSplitNumber(
       homeStatistics
