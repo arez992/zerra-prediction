@@ -36,7 +36,7 @@ export default async function AdminLayout({
         </p>
 
         <Link
-          href="/en/login"
+          href="/en/login?callbackUrl=/en/admin"
           className="mt-8 inline-block rounded-full bg-[#D4AF37] px-6 py-3 font-black text-black"
         >
           Login as Admin
