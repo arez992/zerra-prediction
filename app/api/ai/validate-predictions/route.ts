@@ -1,55 +1,164 @@
-import { NextResponse } from "next/server";
 import {
-  collection,
-  getDocs,
-  updateDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { validatePrediction } from "@/lib/ai/validator";
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-export async function POST() {
+import {
+  requireServerAdmin,
+} from "@/lib/serverAdminAuth";
+
+import {
+  settlePendingPredictions,
+} from "@/lib/ai-ceo/prediction/settlement";
+
+export const runtime =
+  "nodejs";
+
+export const dynamic =
+  "force-dynamic";
+
+export const revalidate =
+  0;
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 200;
+
+function normalizeLimit(
+  value: unknown
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed)
+  ) {
+    return DEFAULT_LIMIT;
+  }
+
+  return Math.min(
+    MAX_LIMIT,
+    Math.max(
+      1,
+      Math.floor(parsed)
+    )
+  );
+}
+
+export async function POST(
+  request: NextRequest
+) {
   try {
-    const snapshot = await getDocs(collection(db, "predictionHistory"));
+    await requireServerAdmin();
 
-    let checked = 0;
-    let updated = 0;
+    let body: {
+      limit?: number;
+    } = {};
 
-    for (const item of snapshot.docs) {
-      const data = item.data();
+    const contentType =
+      request.headers.get(
+        "content-type"
+      ) || "";
 
-      if (data.resultChecked === true) continue;
-
-      const fixture = data.match?.fixture;
-      const prediction = data.prediction;
-
-      const validation = validatePrediction(prediction, fixture);
-
-      if (!validation.checked) continue;
-
-      checked++;
-
-      await updateDoc(doc(db, "predictionHistory", item.id), {
-        correct: validation.correct,
-        finalResult: validation.result,
-        resultChecked: true,
-        checkedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      updated++;
+    if (
+      contentType.includes(
+        "application/json"
+      )
+    ) {
+      try {
+        body =
+          await request.json();
+      } catch {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Invalid JSON request body.",
+          },
+          {
+            status: 400,
+            headers: {
+              "Cache-Control":
+                "no-store",
+            },
+          }
+        );
+      }
     }
 
-    return NextResponse.json({
-      success: true,
-      checked,
-      updated,
-    });
-  } catch (error: any) {
+    const limit =
+      normalizeLimit(
+        body.limit
+      );
+
+    const summary =
+      await settlePendingPredictions(
+        {
+          limit,
+        }
+      );
+
     return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
+      {
+        success: true,
+        checked:
+          summary
+            .eligiblePredictions,
+        updated:
+          summary
+            .settledPredictions,
+        summary,
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
+    );
+  } catch (error) {
+    console.error(
+      "[VALIDATE_PREDICTIONS_ERROR]",
+      error
+    );
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to validate predictions.";
+
+    const normalized =
+      message.toLowerCase();
+
+    const status =
+      normalized.includes(
+        "unauthorized"
+      ) ||
+      normalized.includes(
+        "authentication required"
+      )
+        ? 401
+        : normalized.includes(
+            "admin access required"
+          ) ||
+          normalized.includes(
+            "forbidden"
+          )
+        ? 403
+        : 500;
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: message,
+      },
+      {
+        status,
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
     );
   }
 }
