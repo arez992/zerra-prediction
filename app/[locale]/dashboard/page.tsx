@@ -32,6 +32,7 @@ type LeagueItem = {
   key: string;
   name: string;
   count: number;
+  logo: string | null;
 };
 
 const LIVE_STATUSES = [
@@ -297,8 +298,7 @@ export default function DashboardPage() {
         error
       ) {
         if (
-          error instanceof
-            Error &&
+          error instanceof Error &&
           error.name ===
             "AbortError"
         ) {
@@ -379,6 +379,16 @@ export default function DashboardPage() {
                 rawName
               );
 
+            const leagueLogo =
+              typeof match
+                ?.league
+                ?.logo ===
+                "string"
+                ? match
+                    .league
+                    .logo
+                : null;
+
             const current =
               map.get(
                 key
@@ -389,6 +399,14 @@ export default function DashboardPage() {
             ) {
               current.count +=
                 1;
+
+              if (
+                !current.logo &&
+                leagueLogo
+              ) {
+                current.logo =
+                  leagueLogo;
+              }
 
               return;
             }
@@ -401,6 +419,8 @@ export default function DashboardPage() {
                   rawName,
                 count:
                   1,
+                logo:
+                  leagueLogo,
               }
             );
           }
@@ -793,6 +813,7 @@ export default function DashboardPage() {
     label: string;
     value: FilterType;
     count: number;
+    icon: string;
   }[] = [
     {
       label:
@@ -801,6 +822,8 @@ export default function DashboardPage() {
         "all",
       count:
         fixtures.length,
+      icon:
+        "⚽",
     },
     {
       label:
@@ -809,6 +832,8 @@ export default function DashboardPage() {
         "live",
       count:
         live,
+      icon:
+        "●",
     },
     {
       label:
@@ -817,6 +842,8 @@ export default function DashboardPage() {
         "upcoming",
       count:
         upcoming,
+      icon:
+        "▣",
     },
     {
       label:
@@ -825,14 +852,16 @@ export default function DashboardPage() {
         "finished",
       count:
         finished,
+      icon:
+        "⚑",
     },
   ];
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f8faf8] text-[#102117]">
-      <div className="mx-auto grid w-full max-w-[1480px] lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)_270px]">
-        <aside className="hidden border-r border-[#e1e9e3] bg-white lg:block">
-          <div className="px-4 py-7">
+      <div className="mx-auto grid w-full max-w-[1520px] lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)_290px]">
+        <aside className="hidden min-h-screen border-r border-[#e1e9e3] bg-white lg:block">
+          <div className="px-5 py-7">
             <p className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8a978e]">
               Predictions
             </p>
@@ -852,20 +881,33 @@ export default function DashboardPage() {
                         filter.value
                       )
                     }
-                    className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition ${
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${
                       activeFilter ===
                       filter.value
                         ? "bg-[#e8f6ed] text-[#08763b]"
-                        : "text-[#506056] hover:bg-[#f5f8f6]"
+                        : "text-[#24382b] hover:bg-[#f5f8f6]"
                     }`}
                   >
-                    <span>
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center text-xs ${
+                        filter.value ===
+                        "live"
+                          ? "text-red-500"
+                          : "text-[#139653]"
+                      }`}
+                    >
+                      {
+                        filter.icon
+                      }
+                    </span>
+
+                    <span className="min-w-0 flex-1">
                       {
                         filter.label
                       }
                     </span>
 
-                    <span className="text-[10px] opacity-70">
+                    <span className="shrink-0 text-[10px] font-black text-[#748079]">
                       {
                         filter.count
                       }
@@ -888,18 +930,22 @@ export default function DashboardPage() {
                       "all"
                     )
                   }
-                  className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold ${
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold ${
                     selectedLeague ===
                     "all"
                       ? "bg-[#e8f6ed] text-[#08763b]"
-                      : "text-[#5f6d64] hover:bg-[#f5f8f6]"
+                      : "text-[#24382b] hover:bg-[#f5f8f6]"
                   }`}
                 >
-                  <span className="truncate">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eaf7ef] text-xs font-black text-[#139653]">
+                    ⚽
+                  </div>
+
+                  <span className="min-w-0 flex-1 truncate">
                     All Competitions
                   </span>
 
-                  <span className="ml-2 shrink-0 text-[10px]">
+                  <span className="shrink-0 text-[10px]">
                     {
                       fixtures.length
                     }
@@ -920,20 +966,29 @@ export default function DashboardPage() {
                           league.key
                         )
                       }
-                      className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold ${
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${
                         selectedLeague ===
                         league.key
                           ? "bg-[#e8f6ed] text-[#08763b]"
-                          : "text-[#5f6d64] hover:bg-[#f5f8f6]"
+                          : "text-[#24382b] hover:bg-[#f5f8f6]"
                       }`}
                     >
-                      <span className="min-w-0 truncate">
+                      <LeagueLogo
+                        logo={
+                          league.logo
+                        }
+                        name={
+                          league.name
+                        }
+                      />
+
+                      <span className="min-w-0 flex-1 truncate">
                         {
                           league.name
                         }
                       </span>
 
-                      <span className="ml-2 shrink-0 text-[10px]">
+                      <span className="shrink-0 text-[10px] text-[#7c8981]">
                         {
                           league.count
                         }
@@ -954,11 +1009,19 @@ export default function DashboardPage() {
                           !current
                       )
                     }
-                    className="rounded-xl px-3 py-2.5 text-left text-xs font-black text-[#139653] hover:bg-[#eaf7ef]"
+                    className="flex items-center justify-between rounded-xl px-3 py-3 text-left text-xs font-black text-[#139653] hover:bg-[#eaf7ef]"
                   >
-                    {showAllLeagues
-                      ? "Show Less ↑"
-                      : `More Competitions (${leagues.length - 8}) ↓`}
+                    <span>
+                      {showAllLeagues
+                        ? "Show Less"
+                        : `More Competitions (${leagues.length - 8})`}
+                    </span>
+
+                    <span>
+                      {showAllLeagues
+                        ? "↑"
+                        : "↓"}
+                    </span>
                   </button>
                 )}
               </div>
@@ -988,7 +1051,7 @@ export default function DashboardPage() {
           </div>
         </aside>
 
-        <section className="min-w-0 px-4 py-7 md:px-6 lg:px-7">
+        <section className="min-w-0 px-4 py-7 md:px-6 lg:px-8">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#139653]">
               ZERRA Predictions
@@ -1099,24 +1162,30 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_200px_190px]">
-            <input
-              type="search"
-              value={
-                searchTerm
-              }
-              onChange={(
-                event
-              ) =>
-                setSearchTerm(
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_210px_200px]">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#98a49c]">
+                ⌕
+              </span>
+
+              <input
+                type="search"
+                value={
+                  searchTerm
+                }
+                onChange={(
                   event
-                    .target
-                    .value
-                )
-              }
-              placeholder="Search matches, teams or competitions..."
-              className="min-w-0 rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm outline-none focus:border-[#139653]"
-            />
+                ) =>
+                  setSearchTerm(
+                    event
+                      .target
+                      .value
+                  )
+                }
+                placeholder="Search matches, teams or competitions..."
+                className="w-full rounded-xl border border-[#dce8df] bg-white py-3 pl-11 pr-4 text-sm outline-none focus:border-[#139653]"
+              />
+            </div>
 
             <select
               value={
@@ -1210,7 +1279,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="w-full overflow-hidden rounded-2xl border border-[#dce8df] bg-white">
-                <div className="hidden grid-cols-[minmax(270px,1.8fr)_80px_minmax(160px,1fr)_80px_60px] items-center gap-4 border-b border-[#e7eee9] bg-[#f7faf8] px-5 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#89968d] xl:grid">
+                <div className="hidden grid-cols-[minmax(300px,1.8fr)_90px_minmax(170px,1fr)_90px_65px] items-center gap-4 border-b border-[#e7eee9] bg-[#f7faf8] px-5 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#89968d] xl:grid">
                   <span>
                     Match
                   </span>
@@ -1302,7 +1371,7 @@ export default function DashboardPage() {
         </section>
 
         <aside className="hidden border-l border-[#e1e9e3] bg-[#fbfdfb] xl:block">
-          <div className="px-4 py-7">
+          <div className="px-5 py-7">
             <div className="rounded-2xl border border-[#dce8df] bg-white p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#839188]">
                 Prediction Performance
@@ -1311,7 +1380,7 @@ export default function DashboardPage() {
               <div className="mt-6 flex justify-center">
                 {averageConfidence !==
                 null ? (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#e8f6ed]">
+                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#d9efe1]">
                     <div className="text-center">
                       <p className="text-3xl font-black text-[#139653]">
                         {
@@ -1326,13 +1395,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#edf3ef]">
+                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#dcefe3]">
                     <div className="px-3 text-center">
-                      <p className="text-sm font-black text-[#66756c]">
+                      <p className="text-sm font-black text-[#344b3b]">
                         Awaiting
                       </p>
 
-                      <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-[#9aa49d]">
+                      <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-[#89968d]">
                         AI Data
                       </p>
                     </div>
@@ -1378,16 +1447,19 @@ export default function DashboardPage() {
 
               <div className="mt-5 grid gap-5">
                 <FeatureItem
+                  icon="AI"
                   title="Advanced AI"
                   description="ZERRA evaluates football data through its prediction and intelligence engine."
                 />
 
                 <FeatureItem
+                  icon="RT"
                   title="Real-time Data"
                   description="Fixtures and competition information come from the live football data pipeline."
                 />
 
                 <FeatureItem
+                  icon="%"
                   title="Confidence Analysis"
                   description="Confidence reflects model evidence, reliability, uncertainty, and data quality."
                 />
@@ -1473,58 +1545,49 @@ function PredictionRow({
   return (
     <Link
       href={`/${locale}/match/${fixtureId}`}
-      className="grid min-w-0 gap-4 px-5 py-4 transition hover:bg-[#fbfdfb] xl:grid-cols-[minmax(270px,1.8fr)_80px_minmax(160px,1fr)_80px_60px] xl:items-center"
+      className="grid min-w-0 gap-4 px-5 py-4 transition hover:bg-[#fbfdfb] xl:grid-cols-[minmax(300px,1.8fr)_90px_minmax(170px,1fr)_90px_65px] xl:items-center"
     >
       <div className="min-w-0">
         <p className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-[#139653]">
           {league}
         </p>
 
-        <div className="mt-2 grid min-w-0 grid-cols-[44px_minmax(0,1fr)_24px_44px] items-center gap-3">
-          <TeamLogo
+        <div className="mt-2 grid gap-1.5">
+          <TeamLine
             logo={
               home?.logo
             }
             name={
-              home?.name
+              home?.name ||
+              "Home Team"
             }
           />
 
-          <div className="min-w-0">
-            <p className="truncate text-sm font-black text-[#102117]">
-              {home?.name ||
-                "Home Team"}
-            </p>
-
-            <p className="mt-1 truncate text-sm font-black text-[#506056]">
-              {away?.name ||
-                "Away Team"}
-            </p>
-          </div>
-
-          <span className="text-center text-[9px] font-black uppercase text-[#a0aaa3]">
-            vs
-          </span>
-
-          <TeamLogo
+          <TeamLine
             logo={
               away?.logo
             }
             name={
-              away?.name
+              away?.name ||
+              "Away Team"
             }
           />
         </div>
       </div>
 
-      <DashboardCell
-        label="Time"
-        value={formatMatchTime(
-          match
-            ?.fixture
-            ?.date
-        )}
-      />
+      <div className="relative">
+        <DashboardLabel>
+          Time
+        </DashboardLabel>
+
+        <p className="text-sm font-black">
+          {formatMatchTime(
+            match
+              ?.fixture
+              ?.date
+          )}
+        </p>
+      </div>
 
       <div className="min-w-0">
         <DashboardLabel>
@@ -1532,7 +1595,7 @@ function PredictionRow({
         </DashboardLabel>
 
         {!isVip ? (
-          <div className="mt-1">
+          <div>
             <p className="text-sm font-black text-[#b58a16]">
               VIP Prediction
             </p>
@@ -1543,12 +1606,12 @@ function PredictionRow({
             </p>
           </div>
         ) : loadingPrediction ? (
-          <p className="mt-1 text-sm font-bold text-[#7d8b82]">
+          <p className="text-sm font-bold text-[#7d8b82]">
             Loading AI
             prediction...
           </p>
         ) : predictionError ? (
-          <div className="mt-1">
+          <div>
             <p className="text-sm font-black leading-5 text-[#a66b00]">
               AI prediction
               temporarily
@@ -1561,7 +1624,7 @@ function PredictionRow({
             </p>
           </div>
         ) : goalPrediction ? (
-          <div className="mt-1">
+          <div>
             <p className="text-sm font-black text-[#139653]">
               {
                 goalPrediction.label
@@ -1578,7 +1641,7 @@ function PredictionRow({
             )}
           </div>
         ) : (
-          <p className="mt-1 text-sm font-bold text-[#7d8b82]">
+          <p className="text-sm font-bold text-[#7d8b82]">
             Prediction pending
           </p>
         )}
@@ -1591,7 +1654,7 @@ function PredictionRow({
 
         {isVip &&
         goalPrediction ? (
-          <div className="mt-1 flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-[#139653]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-[#139653]">
             <span className="text-[11px] font-black">
               {Math.round(
                 goalPrediction.confidence
@@ -1600,7 +1663,7 @@ function PredictionRow({
             </span>
           </div>
         ) : (
-          <p className="mt-1 text-sm font-black text-[#9aa49d]">
+          <p className="text-sm font-black text-[#9aa49d]">
             —
           </p>
         )}
@@ -1612,7 +1675,7 @@ function PredictionRow({
         </DashboardLabel>
 
         <span
-          className={`mt-1 inline-flex rounded-full px-3 py-1.5 text-[9px] font-black uppercase ${
+          className={`inline-flex rounded-full px-3 py-1.5 text-[9px] font-black uppercase ${
             isVip
               ? "bg-[#e8f6ed] text-[#08763b]"
               : "bg-[#fff6d9] text-[#a57900]"
@@ -1627,6 +1690,27 @@ function PredictionRow({
   );
 }
 
+function TeamLine({
+  logo,
+  name,
+}: {
+  logo?: string;
+  name: string;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3">
+      <TeamLogo
+        logo={logo}
+        name={name}
+      />
+
+      <p className="truncate text-sm font-black text-[#102117]">
+        {name}
+      </p>
+    </div>
+  );
+}
+
 function TeamLogo({
   logo,
   name,
@@ -1635,7 +1719,7 @@ function TeamLogo({
   name?: string;
 }) {
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f7faf8] p-1">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center">
       {logo ? (
         <img
           src={logo}
@@ -1643,10 +1727,10 @@ function TeamLogo({
             name ||
             "Team"
           }
-          className="h-full w-full object-contain"
+          className="max-h-8 max-w-8 object-contain"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center rounded-lg bg-[#eaf7ef] text-sm font-black text-[#139653]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eaf7ef] text-xs font-black text-[#139653]">
           {(name ||
             "T")
             .slice(
@@ -1660,22 +1744,31 @@ function TeamLogo({
   );
 }
 
-function DashboardCell({
-  label,
-  value,
+function LeagueLogo({
+  logo,
+  name,
 }: {
-  label: string;
-  value: string;
+  logo: string | null;
+  name: string;
 }) {
   return (
-    <div>
-      <DashboardLabel>
-        {label}
-      </DashboardLabel>
-
-      <p className="mt-1 text-sm font-black">
-        {value}
-      </p>
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center">
+      {logo ? (
+        <img
+          src={logo}
+          alt={name}
+          className="max-h-6 max-w-6 object-contain"
+        />
+      ) : (
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#eaf7ef] text-[9px] font-black text-[#139653]">
+          {name
+            .slice(
+              0,
+              1
+            )
+            .toUpperCase()}
+        </div>
+      )}
     </div>
   );
 }
@@ -1687,7 +1780,7 @@ function DashboardLabel({
     React.ReactNode;
 }) {
   return (
-    <p className="text-[9px] font-black uppercase tracking-[0.13em] text-[#8a978e] xl:hidden">
+    <p className="mb-1 text-[9px] font-black uppercase tracking-[0.13em] text-[#8a978e] xl:hidden">
       {children}
     </p>
   );
@@ -1714,21 +1807,29 @@ function SideStat({
 }
 
 function FeatureItem({
+  icon,
   title,
   description,
 }: {
+  icon: string;
   title: string;
   description: string;
 }) {
   return (
-    <div>
-      <p className="text-sm font-black">
-        {title}
-      </p>
+    <div className="flex gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eaf7ef] text-[9px] font-black text-[#139653]">
+        {icon}
+      </div>
 
-      <p className="mt-1 text-xs leading-5 text-[#7d8b82]">
-        {description}
-      </p>
+      <div>
+        <p className="text-sm font-black">
+          {title}
+        </p>
+
+        <p className="mt-1 text-xs leading-5 text-[#7d8b82]">
+          {description}
+        </p>
+      </div>
     </div>
   );
 }
