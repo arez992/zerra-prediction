@@ -281,15 +281,13 @@ export default function AIAnalysis({
         </p>
 
         <h2 className="mt-2 text-2xl font-black text-[#102117]">
-          Generating professional
-          match analysis...
+          Reviewing market intelligence...
         </h2>
 
         <p className="mt-4 text-sm leading-7 text-[#66756c]">
-          ZERRA AI is
-          reviewing prediction
-          signals, risk level,
-          and model context.
+          ZERRA AI is reviewing the selected market,
+          supporting probabilities, risk level, and
+          available match evidence.
         </p>
 
         <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#e8efea]">
@@ -310,8 +308,7 @@ export default function AIAnalysis({
         </p>
 
         <h2 className="mt-2 text-2xl font-black text-[#102117]">
-          Analysis temporarily
-          unavailable
+          Analysis temporarily unavailable
         </h2>
 
         <p className="mt-4 break-words text-sm leading-7 text-[#66756c]">
@@ -329,8 +326,7 @@ export default function AIAnalysis({
       </p>
 
       <h2 className="mt-2 text-2xl font-black text-[#102117]">
-        Professional Match
-        Verdict
+        Primary Market Analysis
       </h2>
 
       <p className="mt-5 text-sm leading-7 text-[#66756c]">
@@ -341,7 +337,7 @@ export default function AIAnalysis({
 
       <div className="mt-6 rounded-2xl bg-[#eaf7ef] p-5">
         <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#6f7e74]">
-          Final Verdict
+          AI Market Verdict
         </p>
 
         <p className="mt-2 text-2xl font-black text-[#139653]">
@@ -381,7 +377,7 @@ export default function AIAnalysis({
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
           <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#839087]">
-            Model Pick
+            Primary Market Pick
           </p>
 
           <p className="mt-2 font-black text-[#139653]">

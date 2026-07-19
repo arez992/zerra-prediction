@@ -68,39 +68,55 @@ function buildFallbackAnalysis(
       "away"
     );
 
-  const finalPrediction =
+  const primaryPrediction =
     prediction
       ?.vipPrediction
-      ?.finalPrediction ||
-    prediction
-      ?.finalPrediction ||
-    "No strong prediction";
+      ?.primaryPrediction ||
+    {};
+
+  const primaryPick =
+    typeof primaryPrediction
+      ?.pick === "string" &&
+    primaryPrediction
+      .pick
+      .trim()
+      ? primaryPrediction
+          .pick
+          .trim()
+      : "No Strong Prediction";
+
+  const primaryCategory =
+    typeof primaryPrediction
+      ?.category === "string" &&
+    primaryPrediction
+      .category
+      .trim()
+      ? primaryPrediction
+          .category
+          .trim()
+      : "No Strong Prediction";
+
+  const primaryQualified =
+    primaryPrediction
+      ?.qualified === true;
+
+  const confidence =
+    Number(
+      primaryPrediction
+        ?.confidence ??
+      prediction
+        ?.vipPrediction
+        ?.confidence ??
+      prediction
+        ?.confidence ??
+      0
+    );
 
   const exactScore =
     prediction
       ?.vipPrediction
       ?.exactScore ||
-    prediction
-      ?.exactScore ||
     "N/A";
-
-  const valueSignal =
-    prediction
-      ?.vipPrediction
-      ?.valueBet ||
-    prediction
-      ?.valueBet ||
-    "No Value";
-
-  const confidence =
-    Number(
-      prediction
-        ?.confidence ??
-      prediction
-        ?.vipPrediction
-        ?.confidence ??
-      0
-    );
 
   const risk =
     prediction?.risk ||
@@ -117,37 +133,75 @@ function buildFallbackAnalysis(
           .reasoning
           .slice(
             0,
-            4
+            5
           )
       : [];
 
+  if (
+    !primaryQualified
+  ) {
+    return {
+      summary:
+        `ZERRA's internal prediction engine analyzed ${homeTeam} vs ${awayTeam} across supported football markets. ` +
+        `No market currently meets the required qualification standard for a strong primary prediction.`,
+
+      verdict:
+        primaryPick,
+
+      reasons:
+        reasons.length > 0
+          ? reasons
+          : [
+              `Primary market category: ${primaryCategory}.`,
+
+              `Current evidence-adjusted confidence is ${Math.round(
+                confidence
+              )}%.`,
+
+              `Current risk level is ${risk}.`,
+
+              "ZERRA does not force a weak prediction when the available evidence is insufficient.",
+            ],
+
+      bestPick:
+        primaryPick,
+
+      riskNote:
+        `Risk level: ${risk}. No strong market prediction is being forced.`,
+    };
+  }
+
   return {
     summary:
-      `ZERRA's internal prediction engine analyzed ${homeTeam} vs ${awayTeam}. ` +
-      `The current model prediction is ${finalPrediction} with ${Math.round(
+      `ZERRA's internal prediction engine analyzed ${homeTeam} vs ${awayTeam} and selected ${primaryPick} ` +
+      `from the ${primaryCategory} market family with ${Math.round(
         confidence
-      )}% confidence and an estimated score of ${exactScore}.`,
+      )}% evidence-adjusted confidence.`,
 
     verdict:
-      finalPrediction,
+      primaryPick,
 
     reasons:
       reasons.length > 0
         ? reasons
         : [
-            `Model confidence is ${Math.round(
+            `Primary market category: ${primaryCategory}.`,
+
+            `Primary market pick: ${primaryPick}.`,
+
+            `Evidence-adjusted confidence is ${Math.round(
               confidence
             )}%.`,
 
             `Current risk level is ${risk}.`,
 
-            `Estimated score is ${exactScore}.`,
-
-            `Current model signal is ${valueSignal}.`,
+            exactScore !== "N/A"
+              ? `Supplemental exact-score estimate: ${exactScore}.`
+              : "No supplemental exact-score estimate is available.",
           ],
 
     bestPick:
-      valueSignal,
+      primaryPick,
 
     riskNote:
       `Risk level: ${risk}.`,
@@ -180,13 +234,15 @@ export async function POST(
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
 
           error:
             "match and prediction are required",
         },
         {
-          status: 400,
+          status:
+            400,
         }
       );
     }
@@ -210,24 +266,26 @@ export async function POST(
     /*
      * Cache first.
      *
-     * IMPORTANT:
-     * A cache hit performs no predictionHistory
-     * write. This keeps repeated match-page
-     * visits fast and avoids unnecessary
-     * Firestore writes.
+     * A cache hit performs no
+     * predictionHistory write.
      */
     const cachedAnalysis =
       await getCachedAIAnalysis(
         cacheKey
       );
 
-    if (cachedAnalysis) {
+    if (
+      cachedAnalysis
+    ) {
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
-        cached: true,
+        cached:
+          true,
 
-        fallback: false,
+        fallback:
+          false,
 
         context,
 
@@ -247,18 +305,24 @@ export async function POST(
         .OPENAI_API_KEY;
 
     /*
-     * OpenAI is an enhancement layer.
+     * OpenAI is enhancement only.
      *
-     * The core ZERRA prediction engine
-     * remains independent from OpenAI.
+     * ZERRA's statistical prediction
+     * engine remains the authority for
+     * market selection.
      */
-    if (!apiKey) {
+    if (
+      !apiKey
+    ) {
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
-        cached: false,
+        cached:
+          false,
 
-        fallback: true,
+        fallback:
+          true,
 
         fallbackReason:
           "openai-key-unavailable",
@@ -271,12 +335,38 @@ export async function POST(
     }
 
     const prompt = `
-You are ZERRA AI, a professional football prediction analyst.
+You are ZERRA AI, a professional football market-analysis assistant.
 
-Analyze the following football match using the provided AI context.
+Analyze the provided football match using the supplied ZERRA AI context.
 
-You must remain consistent with the existing ZERRA prediction.
-Do not change the final prediction, exact score logic, or risk classification.
+IMPORTANT RULES:
+
+1. The canonical ZERRA prediction is:
+   vipPrediction.primaryPrediction
+
+2. You MUST NOT change:
+   - primaryPrediction.pick
+   - primaryPrediction.category
+   - primaryPrediction.confidence
+   - primaryPrediction.qualified
+   - risk classification
+
+3. 1X2 Home/Draw/Away probabilities are supporting analysis only.
+   They must NOT replace the canonical primary market prediction.
+
+4. Exact score is supplemental only.
+   It must NOT override or redefine the primary market prediction.
+
+5. If primaryPrediction.qualified is false:
+   - Do NOT invent a stronger pick.
+   - Do NOT recommend another market as the final verdict.
+   - Clearly explain that ZERRA is withholding a strong prediction.
+
+6. Do not fabricate football facts, injuries, lineups, statistics,
+   form, or external data that are not present in the supplied context.
+
+7. Your role is explanation only.
+   ZERRA's internal prediction engine remains the source of truth.
 
 Return ONLY valid JSON.
 Do not include markdown.
@@ -290,10 +380,10 @@ ${JSON.stringify(
 
 Return JSON with this exact shape:
 {
-  "summary": "short professional match analysis",
-  "verdict": "final prediction verdict",
+  "summary": "short professional market-focused match analysis",
+  "verdict": "must exactly match the canonical primary market pick",
   "reasons": ["reason 1", "reason 2", "reason 3", "reason 4"],
-  "bestPick": "best model pick",
+  "bestPick": "must exactly match the canonical primary market pick",
   "riskNote": "short risk explanation"
 }
 `;
@@ -329,11 +419,14 @@ Return JSON with this exact shape:
         );
     } catch {
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
-        cached: false,
+        cached:
+          false,
 
-        fallback: true,
+        fallback:
+          true,
 
         fallbackReason:
           "openai-network-error",
@@ -354,11 +447,14 @@ Return JSON with this exact shape:
           .json();
     } catch {
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
-        cached: false,
+        cached:
+          false,
 
-        fallback: true,
+        fallback:
+          true,
 
         fallbackReason:
           "openai-invalid-response",
@@ -370,7 +466,9 @@ Return JSON with this exact shape:
       });
     }
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
       const errorCode =
         getOpenAIErrorCode(
           data
@@ -390,11 +488,14 @@ Return JSON with this exact shape:
       );
 
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
-        cached: false,
+        cached:
+          false,
 
-        fallback: true,
+        fallback:
+          true,
 
         fallbackReason:
           errorCode ||
@@ -433,12 +534,39 @@ Return JSON with this exact shape:
         true;
     }
 
+    const canonicalPrimary =
+      prediction
+        ?.vipPrediction
+        ?.primaryPrediction;
+
+    const canonicalPick =
+      canonicalPrimary
+        ?.pick ||
+      fallbackAnalysis
+        .bestPick;
+
+    /*
+     * OpenAI is not allowed to override
+     * the prediction engine.
+     *
+     * Force canonical market fields even
+     * if the model returns something else.
+     */
+    analysis = {
+      ...analysis,
+
+      verdict:
+        canonicalPick,
+
+      bestPick:
+        canonicalPick,
+    };
+
     /*
      * Save the generated analysis once.
      *
-     * Future requests should use the cache
-     * and will not write predictionHistory
-     * again.
+     * Future requests use cache and
+     * avoid repeated Firestore writes.
      */
     await saveAIAnalysisCache(
       cacheKey,
@@ -459,9 +587,11 @@ Return JSON with this exact shape:
     });
 
     return NextResponse.json({
-      success: true,
+      success:
+        true,
 
-      cached: false,
+      cached:
+        false,
 
       fallback:
         usedFallback,
@@ -475,26 +605,31 @@ Return JSON with this exact shape:
 
       analysis,
     });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "[MATCH_ANALYSIS_ERROR]",
       error
     );
 
     const message =
-      error instanceof Error
+      error instanceof
+        Error
         ? error.message
         : "Unable to generate match analysis.";
 
     return NextResponse.json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           message,
       },
       {
-        status: 500,
+        status:
+          500,
       }
     );
   }
