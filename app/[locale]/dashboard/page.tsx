@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-
 import {
   useEffect,
   useMemo,
   useState,
 } from "react";
-
 import {
   useParams,
 } from "next/navigation";
@@ -143,24 +141,20 @@ function getGoalPrediction(
 
   const over25 =
     Number(
-      prediction.over25 ??
-        0
+      prediction.over25 ?? 0
     );
 
   const under25 =
     Number(
-      prediction.under25 ??
-        0
+      prediction.under25 ?? 0
     );
 
   if (
-    over25 >=
-    under25
+    over25 >= under25
   ) {
     return {
       label:
         "Over 2.5 Goals",
-
       confidence:
         over25,
     };
@@ -169,7 +163,6 @@ function getGoalPrediction(
   return {
     label:
       "Under 2.5 Goals",
-
     confidence:
       under25,
   };
@@ -270,7 +263,6 @@ export default function DashboardPage() {
             {
               cache:
                 "no-store",
-
               signal:
                 controller.signal,
             }
@@ -447,7 +439,7 @@ export default function DashboardPage() {
       ? leagues
       : leagues.slice(
           0,
-          10
+          8
         );
 
   const live =
@@ -837,15 +829,15 @@ export default function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f8faf8] text-[#102117]">
-      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)_290px]">
+    <main className="min-h-screen overflow-x-hidden bg-[#f8faf8] text-[#102117]">
+      <div className="mx-auto grid w-full max-w-[1480px] lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)_270px]">
         <aside className="hidden border-r border-[#e1e9e3] bg-white lg:block">
-          <div className="sticky top-[76px] max-h-[calc(100vh-76px)] overflow-y-auto px-5 py-8">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8a978e]">
+          <div className="px-4 py-7">
+            <p className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8a978e]">
               Predictions
             </p>
 
-            <div className="mt-4 grid gap-1.5">
+            <div className="mt-3 grid gap-1">
               {filters.map(
                 (
                   filter
@@ -860,7 +852,7 @@ export default function DashboardPage() {
                         filter.value
                       )
                     }
-                    className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-bold transition ${
+                    className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition ${
                       activeFilter ===
                       filter.value
                         ? "bg-[#e8f6ed] text-[#08763b]"
@@ -873,7 +865,7 @@ export default function DashboardPage() {
                       }
                     </span>
 
-                    <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px]">
+                    <span className="text-[10px] opacity-70">
                       {
                         filter.count
                       }
@@ -883,8 +875,8 @@ export default function DashboardPage() {
               )}
             </div>
 
-            <div className="mt-7 border-t border-[#e7eee9] pt-6">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8a978e]">
+            <div className="mt-6 border-t border-[#e7eee9] pt-5">
+              <p className="px-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#8a978e]">
                 Filter by Competition
               </p>
 
@@ -896,18 +888,18 @@ export default function DashboardPage() {
                       "all"
                     )
                   }
-                  className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-left text-sm font-bold ${
+                  className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold ${
                     selectedLeague ===
                     "all"
                       ? "bg-[#e8f6ed] text-[#08763b]"
                       : "text-[#5f6d64] hover:bg-[#f5f8f6]"
                   }`}
                 >
-                  <span>
+                  <span className="truncate">
                     All Competitions
                   </span>
 
-                  <span className="text-[10px]">
+                  <span className="ml-2 shrink-0 text-[10px]">
                     {
                       fixtures.length
                     }
@@ -928,7 +920,7 @@ export default function DashboardPage() {
                           league.key
                         )
                       }
-                      className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-left text-sm font-bold ${
+                      className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold ${
                         selectedLeague ===
                         league.key
                           ? "bg-[#e8f6ed] text-[#08763b]"
@@ -941,7 +933,7 @@ export default function DashboardPage() {
                         }
                       </span>
 
-                      <span className="ml-3 shrink-0 text-[10px]">
+                      <span className="ml-2 shrink-0 text-[10px]">
                         {
                           league.count
                         }
@@ -951,7 +943,7 @@ export default function DashboardPage() {
                 )}
 
                 {leagues.length >
-                  10 && (
+                  8 && (
                   <button
                     type="button"
                     onClick={() =>
@@ -962,34 +954,32 @@ export default function DashboardPage() {
                           !current
                       )
                     }
-                    className="mt-1 rounded-xl px-4 py-2.5 text-left text-xs font-black text-[#139653] transition hover:bg-[#eaf7ef]"
+                    className="rounded-xl px-3 py-2.5 text-left text-xs font-black text-[#139653] hover:bg-[#eaf7ef]"
                   >
                     {showAllLeagues
                       ? "Show Less ↑"
-                      : `More Competitions (${leagues.length - 10}) ↓`}
+                      : `More Competitions (${leagues.length - 8}) ↓`}
                   </button>
                 )}
               </div>
             </div>
 
             {!isVip && (
-              <div className="mt-7 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
+              <div className="mt-6 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-4">
                 <p className="text-sm font-black">
                   Upgrade to VIP
                 </p>
 
-                <p className="mt-2 text-xs leading-6 text-[#66756c]">
+                <p className="mt-2 text-xs leading-5 text-[#66756c]">
                   Unlock full AI
-                  predictions,
-                  confidence signals,
-                  exact-score
-                  estimates, and
-                  premium analysis.
+                  predictions and
+                  premium match
+                  intelligence.
                 </p>
 
                 <Link
                   href={`/${locale}/vip`}
-                  className="mt-5 flex justify-center rounded-xl bg-[#139653] px-4 py-3 text-xs font-black text-white transition hover:bg-[#0d7a40]"
+                  className="mt-4 flex justify-center rounded-xl bg-[#139653] px-3 py-2.5 text-xs font-black text-white"
                 >
                   View VIP Plans →
                 </Link>
@@ -998,9 +988,9 @@ export default function DashboardPage() {
           </div>
         </aside>
 
-        <section className="min-w-0 px-4 py-8 md:px-7 lg:px-8">
+        <section className="min-w-0 px-4 py-7 md:px-6 lg:px-7">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#139653]">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#139653]">
               ZERRA Predictions
             </p>
 
@@ -1016,7 +1006,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="mt-7 rounded-2xl border border-[#dce8df] bg-white p-3 shadow-[0_4px_20px_rgba(20,70,40,0.03)]">
+          <div className="mt-7 rounded-2xl border border-[#dce8df] bg-white p-3">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap gap-2">
                 {filters.map(
@@ -1033,11 +1023,11 @@ export default function DashboardPage() {
                           filter.value
                         )
                       }
-                      className={`rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                      className={`rounded-xl px-4 py-2.5 text-sm font-black ${
                         activeFilter ===
                         filter.value
-                          ? "bg-[#139653] text-white shadow-sm"
-                          : "bg-[#f7faf8] text-[#506056] hover:bg-[#eaf7ef]"
+                          ? "bg-[#139653] text-white"
+                          : "bg-[#f7faf8] text-[#506056]"
                       }`}
                     >
                       {
@@ -1062,7 +1052,7 @@ export default function DashboardPage() {
                       getToday()
                     )
                   }
-                  className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                  className={`rounded-xl px-4 py-2.5 text-sm font-bold ${
                     selectedDate ===
                     getToday()
                       ? "bg-[#e8f6ed] text-[#08763b]"
@@ -1079,7 +1069,7 @@ export default function DashboardPage() {
                       getTomorrow()
                     )
                   }
-                  className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                  className={`rounded-xl px-4 py-2.5 text-sm font-bold ${
                     selectedDate ===
                     getTomorrow()
                       ? "bg-[#e8f6ed] text-[#08763b]"
@@ -1103,13 +1093,13 @@ export default function DashboardPage() {
                         .value
                     )
                   }
-                  className="rounded-xl border border-[#dce8df] bg-white px-4 py-2.5 text-sm font-bold text-[#506056] outline-none focus:border-[#139653]"
+                  className="rounded-xl border border-[#dce8df] bg-white px-4 py-2.5 text-sm font-bold text-[#506056] outline-none"
                 />
               </div>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_220px_200px]">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_200px_190px]">
             <input
               type="search"
               value={
@@ -1125,7 +1115,7 @@ export default function DashboardPage() {
                 )
               }
               placeholder="Search matches, teams or competitions..."
-              className="rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#139653]"
+              className="min-w-0 rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm outline-none focus:border-[#139653]"
             />
 
             <select
@@ -1141,7 +1131,7 @@ export default function DashboardPage() {
                     .value
                 )
               }
-              className="rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm font-bold text-[#506056] outline-none"
+              className="min-w-0 rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm font-bold text-[#506056] outline-none"
             >
               <option value="all">
                 All Competitions
@@ -1181,7 +1171,7 @@ export default function DashboardPage() {
                     SortType
                 )
               }
-              className="rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm font-bold text-[#506056] outline-none"
+              className="min-w-0 rounded-xl border border-[#dce8df] bg-white px-4 py-3 text-sm font-bold text-[#506056] outline-none"
             >
               <option value="time">
                 Sort by Match Time
@@ -1201,11 +1191,9 @@ export default function DashboardPage() {
           <div className="mt-6">
             {loading ||
             vipLoading ? (
-              <div className="rounded-2xl border border-[#dce8df] bg-white p-12 text-center">
-                <p className="font-black">
-                  Loading football
-                  fixtures...
-                </p>
+              <div className="rounded-2xl border border-[#dce8df] bg-white p-12 text-center font-black">
+                Loading football
+                fixtures...
               </div>
             ) : sortedFixtures.length ===
               0 ? (
@@ -1221,8 +1209,8 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-[#dce8df] bg-white shadow-[0_6px_30px_rgba(20,70,40,0.04)]">
-                <div className="hidden grid-cols-[1.8fr_0.55fr_1.05fr_0.6fr_0.4fr] gap-5 border-b border-[#e7eee9] bg-[#f7faf8] px-5 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#89968d] xl:grid">
+              <div className="w-full overflow-hidden rounded-2xl border border-[#dce8df] bg-white">
+                <div className="hidden grid-cols-[minmax(270px,1.8fr)_80px_minmax(160px,1fr)_80px_60px] items-center gap-4 border-b border-[#e7eee9] bg-[#f7faf8] px-5 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#89968d] xl:grid">
                   <span>
                     Match
                   </span>
@@ -1261,11 +1249,6 @@ export default function DashboardPage() {
                           fixtureId
                         ];
 
-                      const goalPrediction =
-                        getGoalPrediction(
-                          prediction
-                        );
-
                       return (
                         <PredictionRow
                           key={
@@ -1283,19 +1266,15 @@ export default function DashboardPage() {
                           prediction={
                             prediction
                           }
-                          goalPrediction={
-                            goalPrediction
-                          }
-                          loadingPrediction={
-                            loadingPredictionIds.has(
-                              fixtureId
-                            )
-                          }
-                          predictionError={
-                            predictionErrorIds.has(
-                              fixtureId
-                            )
-                          }
+                          goalPrediction={getGoalPrediction(
+                            prediction
+                          )}
+                          loadingPrediction={loadingPredictionIds.has(
+                            fixtureId
+                          )}
+                          predictionError={predictionErrorIds.has(
+                            fixtureId
+                          )}
                         />
                       );
                     }
@@ -1323,27 +1302,42 @@ export default function DashboardPage() {
         </section>
 
         <aside className="hidden border-l border-[#e1e9e3] bg-[#fbfdfb] xl:block">
-          <div className="sticky top-[76px] max-h-[calc(100vh-76px)] overflow-y-auto px-5 py-8">
-            <div className="rounded-2xl border border-[#dce8df] bg-white p-5 shadow-[0_6px_25px_rgba(20,70,40,0.03)]">
+          <div className="px-4 py-7">
+            <div className="rounded-2xl border border-[#dce8df] bg-white p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#839188]">
                 Prediction Performance
               </p>
 
               <div className="mt-6 flex justify-center">
-                <div className="flex h-36 w-36 items-center justify-center rounded-full border-[11px] border-[#e8f6ed]">
-                  <div className="text-center">
-                    <p className="text-3xl font-black text-[#139653]">
-                      {averageConfidence !==
-                      null
-                        ? `${averageConfidence}%`
-                        : "—"}
-                    </p>
+                {averageConfidence !==
+                null ? (
+                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#e8f6ed]">
+                    <div className="text-center">
+                      <p className="text-3xl font-black text-[#139653]">
+                        {
+                          averageConfidence
+                        }
+                        %
+                      </p>
 
-                    <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-[#89968d]">
-                      Avg Confidence
-                    </p>
+                      <p className="mt-1 text-[9px] font-black uppercase text-[#89968d]">
+                        Avg Confidence
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#edf3ef]">
+                    <div className="px-3 text-center">
+                      <p className="text-sm font-black text-[#66756c]">
+                        Awaiting
+                      </p>
+
+                      <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-[#9aa49d]">
+                        AI Data
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 grid gap-2.5">
@@ -1401,23 +1395,21 @@ export default function DashboardPage() {
             </div>
 
             {!isVip && (
-              <div className="mt-5 rounded-2xl bg-[#102117] p-6 text-white">
+              <div className="mt-5 rounded-2xl bg-[#102117] p-5 text-white">
                 <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[#f3c84b]">
                   ZERRA VIP
                 </p>
 
-                <h3 className="mt-3 text-2xl font-black">
+                <h3 className="mt-3 text-xl font-black">
                   Unlock VIP
                   Predictions
                 </h3>
 
-                <p className="mt-3 text-sm leading-6 text-white/65">
-                  Access full AI
-                  predictions,
-                  confidence signals,
-                  exact scores, and
-                  premium match
-                  intelligence.
+                <p className="mt-3 text-xs leading-6 text-white/65">
+                  Access premium AI
+                  match intelligence
+                  and confidence
+                  signals.
                 </p>
 
                 <Link
@@ -1481,14 +1473,14 @@ function PredictionRow({
   return (
     <Link
       href={`/${locale}/match/${fixtureId}`}
-      className="grid gap-5 px-5 py-5 transition hover:bg-[#fbfdfb] xl:grid-cols-[1.8fr_0.55fr_1.05fr_0.6fr_0.4fr] xl:items-center xl:gap-5"
+      className="grid min-w-0 gap-4 px-5 py-4 transition hover:bg-[#fbfdfb] xl:grid-cols-[minmax(270px,1.8fr)_80px_minmax(160px,1fr)_80px_60px] xl:items-center"
     >
-      <div>
-        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#139653]">
+      <div className="min-w-0">
+        <p className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-[#139653]">
           {league}
         </p>
 
-        <div className="mt-3 grid grid-cols-[40px_minmax(0,1fr)_28px_40px] items-center gap-3">
+        <div className="mt-2 grid min-w-0 grid-cols-[44px_minmax(0,1fr)_24px_44px] items-center gap-3">
           <TeamLogo
             logo={
               home?.logo
@@ -1499,7 +1491,7 @@ function PredictionRow({
           />
 
           <div className="min-w-0">
-            <p className="truncate text-sm font-black">
+            <p className="truncate text-sm font-black text-[#102117]">
               {home?.name ||
                 "Home Team"}
             </p>
@@ -1510,7 +1502,7 @@ function PredictionRow({
             </p>
           </div>
 
-          <span className="text-center text-[10px] font-black uppercase text-[#a0aaa3]">
+          <span className="text-center text-[9px] font-black uppercase text-[#a0aaa3]">
             vs
           </span>
 
@@ -1534,7 +1526,7 @@ function PredictionRow({
         )}
       />
 
-      <div>
+      <div className="min-w-0">
         <DashboardLabel>
           Prediction
         </DashboardLabel>
@@ -1545,7 +1537,7 @@ function PredictionRow({
               VIP Prediction
             </p>
 
-            <p className="mt-1 text-xs text-[#8a978e]">
+            <p className="mt-1 text-[11px] text-[#8a978e]">
               Locked for VIP
               members
             </p>
@@ -1557,13 +1549,13 @@ function PredictionRow({
           </p>
         ) : predictionError ? (
           <div className="mt-1">
-            <p className="text-sm font-black text-[#a66b00]">
+            <p className="text-sm font-black leading-5 text-[#a66b00]">
               AI prediction
               temporarily
               unavailable
             </p>
 
-            <p className="mt-1 text-[11px] text-[#8a978e]">
+            <p className="mt-1 text-[10px] text-[#8a978e]">
               Match data remains
               available
             </p>
@@ -1599,8 +1591,8 @@ function PredictionRow({
 
         {isVip &&
         goalPrediction ? (
-          <div className="mt-1 flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#139653]">
-            <span className="text-xs font-black">
+          <div className="mt-1 flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-[#139653]">
+            <span className="text-[11px] font-black">
               {Math.round(
                 goalPrediction.confidence
               )}
@@ -1620,7 +1612,7 @@ function PredictionRow({
         </DashboardLabel>
 
         <span
-          className={`mt-1 inline-flex rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wide ${
+          className={`mt-1 inline-flex rounded-full px-3 py-1.5 text-[9px] font-black uppercase ${
             isVip
               ? "bg-[#e8f6ed] text-[#08763b]"
               : "bg-[#fff6d9] text-[#a57900]"
@@ -1642,30 +1634,28 @@ function TeamLogo({
   logo?: string;
   name?: string;
 }) {
-  if (
-    logo
-  ) {
-    return (
-      <img
-        src={logo}
-        alt={
-          name ||
-          "Team"
-        }
-        className="h-10 w-10 object-contain"
-      />
-    );
-  }
-
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eaf7ef] text-sm font-black text-[#139653]">
-      {(name ||
-        "T")
-        .slice(
-          0,
-          1
-        )
-        .toUpperCase()}
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f7faf8] p-1">
+      {logo ? (
+        <img
+          src={logo}
+          alt={
+            name ||
+            "Team"
+          }
+          className="h-full w-full object-contain"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center rounded-lg bg-[#eaf7ef] text-sm font-black text-[#139653]">
+          {(name ||
+            "T")
+            .slice(
+              0,
+              1
+            )
+            .toUpperCase()}
+        </div>
+      )}
     </div>
   );
 }
