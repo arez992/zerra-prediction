@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+export const dynamic =
+  "force-dynamic";
+
+export const revalidate =
+  0;
+
 type PublicPredictionItem = {
   id: string;
   fixtureId: string;
@@ -63,14 +69,14 @@ async function getPublishedPredictions(): Promise<{
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://zerra-prediction.vercel.app";
 
-    const response = await fetch(
-      `${siteUrl}/api/predictions?limit=50`,
-      {
-        next: {
-          revalidate: 60,
-        },
-      }
-    );
+    const response =
+      await fetch(
+        `${siteUrl}/api/predictions?limit=50`,
+        {
+          cache:
+            "no-store",
+        }
+      );
 
     const raw =
       await response.text();
@@ -114,12 +120,14 @@ async function getPublishedPredictions(): Promise<{
         )
           ? data.predictions
           : [],
+
       error:
         null,
     };
   } catch {
     return {
       predictions: [],
+
       error:
         "Unable to connect to the public prediction service.",
     };
@@ -149,6 +157,7 @@ function formatFixtureDate(
     {
       dateStyle:
         "medium",
+
       timeStyle:
         "short",
     }
@@ -362,6 +371,7 @@ function FeaturedPrediction({
               item.competition
                 .name
             }
+
             {item.competition
               .round
               ? ` · ${item.competition.round}`
@@ -417,22 +427,22 @@ function FeaturedPrediction({
             <Link
               href={getLocalizedPath(
                 locale,
+                `/match/${item.fixtureId}`
+              )}
+              className="rounded-xl border border-[#dce8df] bg-white px-6 py-3 text-sm font-black text-[#536158] transition hover:bg-[#f7faf8]"
+            >
+              View Match
+            </Link>
+
+            <Link
+              href={getLocalizedPath(
+                locale,
                 "/vip"
               )}
               className="rounded-xl bg-[#139653] px-6 py-3 text-sm font-black text-white transition hover:bg-[#0d7a40]"
             >
               Unlock VIP
               Prediction
-            </Link>
-
-            <Link
-              href={getLocalizedPath(
-                locale,
-                "/dashboard"
-              )}
-              className="rounded-xl border border-[#dce8df] bg-white px-6 py-3 text-sm font-black text-[#536158] transition hover:bg-[#f7faf8]"
-            >
-              Open Dashboard
             </Link>
           </div>
         </div>
@@ -585,15 +595,27 @@ function PredictionCard({
         </p>
       </div>
 
-      <Link
-        href={getLocalizedPath(
-          locale,
-          "/vip"
-        )}
-        className="mt-5 inline-flex rounded-xl bg-[#139653] px-5 py-3 text-sm font-black text-white transition hover:bg-[#0d7a40]"
-      >
-        View VIP Access
-      </Link>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link
+          href={getLocalizedPath(
+            locale,
+            `/match/${item.fixtureId}`
+          )}
+          className="inline-flex rounded-xl border border-[#dce8df] bg-white px-5 py-3 text-sm font-black text-[#536158] transition hover:bg-[#f7faf8]"
+        >
+          View Match
+        </Link>
+
+        <Link
+          href={getLocalizedPath(
+            locale,
+            "/vip"
+          )}
+          className="inline-flex rounded-xl bg-[#139653] px-5 py-3 text-sm font-black text-white transition hover:bg-[#0d7a40]"
+        >
+          View VIP Access
+        </Link>
+      </div>
     </article>
   );
 }
