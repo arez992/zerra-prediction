@@ -1,9 +1,18 @@
 import Link from "next/link";
 
+import PredictionVipAction from "@/components/predictions/PredictionVipAction";
+
+export const dynamic =
+  "force-dynamic";
+
+export const revalidate =
+  0;
+
 type FixtureItem = {
   fixture?: {
     id?: number;
     date?: string;
+
     status?: {
       short?: string;
       long?: string;
@@ -154,6 +163,91 @@ type PageProps = {
   }>;
 };
 
+const UPCOMING_STATUS_CODES =
+  new Set([
+    "NS",
+    "TBD",
+  ]);
+
+const LIVE_STATUS_CODES =
+  new Set([
+    "1H",
+    "HT",
+    "2H",
+    "ET",
+    "BT",
+    "P",
+    "SUSP",
+    "INT",
+    "LIVE",
+  ]);
+
+function isUpcomingFixture(
+  fixture: FixtureItem
+): boolean {
+  const status =
+    fixture.fixture
+      ?.status
+      ?.short;
+
+  if (!status) {
+    return false;
+  }
+
+  return UPCOMING_STATUS_CODES.has(
+    status
+  );
+}
+
+function isLiveFixture(
+  fixture: FixtureItem
+): boolean {
+  const status =
+    fixture.fixture
+      ?.status
+      ?.short;
+
+  if (!status) {
+    return false;
+  }
+
+  return LIVE_STATUS_CODES.has(
+    status
+  );
+}
+
+function sortFixturesByDate(
+  fixtures: FixtureItem[]
+): FixtureItem[] {
+  return [
+    ...fixtures,
+  ].sort(
+    (
+      first,
+      second
+    ) => {
+      const firstTime =
+        first.fixture?.date
+          ? new Date(
+              first.fixture.date
+            ).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+      const secondTime =
+        second.fixture?.date
+          ? new Date(
+              second.fixture.date
+            ).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+      return (
+        firstTime -
+        secondTime
+      );
+    }
+  );
+}
+
 async function getFixtures(): Promise<
   FixtureItem[]
 > {
@@ -166,11 +260,16 @@ async function getFixtures(): Promise<
       await fetch(
         `${siteUrl}/api/sports/football/fixtures`,
         {
-          next: {
-            revalidate: 60,
-          },
+          cache:
+            "no-store",
         }
       );
+
+    if (
+      !response.ok
+    ) {
+      return [];
+    }
 
     const data =
       await response.json();
@@ -181,10 +280,7 @@ async function getFixtures(): Promise<
         data.fixtures
       )
     ) {
-      return data.fixtures.slice(
-        0,
-        6
-      );
+      return data.fixtures;
     }
 
     return [];
@@ -205,18 +301,22 @@ async function getFreePredictions(): Promise<
       await fetch(
         `${siteUrl}/api/predictions?limit=3`,
         {
-          next: {
-            revalidate: 60,
-          },
+          cache:
+            "no-store",
         }
       );
+
+    if (
+      !response.ok
+    ) {
+      return [];
+    }
 
     const data =
       (await response.json()) as
         PublicPredictionsResponse;
 
     if (
-      response.ok &&
       data.success &&
       Array.isArray(
         data.predictions
@@ -246,13 +346,14 @@ async function getYesterdayGoalResults(): Promise<
       await fetch(
         `${siteUrl}/api/predictions/yesterday-results?limit=6`,
         {
-          next: {
-            revalidate: 300,
-          },
+          cache:
+            "no-store",
         }
       );
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
       return null;
     }
 
@@ -331,15 +432,44 @@ export default async function HomePage({
       getYesterdayGoalResults(),
     ]);
 
+  const sortedFixtures =
+    sortFixturesByDate(
+      fixtures
+    );
+
+  const liveFixtures =
+    sortedFixtures.filter(
+      isLiveFixture
+    );
+
+  const upcomingOnly =
+    sortedFixtures.filter(
+      isUpcomingFixture
+    );
+
   const featuredFixture =
-    fixtures[0] ||
+    liveFixtures[0] ||
+    upcomingOnly[0] ||
     null;
 
+  const featuredId =
+    featuredFixture
+      ?.fixture
+      ?.id;
+
   const upcomingFixtures =
-    fixtures.slice(
-      1,
-      5
-    );
+    upcomingOnly
+      .filter(
+        (
+          fixture
+        ) =>
+          fixture.fixture?.id !==
+          featuredId
+      )
+      .slice(
+        0,
+        4
+      );
 
   function getPath(
     path: string
@@ -431,15 +561,16 @@ export default async function HomePage({
                 </p>
 
                 <h2 className="mt-5 text-3xl font-black">
-                  Match data is
-                  temporarily unavailable
+                  No upcoming match
+                  is available right now
                 </h2>
 
                 <p className="mt-4 text-sm leading-7 text-[#66756c]">
-                  ZERRA will display the
-                  latest real football
-                  fixture here as soon as
-                  data is available.
+                  ZERRA will display
+                  the next available
+                  football fixture here
+                  as soon as the data
+                  pipeline provides it.
                 </p>
               </div>
             )}
@@ -451,7 +582,7 @@ export default async function HomePage({
         <SectionHeader
           eyebrow="Today's Football"
           title="Upcoming Matches"
-          description="Real football fixtures currently available through the ZERRA football data pipeline."
+          description="Upcoming football fixtures currently available through the ZERRA football data pipeline."
           actionHref={getPath(
             "/dashboard"
           )}
@@ -460,7 +591,7 @@ export default async function HomePage({
 
         {upcomingFixtures.length ===
         0 ? (
-          <EmptyState message="No additional football fixtures are available right now." />
+          <EmptyState message="No upcoming football fixtures are available right now." />
         ) : (
           <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {upcomingFixtures.map(
@@ -576,9 +707,9 @@ export default async function HomePage({
       <section className="border-b border-[#e0ebe3] bg-[#f7faf8]">
         <div className="mx-auto max-w-7xl px-6 py-16">
           <SectionHeader
-            eyebrow="Daily Free Access"
-            title="Free Predictions"
-            description="ZERRA provides up to three published football prediction previews in this section. Admin-controlled Free/VIP selection will be connected later."
+            eyebrow="Published Predictions"
+            title="Latest Prediction Previews"
+            description="Explore recently published football prediction previews from the ZERRA AI workflow."
             actionHref={getPath(
               "/predictions"
             )}
@@ -587,7 +718,7 @@ export default async function HomePage({
 
           {freePredictions.length ===
           0 ? (
-            <EmptyState message="No published free prediction previews are available right now." />
+            <EmptyState message="No published prediction previews are available right now." />
           ) : (
             <div className="mt-8 grid gap-6 lg:grid-cols-3">
               {freePredictions.map(
@@ -605,9 +736,9 @@ export default async function HomePage({
                     number={
                       index + 1
                     }
-                    vipHref={getPath(
-                      "/vip"
-                    )}
+                    locale={
+                      locale
+                    }
                   />
                 )
               )}
@@ -621,21 +752,22 @@ export default async function HomePage({
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
               <span className="inline-flex rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#a8e5c1]">
-                ZERRA VIP
+                ZERRA Premium
               </span>
 
               <h2 className="mt-5 max-w-3xl text-3xl font-black md:text-5xl">
-                Unlock premium
+                Explore premium
                 football intelligence.
               </h2>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/65 md:text-base">
-                Access protected VIP
-                predictions, full AI
-                reasoning, confidence
-                signals, exact-score
-                estimates, and premium
-                match intelligence.
+                Access advanced
+                prediction insights,
+                full AI reasoning,
+                confidence signals,
+                exact-score estimates,
+                and premium match
+                intelligence.
               </p>
             </div>
 
@@ -645,7 +777,7 @@ export default async function HomePage({
               )}
               className="inline-flex justify-center rounded-full bg-[#22b76a] px-7 py-3.5 text-sm font-black text-white transition hover:bg-[#139653]"
             >
-              Explore VIP Access
+              Explore Premium Access
             </Link>
           </div>
         </div>
@@ -684,12 +816,14 @@ function FeaturedMatch({
           </div>
 
           <span className="rounded-full border border-[#bfe6cf] bg-white px-3 py-1 text-xs font-black text-[#0d6f3d]">
-            {
-              fixture.fixture
-                ?.status
-                ?.long ||
-              "Scheduled"
-            }
+            {isLiveFixture(
+              fixture
+            )
+              ? "Live"
+              : fixture.fixture
+                    ?.status
+                    ?.long ||
+                "Scheduled"}
           </span>
         </div>
       </div>
@@ -712,13 +846,11 @@ function FeaturedMatch({
             </p>
 
             <p className="mt-2 text-sm font-black text-[#102117]">
-              {fixture.goals
-                ?.home ??
-                "-"}
-              {" : "}
-              {fixture.goals
-                ?.away ??
-                "-"}
+              {isLiveFixture(
+                fixture
+              )
+                ? `${fixture.goals?.home ?? "-"} : ${fixture.goals?.away ?? "-"}`
+                : "—"}
             </p>
           </div>
 
@@ -765,7 +897,7 @@ function Team({
   logo?: string;
 }) {
   return (
-    <div className="text-center">
+    <div className="min-w-0 text-center">
       {logo ? (
         <img
           src={logo}
@@ -775,12 +907,15 @@ function Team({
       ) : (
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eaf7ef] text-lg font-black text-[#139653]">
           {name
-            .slice(0, 1)
+            .slice(
+              0,
+              1
+            )
             .toUpperCase()}
         </div>
       )}
 
-      <p className="mt-3 text-sm font-black text-[#102117]">
+      <p className="mt-3 break-words text-sm font-black text-[#102117]">
         {name}
       </p>
     </div>
@@ -810,7 +945,9 @@ function MatchCard({
           ?.home
           ?.name ||
           "Home Team"}
+
         {" vs "}
+
         {fixture.teams
           ?.away
           ?.name ||
@@ -843,18 +980,20 @@ function MatchCard({
 function FreePredictionCard({
   prediction,
   number,
-  vipHref,
+  locale,
 }: {
   prediction:
     PublicPredictionItem;
+
   number: number;
-  vipHref: string;
+
+  locale: string;
 }) {
   return (
     <article className="rounded-[1.75rem] border border-[#dce8df] bg-[#fbfdfb] p-6">
       <div className="flex items-center justify-between gap-4">
         <span className="rounded-full bg-[#eaf7ef] px-3 py-1 text-xs font-black uppercase text-[#0d6f3d]">
-          Free #{number}
+          Preview #{number}
         </span>
 
         <span className="text-xs font-black uppercase text-[#7d8b82]">
@@ -882,7 +1021,9 @@ function FreePredictionCard({
             .home
             .name
         }
+
         {" vs "}
+
         {
           prediction
             .teams
@@ -899,7 +1040,7 @@ function FreePredictionCard({
         }
       </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <InfoBox
           label="Risk"
           value={
@@ -930,12 +1071,16 @@ function FreePredictionCard({
         </p>
       </div>
 
-      <Link
-        href={vipHref}
-        className="mt-5 inline-flex text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
-      >
-        Unlock full VIP prediction →
-      </Link>
+      <div className="mt-5">
+        <PredictionVipAction
+          locale={
+            locale
+          }
+          fixtureId={
+            prediction.fixtureId
+          }
+        />
+      </div>
     </article>
   );
 }
@@ -994,15 +1139,18 @@ function ResultStat({
   label: string;
   value: string;
   detail: string;
+
   tone:
     | "success"
     | "danger"
     | "default";
 }) {
   const valueClass =
-    tone === "success"
+    tone ===
+    "success"
       ? "text-[#139653]"
-      : tone === "danger"
+      : tone ===
+          "danger"
         ? "text-[#d84a4a]"
         : "text-[#102117]";
 
@@ -1012,7 +1160,9 @@ function ResultStat({
         {label}
       </p>
 
-      <p className={`mt-3 text-3xl font-black ${valueClass}`}>
+      <p
+        className={`mt-3 text-3xl font-black ${valueClass}`}
+      >
         {value}
       </p>
 
@@ -1178,7 +1328,7 @@ function InfoBox({
         {label}
       </p>
 
-      <p className="mt-2 text-xs font-black text-[#102117]">
+      <p className="mt-2 break-words text-xs font-black text-[#102117]">
         {value}
       </p>
     </div>
@@ -1215,7 +1365,9 @@ function SectionHeader({
       </div>
 
       <Link
-        href={actionHref}
+        href={
+          actionHref
+        }
         className="shrink-0 text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
       >
         {actionLabel} →
