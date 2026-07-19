@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import PredictionVipAction from "@/components/predictions/PredictionVipAction";
+
 export const dynamic =
   "force-dynamic";
 
@@ -89,13 +91,15 @@ async function getPublishedPredictions(): Promise<{
             raw
           ) as PublicPredictionsResponse)
         : {
-            success: false,
+            success:
+              false,
             error:
               "The prediction service returned an empty response.",
           };
     } catch {
       return {
-        predictions: [],
+        predictions:
+          [],
         error:
           "The prediction service returned an invalid response.",
       };
@@ -106,7 +110,8 @@ async function getPublishedPredictions(): Promise<{
       !data.success
     ) {
       return {
-        predictions: [],
+        predictions:
+          [],
         error:
           data.error ||
           "Unable to load published predictions.",
@@ -120,14 +125,13 @@ async function getPublishedPredictions(): Promise<{
         )
           ? data.predictions
           : [],
-
       error:
         null,
     };
   } catch {
     return {
-      predictions: [],
-
+      predictions:
+        [],
       error:
         "Unable to connect to the public prediction service.",
     };
@@ -142,7 +146,9 @@ function formatFixtureDate(
   }
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
   if (
     Number.isNaN(
@@ -157,11 +163,12 @@ function formatFixtureDate(
     {
       dateStyle:
         "medium",
-
       timeStyle:
         "short",
     }
-  ).format(date);
+  ).format(
+    date
+  );
 }
 
 function getLocalizedPath(
@@ -203,28 +210,27 @@ export default async function PredictionsPage({
           </div>
 
           <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
-            Published Football
-            Analysis
+            Published Football Analysis
           </h1>
 
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base md:leading-8">
-            Human-reviewed public
-            football analysis from
-            the ZERRA AI workflow.
-            Final picks, exact
-            scores, confidence
-            percentages, and
-            premium reasoning remain
-            protected for VIP
-            members.
+            Human-reviewed public football analysis from the ZERRA AI
+            workflow. Final picks, exact scores, confidence percentages,
+            and premium reasoning remain protected for VIP members.
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <HeaderBadge label="Human Reviewed" />
+            <HeaderBadge
+              label="Human Reviewed"
+            />
 
-            <HeaderBadge label="Real Football Data" />
+            <HeaderBadge
+              label="Real Football Data"
+            />
 
-            <HeaderBadge label="VIP Protected Insights" />
+            <HeaderBadge
+              label="VIP Protected Insights"
+            />
           </div>
         </div>
       </section>
@@ -243,21 +249,16 @@ export default async function PredictionsPage({
             </div>
 
             <p className="mt-5 text-[10px] font-black uppercase tracking-[0.18em] text-[#139653]">
-              No Published
-              Predictions
+              No Published Predictions
             </p>
 
             <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black">
-              New public analyses
-              will appear here
+              New public analyses will appear here
             </h2>
 
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#758179]">
-              Predictions are shown
-              only after they pass
-              human review and are
-              published by an
-              administrator.
+              Predictions are shown only after they pass human review and
+              are published by an administrator.
             </p>
 
             <Link
@@ -287,13 +288,11 @@ export default async function PredictionsPage({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#139653]">
-                      More Published
-                      Analysis
+                      More Published Analysis
                     </p>
 
                     <h2 className="mt-3 text-3xl font-black">
-                      Latest football
-                      previews
+                      Latest football previews
                     </h2>
                   </div>
 
@@ -301,8 +300,7 @@ export default async function PredictionsPage({
                     {
                       predictions.length
                     }{" "}
-                    published
-                    prediction
+                    published prediction
                     {predictions.length ===
                     1
                       ? ""
@@ -368,12 +366,10 @@ function FeaturedPrediction({
 
           <p className="mt-6 text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
             {
-              item.competition
-                .name
+              item.competition.name
             }
 
-            {item.competition
-              .round
+            {item.competition.round
               ? ` · ${item.competition.round}`
               : ""}
           </p>
@@ -384,42 +380,32 @@ function FeaturedPrediction({
 
           <p className="mt-5 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base md:leading-8">
             {
-              item
-                .publicPrediction
-                .overview
+              item.publicPrediction.overview
             }
           </p>
 
-          {item
-            .publicPrediction
-            .keyInsights
-            .length >
+          {item.publicPrediction.keyInsights.length >
             0 && (
             <div className="mt-6 grid gap-3">
-              {item
-                .publicPrediction
-                .keyInsights
-                .map(
-                  (
-                    insight,
-                    index
-                  ) => (
-                    <div
-                      key={`${insight}-${index}`}
-                      className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] px-4 py-3"
-                    >
-                      <span className="font-black text-[#139653]">
-                        ✓
-                      </span>
+              {item.publicPrediction.keyInsights.map(
+                (
+                  insight,
+                  index
+                ) => (
+                  <div
+                    key={`${insight}-${index}`}
+                    className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] px-4 py-3"
+                  >
+                    <span className="font-black text-[#139653]">
+                      ✓
+                    </span>
 
-                      <p className="text-sm leading-6 text-[#536158]">
-                        {
-                          insight
-                        }
-                      </p>
-                    </div>
-                  )
-                )}
+                    <p className="text-sm leading-6 text-[#536158]">
+                      {insight}
+                    </p>
+                  </div>
+                )
+              )}
             </div>
           )}
 
@@ -434,16 +420,14 @@ function FeaturedPrediction({
               View Match
             </Link>
 
-            <Link
-              href={getLocalizedPath(
-                locale,
-                "/vip"
-              )}
-              className="rounded-xl bg-[#139653] px-6 py-3 text-sm font-black text-white transition hover:bg-[#0d7a40]"
-            >
-              Unlock VIP
-              Prediction
-            </Link>
+            <PredictionVipAction
+              locale={
+                locale
+              }
+              fixtureId={
+                item.fixtureId
+              }
+            />
           </div>
         </div>
 
@@ -456,18 +440,14 @@ function FeaturedPrediction({
             <SignalCard
               label="Risk Level"
               value={
-                item
-                  .publicPrediction
-                  .risk
+                item.publicPrediction.risk
               }
             />
 
             <SignalCard
               label="Risk Score"
               value={
-                item
-                  .publicPrediction
-                  .riskScore !==
+                item.publicPrediction.riskScore !==
                 null
                   ? `${item.publicPrediction.riskScore}/100`
                   : "Unavailable"
@@ -484,26 +464,22 @@ function FeaturedPrediction({
             <SignalCard
               label="Status"
               value={
-                item
-                  .fixtureStatus
-                  .long ||
+                item.fixtureStatus.long ||
                 "Scheduled"
               }
             />
           </div>
 
-          <div className="mt-6 rounded-2xl bg-[#102117] p-5 text-white">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6be39e]">
-              VIP Protected
-            </p>
-
-            <p className="mt-3 text-sm leading-7 text-white/65">
-              {
-                item
-                  .publicPrediction
-                  .teaser
+          <div className="mt-6">
+            <PredictionVipAction
+              locale={
+                locale
               }
-            </p>
+              fixtureId={
+                item.fixtureId
+              }
+              mode="notice"
+            />
           </div>
         </aside>
       </div>
@@ -527,9 +503,7 @@ function PredictionCard({
 
         <span className="rounded-full bg-[#f3f7f4] px-3 py-1.5 text-[10px] font-black uppercase text-[#7a877e]">
           {
-            item
-              .publicPrediction
-              .risk
+            item.publicPrediction.risk
           }{" "}
           Risk
         </span>
@@ -537,28 +511,23 @@ function PredictionCard({
 
       <p className="mt-5 text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
         {
-          item.competition
-            .name
+          item.competition.name
         }
       </p>
 
       <h3 className="mt-3 text-2xl font-black leading-tight">
         {
-          item.teams.home
-            .name
+          item.teams.home.name
         }{" "}
         vs{" "}
         {
-          item.teams.away
-            .name
+          item.teams.away.name
         }
       </h3>
 
       <p className="mt-4 text-sm leading-7 text-[#66756c]">
         {
-          item
-            .publicPrediction
-            .overview
+          item.publicPrediction.overview
         }
       </p>
 
@@ -573,14 +542,10 @@ function PredictionCard({
         <MiniInfo
           label="Risk"
           value={
-            item
-              .publicPrediction
-              .riskScore !==
+            item.publicPrediction.riskScore !==
             null
               ? `${item.publicPrediction.risk} · ${item.publicPrediction.riskScore}/100`
-              : item
-                  .publicPrediction
-                  .risk
+              : item.publicPrediction.risk
           }
         />
       </div>
@@ -588,9 +553,7 @@ function PredictionCard({
       <div className="mt-5 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-4">
         <p className="text-sm leading-7 text-[#66756c]">
           {
-            item
-              .publicPrediction
-              .teaser
+            item.publicPrediction.teaser
           }
         </p>
       </div>
@@ -606,15 +569,14 @@ function PredictionCard({
           View Match
         </Link>
 
-        <Link
-          href={getLocalizedPath(
-            locale,
-            "/vip"
-          )}
-          className="inline-flex rounded-xl bg-[#139653] px-5 py-3 text-sm font-black text-white transition hover:bg-[#0d7a40]"
-        >
-          View VIP Access
-        </Link>
+        <PredictionVipAction
+          locale={
+            locale
+          }
+          fixtureId={
+            item.fixtureId
+          }
+        />
       </div>
     </article>
   );
