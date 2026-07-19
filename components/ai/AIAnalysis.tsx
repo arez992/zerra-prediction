@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 type AIAnalysisProps = {
   match: any;
@@ -18,31 +21,42 @@ type Analysis = {
 function getErrorMessage(
   error: unknown
 ): string {
-  if (typeof error === "string") {
+  if (
+    typeof error ===
+    "string"
+  ) {
     return error;
   }
 
   if (
     error &&
-    typeof error === "object"
+    typeof error ===
+      "object"
   ) {
     const value =
-      error as Record<string, unknown>;
+      error as Record<
+        string,
+        unknown
+      >;
 
     if (
-      typeof value.message === "string"
+      typeof value.message ===
+      "string"
     ) {
       return value.message;
     }
 
     if (
-      typeof value.error === "string"
+      typeof value.error ===
+      "string"
     ) {
       return value.error;
     }
 
     try {
-      return JSON.stringify(error);
+      return JSON.stringify(
+        error
+      );
     } catch {
       return "AI analysis unavailable.";
     }
@@ -56,27 +70,35 @@ function normalizeAnalysis(
 ): Analysis | null {
   if (
     !value ||
-    typeof value !== "object"
+    typeof value !==
+      "object"
   ) {
     return null;
   }
 
   const data =
-    value as Record<string, unknown>;
+    value as Record<
+      string,
+      unknown
+    >;
 
   return {
     summary:
-      typeof data.summary === "string"
+      typeof data.summary ===
+      "string"
         ? data.summary
         : "AI analysis unavailable.",
 
     verdict:
-      typeof data.verdict === "string"
+      typeof data.verdict ===
+      "string"
         ? data.verdict
         : "N/A",
 
     reasons:
-      Array.isArray(data.reasons)
+      Array.isArray(
+        data.reasons
+      )
         ? data.reasons.filter(
             (
               reason
@@ -87,12 +109,14 @@ function normalizeAnalysis(
         : [],
 
     bestPick:
-      typeof data.bestPick === "string"
+      typeof data.bestPick ===
+      "string"
         ? data.bestPick
         : "N/A",
 
     riskNote:
-      typeof data.riskNote === "string"
+      typeof data.riskNote ===
+      "string"
         ? data.riskNote
         : "Risk information unavailable.",
   };
@@ -102,15 +126,26 @@ export default function AIAnalysis({
   match,
   prediction,
 }: AIAnalysisProps) {
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
 
-  const [analysis, setAnalysis] =
+  const [
+    analysis,
+    setAnalysis,
+  ] =
     useState<Analysis | null>(
       null
     );
 
-  const [error, setError] =
+  const [
+    error,
+    setError,
+  ] =
     useState("");
 
   useEffect(() => {
@@ -119,30 +154,39 @@ export default function AIAnalysis({
 
     async function loadAnalysis() {
       try {
-        setLoading(true);
+        setLoading(
+          true
+        );
+
         setError("");
 
-        const res = await fetch(
-          "/api/ai/match-analysis",
-          {
-            method: "POST",
+        const res =
+          await fetch(
+            "/api/ai/match-analysis",
+            {
+              method:
+                "POST",
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-            cache: "no-store",
+              cache:
+                "no-store",
 
-            signal:
-              controller.signal,
+              signal:
+                controller.signal,
 
-            body: JSON.stringify({
-              match,
-              prediction,
-            }),
-          }
-        );
+              body:
+                JSON.stringify(
+                  {
+                    match,
+                    prediction,
+                  }
+                ),
+            }
+          );
 
         let data: any;
 
@@ -171,7 +215,9 @@ export default function AIAnalysis({
             data.analysis
           );
 
-        if (!normalized) {
+        if (
+          !normalized
+        ) {
           throw new Error(
             "AI analysis response is invalid."
           );
@@ -180,7 +226,9 @@ export default function AIAnalysis({
         setAnalysis(
           normalized
         );
-      } catch (err) {
+      } catch (
+        err
+      ) {
         if (
           controller.signal
             .aborted
@@ -194,7 +242,8 @@ export default function AIAnalysis({
         );
 
         setError(
-          err instanceof Error
+          err instanceof
+            Error
             ? err.message
             : getErrorMessage(
                 err
@@ -205,7 +254,9 @@ export default function AIAnalysis({
           !controller.signal
             .aborted
         ) {
-          setLoading(false);
+          setLoading(
+            false
+          );
         }
       }
     }
@@ -215,25 +266,35 @@ export default function AIAnalysis({
     return () => {
       controller.abort();
     };
-  }, [match, prediction]);
+  }, [
+    match,
+    prediction,
+  ]);
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
-      <section className="rounded-[2rem] border border-[#D4AF37]/30 bg-[#101827] p-6 shadow-xl">
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+      <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
           ZERRA AI Analysis
         </p>
 
-        <h2 className="mt-3 text-2xl font-black text-white">
+        <h2 className="mt-2 text-2xl font-black text-[#102117]">
           Generating professional
           match analysis...
         </h2>
 
-        <p className="mt-4 text-white/60">
-          ZERRA AI is reviewing
-          prediction signals, risk
-          level, and model context.
+        <p className="mt-4 text-sm leading-7 text-[#66756c]">
+          ZERRA AI is
+          reviewing prediction
+          signals, risk level,
+          and model context.
         </p>
+
+        <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#e8efea]">
+          <div className="h-full w-1/2 animate-pulse rounded-full bg-[#139653]" />
+        </div>
       </section>
     );
   }
@@ -243,16 +304,17 @@ export default function AIAnalysis({
     !analysis
   ) {
     return (
-      <section className="rounded-[2rem] border border-red-500/30 bg-[#101827] p-6 shadow-xl">
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-red-400">
-          AI Analysis Error
+      <section className="rounded-[1.75rem] border border-[#f0d9d9] bg-white p-6">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#d65353]">
+          AI Analysis
         </p>
 
-        <h2 className="mt-3 text-2xl font-black text-white">
-          Analysis unavailable
+        <h2 className="mt-2 text-2xl font-black text-[#102117]">
+          Analysis temporarily
+          unavailable
         </h2>
 
-        <p className="mt-4 break-words text-white/60">
+        <p className="mt-4 break-words text-sm leading-7 text-[#66756c]">
           {error ||
             "AI analysis is temporarily unavailable."}
         </p>
@@ -261,44 +323,54 @@ export default function AIAnalysis({
   }
 
   return (
-    <section className="rounded-[2rem] border border-[#D4AF37]/30 bg-[#101827] p-6 shadow-xl">
-      <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+    <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
         ZERRA AI Analysis
       </p>
 
-      <h2 className="mt-3 text-2xl font-black text-white">
-        Professional Match Verdict
+      <h2 className="mt-2 text-2xl font-black text-[#102117]">
+        Professional Match
+        Verdict
       </h2>
 
-      <p className="mt-5 leading-7 text-white/70">
-        {analysis.summary}
+      <p className="mt-5 text-sm leading-7 text-[#66756c]">
+        {
+          analysis.summary
+        }
       </p>
 
-      <div className="mt-6 rounded-3xl bg-black/30 p-5">
-        <p className="text-sm text-white/50">
+      <div className="mt-6 rounded-2xl bg-[#eaf7ef] p-5">
+        <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#6f7e74]">
           Final Verdict
         </p>
 
-        <p className="mt-2 text-2xl font-black text-[#D4AF37]">
-          {analysis.verdict}
+        <p className="mt-2 text-2xl font-black text-[#139653]">
+          {
+            analysis.verdict
+          }
         </p>
       </div>
 
       {analysis.reasons.length >
         0 && (
-        <div className="mt-6 space-y-3">
+        <div className="mt-6 grid gap-3">
           {analysis.reasons.map(
-            (reason, index) => (
+            (
+              reason,
+              index
+            ) => (
               <div
                 key={`${index}-${reason}`}
-                className="flex gap-3 rounded-2xl border border-white/10 bg-black/20 p-4"
+                className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] p-4"
               >
-                <span className="text-[#D4AF37]">
+                <span className="font-black text-[#139653]">
                   ✓
                 </span>
 
-                <p className="text-sm font-bold text-white/70">
-                  {reason}
+                <p className="text-sm font-bold leading-6 text-[#536158]">
+                  {
+                    reason
+                  }
                 </p>
               </div>
             )
@@ -307,23 +379,27 @@ export default function AIAnalysis({
       )}
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-          <p className="text-xs text-white/50">
+        <div className="rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#839087]">
             Model Pick
           </p>
 
-          <p className="mt-2 font-black text-[#D4AF37]">
-            {analysis.bestPick}
+          <p className="mt-2 font-black text-[#139653]">
+            {
+              analysis.bestPick
+            }
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-          <p className="text-xs text-white/50">
+        <div className="rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#839087]">
             Risk Note
           </p>
 
-          <p className="mt-2 font-black text-white">
-            {analysis.riskNote}
+          <p className="mt-2 font-black leading-6 text-[#102117]">
+            {
+              analysis.riskNote
+            }
           </p>
         </div>
       </div>
