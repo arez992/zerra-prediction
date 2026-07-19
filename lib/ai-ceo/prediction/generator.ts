@@ -27,49 +27,84 @@ const COLLECTION_NAME =
 const AUDIT_COLLECTION =
   "predictionAuditLogs";
 
+/*
+ * Predictions may only be generated
+ * while a fixture is still pre-match.
+ *
+ * Live, interrupted, postponed,
+ * cancelled, and finished fixtures
+ * must never create a new prediction.
+ */
 const UPCOMING_STATUSES =
   new Set([
     "NS",
     "TBD",
   ]);
 
-const DEFAULT_LIMIT = 10;
-const MAX_LIMIT = 25;
+const DEFAULT_LIMIT =
+  10;
+
+const MAX_LIMIT =
+  25;
 
 type FixtureLike = {
   fixture?: {
-    id?: string | number;
-    date?: string;
+    id?:
+      string | number;
+
+    date?:
+      string;
 
     status?: {
-      short?: string;
-      long?: string;
+      short?:
+        string;
+
+      long?:
+        string;
     };
   };
 
   league?: {
-    id?: number;
-    name?: string;
-    country?: string;
-    season?: number;
-    round?: string;
+    id?:
+      number;
+
+    name?:
+      string;
+
+    country?:
+      string;
+
+    season?:
+      number;
+
+    round?:
+      string;
   };
 
   teams?: {
     home?: {
-      id?: number;
-      name?: string;
+      id?:
+        number;
+
+      name?:
+        string;
     };
 
     away?: {
-      id?: number;
-      name?: string;
+      id?:
+        number;
+
+      name?:
+        string;
     };
   };
 
   goals?: {
-    home?: number | null;
-    away?: number | null;
+    home?:
+      number | null;
+
+    away?:
+      number | null;
   };
 };
 
@@ -78,17 +113,26 @@ export type PredictionGenerationMode =
   | "enriched";
 
 export type PredictionGenerationItem = {
-  fixtureId: string;
-  fixtureDate: string | null;
+  fixtureId:
+    string;
 
-  generated: boolean;
-  skipped: boolean;
+  fixtureDate:
+    string | null;
 
-  reason: string;
+  generated:
+    boolean;
 
-  predictionId: string | null;
+  skipped:
+    boolean;
 
-  enriched: boolean;
+  reason:
+    string;
+
+  predictionId:
+    string | null;
+
+  enriched:
+    boolean;
 
   generationStatus?:
     | "allowed"
@@ -99,33 +143,62 @@ export type PredictionGenerationItem = {
 };
 
 export type PredictionGenerationSummary = {
-  generatedAt: string;
-  date: string;
-  mode: PredictionGenerationMode;
+  generatedAt:
+    string;
 
-  fixturesFound: number;
-  eligibleFixtures: number;
+  date:
+    string;
 
-  generatedPredictions: number;
-  skippedPredictions: number;
-  existingPredictions: number;
-  withheldPredictions: number;
-  insufficientDataPredictions: number;
-  failedPredictions: number;
+  mode:
+    PredictionGenerationMode;
 
-  apiDateRequests: number;
-  enrichedFixtureRequests: number;
+  fixturesFound:
+    number;
 
-  items: PredictionGenerationItem[];
+  eligibleFixtures:
+    number;
+
+  generatedPredictions:
+    number;
+
+  skippedPredictions:
+    number;
+
+  existingPredictions:
+    number;
+
+  withheldPredictions:
+    number;
+
+  insufficientDataPredictions:
+    number;
+
+  failedPredictions:
+    number;
+
+  apiDateRequests:
+    number;
+
+  enrichedFixtureRequests:
+    number;
+
+  items:
+    PredictionGenerationItem[];
 };
 
 function isPlainObject(
   value: unknown
-): value is Record<string, unknown> {
+): value is Record<
+  string,
+  unknown
+> {
   if (
     !value ||
-    typeof value !== "object" ||
-    Array.isArray(value)
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
   ) {
     return false;
   }
@@ -138,69 +211,92 @@ function isPlainObject(
   return (
     prototype ===
       Object.prototype ||
-    prototype === null
+    prototype ===
+      null
   );
 }
 
 function sanitizeForFirestore(
-  value: unknown
+  value:
+    unknown
 ): unknown {
   if (
-    value === undefined
+    value ===
+    undefined
   ) {
     return undefined;
   }
 
   if (
-    value === null ||
-    typeof value === "number" ||
-    typeof value === "boolean"
+    value ===
+      null ||
+    typeof value ===
+      "number" ||
+    typeof value ===
+      "boolean"
   ) {
     return value;
   }
 
   if (
-    typeof value === "string"
+    typeof value ===
+      "string"
   ) {
     return value;
   }
 
   if (
-    Array.isArray(value)
+    Array.isArray(
+      value
+    )
   ) {
     return value
       .map(
         sanitizeForFirestore
       )
       .filter(
-        (item) =>
-          item !== undefined &&
+        (
+          item
+        ) =>
+          item !==
+            undefined &&
           !(
-            typeof item === "string" &&
-            item.trim() === ""
+            typeof item ===
+              "string" &&
+            item.trim() ===
+              ""
           )
       );
   }
 
   if (
-    !isPlainObject(value)
+    !isPlainObject(
+      value
+    )
   ) {
     return value;
   }
 
   const sanitized:
-    Record<string, unknown> = {};
+    Record<
+      string,
+      unknown
+    > = {};
 
   for (
     const [
       rawKey,
       rawValue,
-    ] of Object.entries(value)
+    ] of Object.entries(
+      value
+    )
   ) {
     const key =
       rawKey.trim();
 
-    if (!key) {
+    if (
+      !key
+    ) {
       continue;
     }
 
@@ -210,9 +306,12 @@ function sanitizeForFirestore(
       );
 
     if (
-      nextValue !== undefined
+      nextValue !==
+      undefined
     ) {
-      sanitized[key] =
+      sanitized[
+        key
+      ] =
         nextValue;
     }
   }
@@ -221,10 +320,12 @@ function sanitizeForFirestore(
 }
 
 function normalizeDate(
-  value: unknown
+  value:
+    unknown
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     throw new Error(
       "Prediction generation date is required."
@@ -248,13 +349,18 @@ function normalizeDate(
 }
 
 function normalizeLimit(
-  value: unknown
+  value:
+    unknown
 ): number {
   const parsed =
-    Number(value);
+    Number(
+      value
+    );
 
   if (
-    !Number.isFinite(parsed)
+    !Number.isFinite(
+      parsed
+    )
   ) {
     return DEFAULT_LIMIT;
   }
@@ -263,31 +369,40 @@ function normalizeLimit(
     MAX_LIMIT,
     Math.max(
       1,
-      Math.floor(parsed)
+      Math.floor(
+        parsed
+      )
     )
   );
 }
 
 function normalizeMode(
-  value: unknown
+  value:
+    unknown
 ): PredictionGenerationMode {
-  return value === "enriched"
+  return value ===
+    "enriched"
     ? "enriched"
     : "basic";
 }
 
 function normalizeFixtureId(
-  value: unknown
+  value:
+    unknown
 ): string {
   if (
-    value === undefined ||
-    value === null
+    value ===
+      undefined ||
+    value ===
+      null
   ) {
     return "";
   }
 
   const fixtureId =
-    String(value).trim();
+    String(
+      value
+    ).trim();
 
   return /^\d+$/.test(
     fixtureId
@@ -297,47 +412,126 @@ function normalizeFixtureId(
 }
 
 function getFixtureStatus(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ): string {
   return String(
-    fixture.fixture?.status
-      ?.short || ""
+    fixture
+      .fixture
+      ?.status
+      ?.short ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+}
+
+/*
+ * Handles both the standard API-Football
+ * fixture shape and possible nested
+ * pipeline/enrichment shapes.
+ *
+ * This is used by the second pre-match
+ * guard immediately before the engine
+ * is allowed to run.
+ */
+function getFixtureStatusFromUnknown(
+  value:
+    unknown
+): string {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return "";
+  }
+
+  const source =
+    value as Record<
+      string,
+      any
+    >;
+
+  const status =
+    source
+      ?.fixture
+      ?.status
+      ?.short ||
+    source
+      ?.fixture
+      ?.fixture
+      ?.status
+      ?.short ||
+    source
+      ?.status
+      ?.short ||
+    "";
+
+  return String(
+    status
   )
     .trim()
     .toUpperCase();
 }
 
 function getFixtureDate(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ): string | null {
   const value =
-    fixture.fixture?.date;
+    fixture
+      .fixture
+      ?.date;
 
-  return typeof value === "string" &&
+  return (
+    typeof value ===
+      "string" &&
     value.trim()
+  )
     ? value.trim()
     : null;
 }
 
+function isPreMatchStatus(
+  status:
+    string
+): boolean {
+  return UPCOMING_STATUSES.has(
+    status
+      .trim()
+      .toUpperCase()
+  );
+}
+
 function isEligibleFixture(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ): boolean {
   const fixtureId =
     normalizeFixtureId(
-      fixture.fixture?.id
+      fixture
+        .fixture
+        ?.id
     );
 
   const homeName =
-    fixture.teams?.home?.name;
+    fixture
+      .teams
+      ?.home
+      ?.name;
 
   const awayName =
-    fixture.teams?.away?.name;
+    fixture
+      .teams
+      ?.away
+      ?.name;
 
   return Boolean(
     fixtureId &&
     homeName &&
     awayName &&
-    UPCOMING_STATUSES.has(
+    isPreMatchStatus(
       getFixtureStatus(
         fixture
       )
@@ -346,21 +540,31 @@ function isEligibleFixture(
 }
 
 async function buildPipelineInput(
-  fixture: FixtureLike,
-  mode: PredictionGenerationMode
+  fixture:
+    FixtureLike,
+
+  mode:
+    PredictionGenerationMode
 ) {
   const fixtureId =
     normalizeFixtureId(
-      fixture.fixture?.id
+      fixture
+        .fixture
+        ?.id
     );
 
-  if (!fixtureId) {
+  if (
+    !fixtureId
+  ) {
     throw new Error(
       "Fixture ID is missing."
     );
   }
 
-  if (mode === "enriched") {
+  if (
+    mode ===
+    "enriched"
+  ) {
     const complete =
       await getCompleteFixtureData(
         fixtureId,
@@ -392,37 +596,56 @@ async function buildPipelineInput(
           "prediction-generation-scheduler-enriched",
       },
 
-      enriched: true,
+      enriched:
+        true,
+
+      latestFixtureStatus:
+        getFixtureStatusFromUnknown(
+          complete
+        ),
 
       sourceData: {
         fetchedFromApiFootball:
           true,
 
         fetchedAt:
-          complete.fetchedAt,
+          complete
+            .fetchedAt,
 
         availability:
-          complete.availability,
+          complete
+            .availability,
 
         headToHead:
-          complete.headToHead,
+          complete
+            .headToHead,
 
         injuries:
-          complete.injuries,
+          complete
+            .injuries,
 
         odds:
-          complete.odds,
+          complete
+            .odds,
 
         recentFixtures:
-          complete.recentFixtures ?? {
-            home: [],
-            away: [],
+          complete
+            .recentFixtures ?? {
+            home:
+              [],
+
+            away:
+              [],
           },
 
         teamSeasonStatistics:
-          complete.teamSeasonStatistics ?? {
-            home: null,
-            away: null,
+          complete
+            .teamSeasonStatistics ?? {
+            home:
+              null,
+
+            away:
+              null,
           },
       },
     };
@@ -434,45 +657,90 @@ async function buildPipelineInput(
 
       fixture,
 
-      statistics: [],
-      lineups: [],
-      events: [],
-      headToHead: [],
-      injuries: [],
-      odds: [],
+      statistics:
+        [],
+
+      lineups:
+        [],
+
+      events:
+        [],
+
+      headToHead:
+        [],
+
+      injuries:
+        [],
+
+      odds:
+        [],
 
       availability: {
-        fixture: true,
-        statistics: false,
-        events: false,
-        lineups: false,
-        headToHead: false,
-        injuries: false,
-        odds: false,
+        fixture:
+          true,
+
+        statistics:
+          false,
+
+        events:
+          false,
+
+        lineups:
+          false,
+
+        headToHead:
+          false,
+
+        injuries:
+          false,
+
+        odds:
+          false,
       },
 
-      fetchedAt: null,
+      fetchedAt:
+        null,
 
       source:
         "prediction-generation-scheduler-basic",
     },
 
-    enriched: false,
+    enriched:
+      false,
+
+    latestFixtureStatus:
+      getFixtureStatus(
+        fixture
+      ),
 
     sourceData: {
       fetchedFromApiFootball:
         false,
 
-      fetchedAt: null,
+      fetchedAt:
+        null,
 
       availability: {
-        fixture: true,
-        statistics: false,
-        events: false,
-        lineups: false,
-        headToHead: false,
-        injuries: false,
-        odds: false,
+        fixture:
+          true,
+
+        statistics:
+          false,
+
+        events:
+          false,
+
+        lineups:
+          false,
+
+        headToHead:
+          false,
+
+        injuries:
+          false,
+
+        odds:
+          false,
 
         recentFixturesHome:
           false,
@@ -490,18 +758,29 @@ async function buildPipelineInput(
           false,
       },
 
-      headToHead: [],
-      injuries: [],
-      odds: [],
+      headToHead:
+        [],
+
+      injuries:
+        [],
+
+      odds:
+        [],
 
       recentFixtures: {
-        home: [],
-        away: [],
+        home:
+          [],
+
+        away:
+          [],
       },
 
       teamSeasonStatistics: {
-        home: null,
-        away: null,
+        home:
+          null,
+
+        away:
+          null,
       },
     },
   };
@@ -509,19 +788,44 @@ async function buildPipelineInput(
 
 async function writeGenerationAudit(
   input: {
-    action: string;
-    predictionId: string | null;
-    fixtureId: string;
-    source: string | undefined;
-    generationMode: PredictionGenerationMode;
-    fetchedFromApiFootball: boolean;
-    dataAvailability: unknown;
-    performedBy: string;
-    modelVersion: string | null;
-    dataQuality: unknown;
-    generationDecision: unknown;
-    openAIEligibility: unknown;
-    reason: string | null;
+    action:
+      string;
+
+    predictionId:
+      string | null;
+
+    fixtureId:
+      string;
+
+    source:
+      string | undefined;
+
+    generationMode:
+      PredictionGenerationMode;
+
+    fetchedFromApiFootball:
+      boolean;
+
+    dataAvailability:
+      unknown;
+
+    performedBy:
+      string;
+
+    modelVersion:
+      string | null;
+
+    dataQuality:
+      unknown;
+
+    generationDecision:
+      unknown;
+
+    openAIEligibility:
+      unknown;
+
+    reason:
+      string | null;
   }
 ): Promise<void> {
   await adminDb
@@ -535,38 +839,48 @@ async function writeGenerationAudit(
           input.action,
 
         predictionId:
-          input.predictionId,
+          input
+            .predictionId,
 
         fixtureId:
-          input.fixtureId,
+          input
+            .fixtureId,
 
         source:
           input.source ||
           "prediction-generation-scheduler",
 
         generationMode:
-          input.generationMode,
+          input
+            .generationMode,
 
         fetchedFromApiFootball:
-          input.fetchedFromApiFootball,
+          input
+            .fetchedFromApiFootball,
 
         dataAvailability:
-          input.dataAvailability,
+          input
+            .dataAvailability,
 
         performedBy:
-          input.performedBy,
+          input
+            .performedBy,
 
         modelVersion:
-          input.modelVersion,
+          input
+            .modelVersion,
 
         dataQuality:
-          input.dataQuality,
+          input
+            .dataQuality,
 
         generationDecision:
-          input.generationDecision,
+          input
+            .generationDecision,
 
         openAIEligibility:
-          input.openAIEligibility,
+          input
+            .openAIEligibility,
 
         reason:
           input.reason,
@@ -580,13 +894,24 @@ async function writeGenerationAudit(
 
 export async function generatePredictionsForDate(
   options: {
-    date: string;
-    limit?: number;
-    mode?: PredictionGenerationMode;
-    overwrite?: boolean;
-    performedBy?: string;
+    date:
+      string;
+
+    limit?:
+      number;
+
+    mode?:
+      PredictionGenerationMode;
+
+    overwrite?:
+      boolean;
+
+    performedBy?:
+      string;
   }
-): Promise<PredictionGenerationSummary> {
+): Promise<
+  PredictionGenerationSummary
+> {
   const date =
     normalizeDate(
       options.date
@@ -611,9 +936,16 @@ export async function generatePredictionsForDate(
       date
     );
 
+  /*
+   * First pre-match guard.
+   *
+   * Only NS/TBD fixtures enter the
+   * generation loop.
+   */
   const eligibleFixtures =
     (
-      fixtures as FixtureLike[]
+      fixtures as
+        FixtureLike[]
     )
       .filter(
         isEligibleFixture
@@ -624,26 +956,84 @@ export async function generatePredictionsForDate(
       );
 
   const items:
-    PredictionGenerationItem[] = [];
+    PredictionGenerationItem[] =
+      [];
 
-  let existingPredictions = 0;
-  let withheldPredictions = 0;
-  let insufficientDataPredictions = 0;
-  let failedPredictions = 0;
-  let enrichedFixtureRequests = 0;
+  let existingPredictions =
+    0;
+
+  let withheldPredictions =
+    0;
+
+  let insufficientDataPredictions =
+    0;
+
+  let failedPredictions =
+    0;
+
+  let enrichedFixtureRequests =
+    0;
 
   for (
-    const fixture of eligibleFixtures
+    const fixture
+    of eligibleFixtures
   ) {
     const fixtureId =
       normalizeFixtureId(
-        fixture.fixture?.id
+        fixture
+          .fixture
+          ?.id
       );
 
     const fixtureDate =
       getFixtureDate(
         fixture
       );
+
+    /*
+     * Reconfirm the status immediately
+     * before any database or enrichment
+     * work.
+     */
+    const initialStatus =
+      getFixtureStatus(
+        fixture
+      );
+
+    if (
+      !isPreMatchStatus(
+        initialStatus
+      )
+    ) {
+      items.push({
+        fixtureId,
+
+        fixtureDate,
+
+        generated:
+          false,
+
+        skipped:
+          true,
+
+        reason:
+          `Prediction generation blocked because fixture status is ${initialStatus || "unknown"}. Only pre-match fixtures can be predicted.`,
+
+        predictionId:
+          null,
+
+        enriched:
+          false,
+
+        generationStatus:
+          "withheld",
+      });
+
+      withheldPredictions +=
+        1;
+
+      continue;
+    }
 
     const predictionRef =
       adminDb
@@ -655,20 +1045,27 @@ export async function generatePredictionsForDate(
         );
 
     const existing =
-      await predictionRef.get();
+      await predictionRef
+        .get();
 
     if (
       existing.exists &&
-      options.overwrite !== true
+      options.overwrite !==
+        true
     ) {
-      existingPredictions += 1;
+      existingPredictions +=
+        1;
 
       items.push({
         fixtureId,
+
         fixtureDate,
 
-        generated: false,
-        skipped: true,
+        generated:
+          false,
+
+        skipped:
+          true,
 
         reason:
           "Prediction already exists.",
@@ -678,7 +1075,8 @@ export async function generatePredictionsForDate(
 
         enriched:
           Boolean(
-            existing.data()
+            existing
+              .data()
               ?.sourceData
               ?.availability
               ?.statistics
@@ -701,9 +1099,130 @@ export async function generatePredictionsForDate(
       if (
         pipeline.enriched
       ) {
-        enrichedFixtureRequests += 1;
+        enrichedFixtureRequests +=
+          1;
       }
 
+      /*
+       * Second pre-match guard.
+       *
+       * Enriched mode performs another
+       * API-Football fetch. The fixture
+       * may have changed from NS/TBD to
+       * live or finished between the
+       * original date request and this
+       * enriched request.
+       *
+       * The engine is never called if
+       * the latest known fixture status
+       * is not pre-match.
+       */
+      const latestStatus =
+        pipeline
+          .latestFixtureStatus ||
+        getFixtureStatusFromUnknown(
+          pipeline.input
+        );
+
+      if (
+        !isPreMatchStatus(
+          latestStatus
+        )
+      ) {
+        const reason =
+          `Prediction generation blocked because the latest fixture status is ${latestStatus || "unknown"}. ZERRA only generates predictions before kickoff.`;
+
+        withheldPredictions +=
+          1;
+
+        await writeGenerationAudit({
+          action:
+            "generation-blocked-fixture-status",
+
+          predictionId:
+            existing.exists
+              ? predictionRef.id
+              : null,
+
+          fixtureId,
+
+          source:
+            pipeline
+              .input
+              .source,
+
+          generationMode:
+            mode,
+
+          fetchedFromApiFootball:
+            pipeline
+              .sourceData
+              .fetchedFromApiFootball,
+
+          dataAvailability:
+            pipeline
+              .sourceData
+              .availability,
+
+          performedBy,
+
+          modelVersion:
+            null,
+
+          dataQuality:
+            null,
+
+          generationDecision: {
+            allowed:
+              false,
+
+            status:
+              "withheld",
+
+            reason,
+
+            fixtureStatus:
+              latestStatus,
+          },
+
+          openAIEligibility:
+            null,
+
+          reason,
+        });
+
+        items.push({
+          fixtureId,
+
+          fixtureDate,
+
+          generated:
+            false,
+
+          skipped:
+            true,
+
+          reason,
+
+          predictionId:
+            null,
+
+          enriched:
+            pipeline
+              .enriched,
+
+          generationStatus:
+            "withheld",
+        });
+
+        continue;
+      }
+
+      /*
+       * Only a confirmed pre-match
+       * fixture may reach the prediction
+       * engine.
+       */
       const engineResult =
         await runPredictionEngine(
           pipeline.input
@@ -718,41 +1237,48 @@ export async function generatePredictionsForDate(
       }
 
       const generationDecision =
-        engineResult.data
+        engineResult
+          .data
           .generationDecision;
 
       const dataQuality =
-        engineResult.data
+        engineResult
+          .data
           .dataQuality;
 
       const openAIEligibility =
-        engineResult.data
+        engineResult
+          .data
           .openAIEligibility;
 
       const modelVersion =
-        engineResult.data
+        engineResult
+          .data
           .prediction
           .model
           .version;
 
       /*
-       * Hard quality gate:
+       * Hard quality gate.
        *
-       * Predictions with fallback,
-       * insufficient data, or a
-       * withheld decision are not
-       * persisted in predictionHistory.
+       * Predictions with insufficient
+       * data or a withheld decision are
+       * not persisted.
        */
       if (
-        !generationDecision.allowed
+        !generationDecision
+          .allowed
       ) {
         if (
-          generationDecision.status ===
+          generationDecision
+            .status ===
           "withheld"
         ) {
-          withheldPredictions += 1;
+          withheldPredictions +=
+            1;
         } else {
-          insufficientDataPredictions += 1;
+          insufficientDataPredictions +=
+            1;
         }
 
         await writeGenerationAudit({
@@ -767,17 +1293,21 @@ export async function generatePredictionsForDate(
           fixtureId,
 
           source:
-            pipeline.input.source,
+            pipeline
+              .input
+              .source,
 
           generationMode:
             mode,
 
           fetchedFromApiFootball:
-            pipeline.sourceData
+            pipeline
+              .sourceData
               .fetchedFromApiFootball,
 
           dataAvailability:
-            pipeline.sourceData
+            pipeline
+              .sourceData
               .availability,
 
           performedBy,
@@ -791,27 +1321,36 @@ export async function generatePredictionsForDate(
           openAIEligibility,
 
           reason:
-            generationDecision.reason,
+            generationDecision
+              .reason,
         });
 
         items.push({
           fixtureId,
+
           fixtureDate,
 
-          generated: false,
-          skipped: true,
+          generated:
+            false,
+
+          skipped:
+            true,
 
           reason:
-            generationDecision.reason ||
+            generationDecision
+              .reason ||
             "Prediction generation was blocked by the data-quality gate.",
 
-          predictionId: null,
+          predictionId:
+            null,
 
           enriched:
-            pipeline.enriched,
+            pipeline
+              .enriched,
 
           generationStatus:
-            generationDecision.status,
+            generationDecision
+              .status,
         });
 
         continue;
@@ -822,11 +1361,13 @@ export async function generatePredictionsForDate(
           .toISOString();
 
       const rawDocumentData = {
-        ...engineResult.data
+        ...engineResult
+          .data
           .document,
 
         prediction:
-          engineResult.data
+          engineResult
+            .data
             .prediction,
 
         dataQuality,
@@ -836,20 +1377,24 @@ export async function generatePredictionsForDate(
         openAIEligibility,
 
         sourceData:
-          pipeline.sourceData,
+          pipeline
+            .sourceData,
 
         correct:
-          engineResult.data
+          engineResult
+            .data
             .validation
             .correct,
 
         result:
-          engineResult.data
+          engineResult
+            .data
             .validation
             .result,
 
         resultChecked:
-          engineResult.data
+          engineResult
+            .data
             .validation
             .checked,
 
@@ -857,7 +1402,8 @@ export async function generatePredictionsForDate(
           false,
 
         checkedAt:
-          engineResult.data
+          engineResult
+            .data
             .validation
             .checked
             ? now
@@ -871,9 +1417,11 @@ export async function generatePredictionsForDate(
 
         createdAt:
           existing.exists &&
-          existing.data()
+          existing
+            .data()
             ?.createdAt
-            ? existing.data()
+            ? existing
+                .data()
                 ?.createdAt
             : FieldValue
                 .serverTimestamp(),
@@ -894,14 +1442,23 @@ export async function generatePredictionsForDate(
           qualityGatePassed:
             true,
 
+          preMatchStatusVerified:
+            true,
+
+          verifiedFixtureStatus:
+            latestStatus,
+
           generationStatus:
-            generationDecision.status,
+            generationDecision
+              .status,
 
           dataCompleteness:
-            dataQuality.completeness,
+            dataQuality
+              .completeness,
 
           dataReliability:
-            dataQuality.reliability,
+            dataQuality
+              .reliability,
         },
       };
 
@@ -944,18 +1501,21 @@ export async function generatePredictionsForDate(
           fixtureId,
 
           source:
-            pipeline.input
+            pipeline
+              .input
               .source,
 
           generationMode:
             mode,
 
           fetchedFromApiFootball:
-            pipeline.sourceData
+            pipeline
+              .sourceData
               .fetchedFromApiFootball,
 
           dataAvailability:
-            pipeline.sourceData
+            pipeline
+              .sourceData
               .availability,
 
           performedBy,
@@ -968,6 +1528,12 @@ export async function generatePredictionsForDate(
 
           openAIEligibility,
 
+          preMatchStatusVerified:
+            true,
+
+          verifiedFixtureStatus:
+            latestStatus,
+
           createdAt:
             FieldValue
               .serverTimestamp(),
@@ -978,10 +1544,14 @@ export async function generatePredictionsForDate(
 
       items.push({
         fixtureId,
+
         fixtureDate,
 
-        generated: true,
-        skipped: false,
+        generated:
+          true,
+
+        skipped:
+          false,
 
         reason:
           "Prediction generated successfully.",
@@ -990,16 +1560,21 @@ export async function generatePredictionsForDate(
           predictionRef.id,
 
         enriched:
-          pipeline.enriched,
+          pipeline
+            .enriched,
 
         generationStatus:
           "allowed",
       });
-    } catch (error) {
-      failedPredictions += 1;
+    } catch (
+      error
+    ) {
+      failedPredictions +=
+        1;
 
       const reason =
-        error instanceof Error
+        error instanceof
+          Error
           ? error.message
           : "Prediction generation failed.";
 
@@ -1008,7 +1583,8 @@ export async function generatePredictionsForDate(
           action:
             "generation-failed",
 
-          predictionId: null,
+          predictionId:
+            null,
 
           fixtureId,
 
@@ -1019,19 +1595,25 @@ export async function generatePredictionsForDate(
             mode,
 
           fetchedFromApiFootball:
-            mode === "enriched",
+            mode ===
+            "enriched",
 
-          dataAvailability: null,
+          dataAvailability:
+            null,
 
           performedBy,
 
-          modelVersion: null,
+          modelVersion:
+            null,
 
-          dataQuality: null,
+          dataQuality:
+            null,
 
-          generationDecision: null,
+          generationDecision:
+            null,
 
-          openAIEligibility: null,
+          openAIEligibility:
+            null,
 
           reason,
         });
@@ -1045,17 +1627,23 @@ export async function generatePredictionsForDate(
 
       items.push({
         fixtureId,
+
         fixtureDate,
 
-        generated: false,
-        skipped: true,
+        generated:
+          false,
+
+        skipped:
+          true,
 
         reason,
 
-        predictionId: null,
+        predictionId:
+          null,
 
         enriched:
-          mode === "enriched",
+          mode ===
+          "enriched",
 
         generationStatus:
           "failed",
@@ -1076,17 +1664,22 @@ export async function generatePredictionsForDate(
       fixtures.length,
 
     eligibleFixtures:
-      eligibleFixtures.length,
+      eligibleFixtures
+        .length,
 
     generatedPredictions:
       items.filter(
-        (item) =>
+        (
+          item
+        ) =>
           item.generated
       ).length,
 
     skippedPredictions:
       items.filter(
-        (item) =>
+        (
+          item
+        ) =>
           item.skipped
       ).length,
 
@@ -1098,7 +1691,8 @@ export async function generatePredictionsForDate(
 
     failedPredictions,
 
-    apiDateRequests: 1,
+    apiDateRequests:
+      1,
 
     enrichedFixtureRequests,
 
