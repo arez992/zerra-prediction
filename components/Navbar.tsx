@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+
 import {
   useEffect,
   useState,
 } from "react";
+
 import {
   useParams,
   usePathname,
 } from "next/navigation";
+
 import {
   onAuthStateChanged,
   signOut,
@@ -47,9 +50,10 @@ const navItems: NavItem[] = [
 ];
 
 export default function Navbar() {
-  const params = useParams<{
-    locale: string;
-  }>();
+  const params =
+    useParams<{
+      locale: string;
+    }>();
 
   const pathname =
     usePathname();
@@ -61,26 +65,33 @@ export default function Navbar() {
   const [
     open,
     setOpen,
-  ] = useState(false);
+  ] =
+    useState(
+      false
+    );
 
   const [
     email,
     setEmail,
-  ] = useState("");
+  ] =
+    useState("");
 
   const {
     isAdmin,
     isVip,
-  } = useVip();
+  } =
+    useVip();
 
   useEffect(() => {
     const unsubscribe =
       onAuthStateChanged(
         auth,
-        (user) => {
+        (
+          user
+        ) => {
           setEmail(
             user?.email ||
-            ""
+              ""
           );
         }
       );
@@ -90,8 +101,12 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+    setOpen(
+      false
+    );
+  }, [
+    pathname,
+  ]);
 
   function getPath(
     path: string
@@ -103,44 +118,74 @@ export default function Navbar() {
     path: string
   ) {
     const href =
-      getPath(path);
+      getPath(
+        path
+      );
 
-    if (path === "") {
+    if (
+      path ===
+      ""
+    ) {
       return (
         pathname ===
         `/${locale}`
       );
     }
 
-    return pathname
-      ?.startsWith(href);
+    return pathname?.startsWith(
+      href
+    );
   }
 
   async function handleLogout() {
-    await signOut(auth);
+    await signOut(
+      auth
+    );
 
     await fetch(
       "/api/auth/session",
       {
-        method: "DELETE",
+        method:
+          "DELETE",
       }
     );
 
     setEmail("");
-    setOpen(false);
+
+    setOpen(
+      false
+    );
 
     window.location.href =
       `/${locale}`;
   }
 
   const isLoggedIn =
-    Boolean(email);
+    Boolean(
+      email
+    );
+
+  const vipActionHref =
+    isVip
+      ? getPath(
+          "/predictions"
+        )
+      : getPath(
+          "/vip"
+        );
+
+  const vipActionLabel =
+    isVip
+      ? "VIP Active"
+      : "Go VIP";
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#dce8df] bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex min-h-[76px] max-w-7xl items-center justify-between gap-6 px-4 md:px-6">
         <Link
-          href={getPath("")}
+          href={getPath(
+            ""
+          )}
           className="flex shrink-0 items-center gap-3"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#139653] font-black text-white shadow-sm">
@@ -152,7 +197,7 @@ export default function Navbar() {
               ZERRA
             </p>
 
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7d8b82]">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7d8b82]">
               AI Football
             </p>
           </div>
@@ -160,7 +205,9 @@ export default function Navbar() {
 
         <nav className="hidden items-center gap-1 lg:flex">
           {navItems.map(
-            (item) => {
+            (
+              item
+            ) => {
               const href =
                 getPath(
                   item.path
@@ -176,7 +223,9 @@ export default function Navbar() {
                   key={
                     item.label
                   }
-                  href={href}
+                  href={
+                    href
+                  }
                   className={`rounded-full px-4 py-2 text-sm font-bold transition ${
                     active
                       ? "bg-[#eaf7ef] text-[#0d6f3d]"
@@ -211,15 +260,17 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-3 lg:flex">
           {isVip && (
-            <span className="rounded-full border border-[#bfe6cf] bg-[#eaf7ef] px-3 py-1.5 text-xs font-black uppercase tracking-wide text-[#0d6f3d]">
-              VIP
+            <span className="rounded-full border border-[#bfe6cf] bg-[#eaf7ef] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#0d6f3d]">
+              VIP Member
             </span>
           )}
 
           {isLoggedIn ? (
             <div className="flex items-center gap-3">
-              <span className="max-w-[170px] truncate text-sm font-bold text-[#66756c]">
-                {email}
+              <span className="max-w-[160px] truncate text-sm font-bold text-[#66756c]">
+                {
+                  email
+                }
               </span>
 
               <button
@@ -244,12 +295,18 @@ export default function Navbar() {
           )}
 
           <Link
-            href={getPath(
-              "/vip"
-            )}
-            className="rounded-full bg-[#139653] px-5 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#0d6f3d]"
+            href={
+              vipActionHref
+            }
+            className={`rounded-full px-5 py-2.5 text-sm font-black shadow-sm transition ${
+              isVip
+                ? "border border-[#bfe6cf] bg-[#eaf7ef] text-[#0d6f3d] hover:bg-[#dff3e6]"
+                : "bg-[#139653] text-white hover:bg-[#0d6f3d]"
+            }`}
           >
-            Go VIP
+            {
+              vipActionLabel
+            }
           </Link>
         </div>
 
@@ -265,6 +322,9 @@ export default function Navbar() {
           }
           className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dce8df] bg-white text-[#102117] shadow-sm lg:hidden"
           aria-label="Toggle navigation"
+          aria-expanded={
+            open
+          }
         >
           <span className="text-xl font-black">
             {open
@@ -279,7 +339,9 @@ export default function Navbar() {
           <div className="mx-auto max-w-7xl">
             <nav className="grid gap-2">
               {navItems.map(
-                (item) => {
+                (
+                  item
+                ) => {
                   const href =
                     getPath(
                       item.path
@@ -290,7 +352,9 @@ export default function Navbar() {
                       key={
                         item.label
                       }
-                      href={href}
+                      href={
+                        href
+                      }
                       className={`rounded-2xl px-4 py-3 font-bold transition ${
                         isActive(
                           item.path
@@ -324,12 +388,20 @@ export default function Navbar() {
                 <>
                   <div className="rounded-2xl bg-[#f7faf8] px-4 py-3">
                     <p className="truncate text-sm font-bold text-[#66756c]">
-                      {email}
+                      {
+                        email
+                      }
                     </p>
 
                     {isVip && (
-                      <p className="mt-1 text-xs font-black uppercase text-[#139653]">
+                      <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-[#139653]">
                         VIP Member
+                      </p>
+                    )}
+
+                    {isAdmin && (
+                      <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-[#102117]">
+                        Administrator
                       </p>
                     )}
                   </div>
@@ -356,12 +428,18 @@ export default function Navbar() {
               )}
 
               <Link
-                href={getPath(
-                  "/vip"
-                )}
-                className="rounded-2xl bg-[#139653] px-4 py-3 text-center font-black text-white"
+                href={
+                  vipActionHref
+                }
+                className={`rounded-2xl px-4 py-3 text-center font-black ${
+                  isVip
+                    ? "border border-[#bfe6cf] bg-[#eaf7ef] text-[#0d6f3d]"
+                    : "bg-[#139653] text-white"
+                }`}
               >
-                Go VIP
+                {
+                  vipActionLabel
+                }
               </Link>
             </div>
           </div>
