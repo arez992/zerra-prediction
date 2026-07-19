@@ -23,37 +23,68 @@ type PublicPredictionItem = {
     home: {
       name: string;
     };
+
     away: {
       name: string;
     };
   };
 
-  fixtureDate: string | null;
+  fixtureDate:
+    string | null;
 
   fixtureStatus: {
-    short: string | null;
-    long: string | null;
+    short:
+      string | null;
+
+    long:
+      string | null;
   };
 
   publicPrediction: {
-    overview: string;
-    risk: string;
-    riskScore: number | null;
-    keyInsights: string[];
-    teaser: string;
+    overview:
+      string;
+
+    risk:
+      string;
+
+    riskScore:
+      number | null;
+
+    marketCategory:
+      string | null;
+
+    keyInsights:
+      string[];
+
+    teaser:
+      string;
   };
 
-  publishedAt: string | null;
-  updatedAt: string | null;
+  publishedAt:
+    string | null;
+
+  updatedAt:
+    string | null;
 };
 
 type PublicPredictionsResponse = {
-  success: boolean;
-  engine?: string;
-  sport?: string;
-  count?: number;
-  predictions?: PublicPredictionItem[];
-  error?: string;
+  success:
+    boolean;
+
+  engine?:
+    string;
+
+  sport?:
+    string;
+
+  count?:
+    number;
+
+  predictions?:
+    PublicPredictionItem[];
+
+  error?:
+    string;
 };
 
 type PageProps = {
@@ -63,12 +94,16 @@ type PageProps = {
 };
 
 async function getPublishedPredictions(): Promise<{
-  predictions: PublicPredictionItem[];
-  error: string | null;
+  predictions:
+    PublicPredictionItem[];
+
+  error:
+    string | null;
 }> {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env
+        .NEXT_PUBLIC_SITE_URL ||
       "https://zerra-prediction.vercel.app";
 
     const response =
@@ -83,23 +118,28 @@ async function getPublishedPredictions(): Promise<{
     const raw =
       await response.text();
 
-    let data: PublicPredictionsResponse;
+    let data:
+      PublicPredictionsResponse;
 
     try {
-      data = raw
-        ? (JSON.parse(
-            raw
-          ) as PublicPredictionsResponse)
-        : {
-            success:
-              false,
-            error:
-              "The prediction service returned an empty response.",
-          };
+      data =
+        raw
+          ? JSON.parse(
+              raw
+            ) as
+              PublicPredictionsResponse
+          : {
+              success:
+                false,
+
+              error:
+                "The prediction service returned an empty response.",
+            };
     } catch {
       return {
         predictions:
           [],
+
         error:
           "The prediction service returned an invalid response.",
       };
@@ -112,6 +152,7 @@ async function getPublishedPredictions(): Promise<{
       return {
         predictions:
           [],
+
         error:
           data.error ||
           "Unable to load published predictions.",
@@ -125,6 +166,7 @@ async function getPublishedPredictions(): Promise<{
         )
           ? data.predictions
           : [],
+
       error:
         null,
     };
@@ -132,6 +174,7 @@ async function getPublishedPredictions(): Promise<{
     return {
       predictions:
         [],
+
       error:
         "Unable to connect to the public prediction service.",
     };
@@ -139,9 +182,12 @@ async function getPublishedPredictions(): Promise<{
 }
 
 function formatFixtureDate(
-  value: string | null
+  value:
+    string | null
 ): string {
-  if (!value) {
+  if (
+    !value
+  ) {
     return "Kickoff TBD";
   }
 
@@ -163,6 +209,7 @@ function formatFixtureDate(
     {
       dateStyle:
         "medium",
+
       timeStyle:
         "short",
     }
@@ -172,8 +219,11 @@ function formatFixtureDate(
 }
 
 function getLocalizedPath(
-  locale: string,
-  path: string
+  locale:
+    string,
+
+  path:
+    string
 ) {
   return `/${locale}${path}`;
 }
@@ -215,8 +265,8 @@ export default async function PredictionsPage({
 
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base md:leading-8">
             Human-reviewed public football analysis from the ZERRA AI
-            workflow. Final picks, exact scores, confidence percentages,
-            and premium reasoning remain protected for VIP members.
+            workflow. The strongest qualified market pick, confidence level,
+            and premium AI reasoning remain protected for VIP members.
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -340,8 +390,11 @@ function FeaturedPrediction({
   item,
   locale,
 }: {
-  item: PublicPredictionItem;
-  locale: string;
+  item:
+    PublicPredictionItem;
+
+  locale:
+    string;
 }) {
   const matchTitle =
     `${item.teams.home.name} vs ${item.teams.away.name}`;
@@ -362,6 +415,18 @@ function FeaturedPrediction({
             <span className="rounded-full bg-[#f3f7f4] px-3 py-1.5 text-[10px] font-black uppercase text-[#7a877e]">
               Football
             </span>
+
+            {item
+              .publicPrediction
+              .marketCategory && (
+              <span className="rounded-full border border-[#bfe6cf] bg-[#eaf7ef] px-3 py-1.5 text-[10px] font-black uppercase text-[#0d6f3d]">
+                {
+                  item
+                    .publicPrediction
+                    .marketCategory
+                }
+              </span>
+            )}
           </div>
 
           <p className="mt-6 text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
@@ -380,32 +445,42 @@ function FeaturedPrediction({
 
           <p className="mt-5 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base md:leading-8">
             {
-              item.publicPrediction.overview
+              item
+                .publicPrediction
+                .overview
             }
           </p>
 
-          {item.publicPrediction.keyInsights.length >
+          {item
+              .publicPrediction
+              .keyInsights
+              .length >
             0 && (
             <div className="mt-6 grid gap-3">
-              {item.publicPrediction.keyInsights.map(
-                (
-                  insight,
-                  index
-                ) => (
-                  <div
-                    key={`${insight}-${index}`}
-                    className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] px-4 py-3"
-                  >
-                    <span className="font-black text-[#139653]">
-                      ✓
-                    </span>
+              {item
+                .publicPrediction
+                .keyInsights
+                .map(
+                  (
+                    insight,
+                    index
+                  ) => (
+                    <div
+                      key={`${insight}-${index}`}
+                      className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] px-4 py-3"
+                    >
+                      <span className="font-black text-[#139653]">
+                        ✓
+                      </span>
 
-                    <p className="text-sm leading-6 text-[#536158]">
-                      {insight}
-                    </p>
-                  </div>
-                )
-              )}
+                      <p className="text-sm leading-6 text-[#536158]">
+                        {
+                          insight
+                        }
+                      </p>
+                    </div>
+                  )
+                )}
             </div>
           )}
 
@@ -431,7 +506,7 @@ function FeaturedPrediction({
           </div>
         </div>
 
-        <aside className="border-t border-[#e7eee9] bg-[#fbfdfb] p-7 lg:border-l lg:border-t-0 md:p-8">
+        <aside className="border-t border-[#e7eee9] bg-[#fbfdfb] p-7 md:p-8 lg:border-l lg:border-t-0">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
             Public Match Signals
           </p>
@@ -440,19 +515,36 @@ function FeaturedPrediction({
             <SignalCard
               label="Risk Level"
               value={
-                item.publicPrediction.risk
+                item
+                  .publicPrediction
+                  .risk
               }
             />
 
             <SignalCard
               label="Risk Score"
               value={
-                item.publicPrediction.riskScore !==
+                item
+                  .publicPrediction
+                  .riskScore !==
                 null
                   ? `${item.publicPrediction.riskScore}/100`
                   : "Unavailable"
               }
             />
+
+            {item
+              .publicPrediction
+              .marketCategory && (
+              <SignalCard
+                label="AI Market Focus"
+                value={
+                  item
+                    .publicPrediction
+                    .marketCategory
+                }
+              />
+            )}
 
             <SignalCard
               label="Kickoff"
@@ -464,7 +556,9 @@ function FeaturedPrediction({
             <SignalCard
               label="Status"
               value={
-                item.fixtureStatus.long ||
+                item
+                  .fixtureStatus
+                  .long ||
                 "Scheduled"
               }
             />
@@ -491,8 +585,11 @@ function PredictionCard({
   item,
   locale,
 }: {
-  item: PublicPredictionItem;
-  locale: string;
+  item:
+    PublicPredictionItem;
+
+  locale:
+    string;
 }) {
   return (
     <article className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6 transition hover:border-[#bcd7c5]">
@@ -503,31 +600,55 @@ function PredictionCard({
 
         <span className="rounded-full bg-[#f3f7f4] px-3 py-1.5 text-[10px] font-black uppercase text-[#7a877e]">
           {
-            item.publicPrediction.risk
+            item
+              .publicPrediction
+              .risk
           }{" "}
           Risk
         </span>
+
+        {item
+          .publicPrediction
+          .marketCategory && (
+          <span className="rounded-full border border-[#bfe6cf] bg-[#eaf7ef] px-3 py-1.5 text-[10px] font-black uppercase text-[#0d6f3d]">
+            {
+              item
+                .publicPrediction
+                .marketCategory
+            }
+          </span>
+        )}
       </div>
 
       <p className="mt-5 text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
         {
-          item.competition.name
+          item
+            .competition
+            .name
         }
       </p>
 
       <h3 className="mt-3 text-2xl font-black leading-tight">
         {
-          item.teams.home.name
+          item
+            .teams
+            .home
+            .name
         }{" "}
         vs{" "}
         {
-          item.teams.away.name
+          item
+            .teams
+            .away
+            .name
         }
       </h3>
 
       <p className="mt-4 text-sm leading-7 text-[#66756c]">
         {
-          item.publicPrediction.overview
+          item
+            .publicPrediction
+            .overview
         }
       </p>
 
@@ -542,18 +663,35 @@ function PredictionCard({
         <MiniInfo
           label="Risk"
           value={
-            item.publicPrediction.riskScore !==
+            item
+              .publicPrediction
+              .riskScore !==
             null
               ? `${item.publicPrediction.risk} · ${item.publicPrediction.riskScore}/100`
               : item.publicPrediction.risk
           }
         />
+
+        {item
+          .publicPrediction
+          .marketCategory && (
+          <MiniInfo
+            label="AI Market Focus"
+            value={
+              item
+                .publicPrediction
+                .marketCategory
+            }
+          />
+        )}
       </div>
 
       <div className="mt-5 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-4">
         <p className="text-sm leading-7 text-[#66756c]">
           {
-            item.publicPrediction.teaser
+            item
+              .publicPrediction
+              .teaser
           }
         </p>
       </div>
@@ -585,7 +723,8 @@ function PredictionCard({
 function HeaderBadge({
   label,
 }: {
-  label: string;
+  label:
+    string;
 }) {
   return (
     <span className="rounded-full border border-[#dce8df] bg-[#fbfdfb] px-4 py-2 text-xs font-bold text-[#536158]">
@@ -611,8 +750,11 @@ function SignalCard({
   label,
   value,
 }: {
-  label: string;
-  value: string;
+  label:
+    string;
+
+  value:
+    string;
 }) {
   return (
     <div className="rounded-xl border border-[#e2ebe5] bg-white p-4">
@@ -631,8 +773,11 @@ function MiniInfo({
   label,
   value,
 }: {
-  label: string;
-  value: string;
+  label:
+    string;
+
+  value:
+    string;
 }) {
   return (
     <div className="rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] p-4">

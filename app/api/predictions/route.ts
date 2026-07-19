@@ -2,19 +2,32 @@ import {
   NextRequest,
   NextResponse,
 } from "next/server";
+
 import type {
   DocumentData,
 } from "firebase-admin/firestore";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const runtime =
+  "nodejs";
 
-const COLLECTION_NAME = "predictionHistory";
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 50;
+export const dynamic =
+  "force-dynamic";
+
+export const revalidate =
+  0;
+
+const COLLECTION_NAME =
+  "predictionHistory";
+
+const DEFAULT_LIMIT =
+  20;
+
+const MAX_LIMIT =
+  50;
 
 type TimestampLike = {
   toDate: () => Date;
@@ -25,21 +38,33 @@ function serializeTimestamp(
 ): string | null {
   if (
     value &&
-    typeof value === "object" &&
+    typeof value ===
+      "object" &&
     "toDate" in value &&
-    typeof (value as TimestampLike).toDate ===
+    typeof (
+      value as TimestampLike
+    ).toDate ===
       "function"
   ) {
-    return (value as TimestampLike)
+    return (
+      value as TimestampLike
+    )
       .toDate()
       .toISOString();
   }
 
-  if (value instanceof Date) {
-    return value.toISOString();
+  if (
+    value instanceof
+    Date
+  ) {
+    return value
+      .toISOString();
   }
 
-  if (typeof value === "string") {
+  if (
+    typeof value ===
+    "string"
+  ) {
     return value;
   }
 
@@ -47,17 +72,28 @@ function serializeTimestamp(
 }
 
 function getSafeLimit(
-  value: string | null
+  value:
+    string | null
 ): number {
-  const parsed = Number(value);
+  const parsed =
+    Number(value);
 
-  if (!Number.isFinite(parsed)) {
+  if (
+    !Number.isFinite(
+      parsed
+    )
+  ) {
     return DEFAULT_LIMIT;
   }
 
   return Math.min(
     MAX_LIMIT,
-    Math.max(1, Math.floor(parsed))
+    Math.max(
+      1,
+      Math.floor(
+        parsed
+      )
+    )
   );
 }
 
@@ -65,8 +101,12 @@ function normalizeText(
   value: unknown,
   fallback = ""
 ): string {
-  return typeof value === "string" &&
-    value.trim().length > 0
+  return (
+    typeof value ===
+      "string" &&
+    value.trim().length >
+      0
+  )
     ? value.trim()
     : fallback;
 }
@@ -74,90 +114,120 @@ function normalizeText(
 function normalizeStringArray(
   value: unknown
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value
+    )
+  ) {
     return [];
   }
 
   return value
-    .map((item) =>
-      normalizeText(item)
+    .map(
+      (
+        item
+      ) =>
+        normalizeText(
+          item
+        )
     )
-    .filter(Boolean)
-    .slice(0, 8);
+    .filter(
+      Boolean
+    )
+    .slice(
+      0,
+      8
+    );
+}
+
+function normalizeNumber(
+  value: unknown
+): number | null {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value
+    )
+  )
+    ? value
+    : null;
+}
+
+function asRecord(
+  value: unknown
+): Record<
+  string,
+  unknown
+> {
+  if (
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
+  ) {
+    return value as Record<
+      string,
+      unknown
+    >;
+  }
+
+  return {};
 }
 
 function toPublicPrediction(
-  id: string,
-  data: DocumentData
+  id:
+    string,
+
+  data:
+    DocumentData
 ) {
   const publicPrediction =
-    data.publicPrediction &&
-    typeof data.publicPrediction ===
-      "object" &&
-    !Array.isArray(data.publicPrediction)
-      ? (data.publicPrediction as Record<
-          string,
-          unknown
-        >)
-      : {};
+    asRecord(
+      data.publicPrediction
+    );
 
   const competition =
-    data.competition &&
-    typeof data.competition === "object" &&
-    !Array.isArray(data.competition)
-      ? (data.competition as Record<
-          string,
-          unknown
-        >)
-      : {};
+    asRecord(
+      data.competition
+    );
 
   const teams =
-    data.teams &&
-    typeof data.teams === "object" &&
-    !Array.isArray(data.teams)
-      ? (data.teams as Record<
-          string,
-          unknown
-        >)
-      : {};
+    asRecord(
+      data.teams
+    );
 
   const homeTeam =
-    teams.home &&
-    typeof teams.home === "object" &&
-    !Array.isArray(teams.home)
-      ? (teams.home as Record<
-          string,
-          unknown
-        >)
-      : {};
+    asRecord(
+      teams.home
+    );
 
   const awayTeam =
-    teams.away &&
-    typeof teams.away === "object" &&
-    !Array.isArray(teams.away)
-      ? (teams.away as Record<
-          string,
-          unknown
-        >)
-      : {};
+    asRecord(
+      teams.away
+    );
 
   const fixtureStatus =
-    data.fixtureStatus &&
-    typeof data.fixtureStatus === "object" &&
-    !Array.isArray(data.fixtureStatus)
-      ? (data.fixtureStatus as Record<
-          string,
-          unknown
-        >)
-      : {};
+    asRecord(
+      data.fixtureStatus
+    );
 
   return {
     id,
-    fixtureId:
-      normalizeText(data.fixtureId) ||
-      id.replace(/^fixture-/, ""),
 
-    sport: "Football",
+    fixtureId:
+      normalizeText(
+        data.fixtureId
+      ) ||
+      id.replace(
+        /^fixture-/,
+        ""
+      ),
+
+    sport:
+      "Football",
 
     competition: {
       name:
@@ -165,14 +235,18 @@ function toPublicPrediction(
           competition.name,
           "Football"
         ),
+
       country:
         normalizeText(
           competition.country
-        ) || null,
+        ) ||
+        null,
+
       round:
         normalizeText(
           competition.round
-        ) || null,
+        ) ||
+        null,
     },
 
     teams: {
@@ -183,6 +257,7 @@ function toPublicPrediction(
             "Home team"
           ),
       },
+
       away: {
         name:
           normalizeText(
@@ -196,18 +271,23 @@ function toPublicPrediction(
       serializeTimestamp(
         data.fixtureDate
       ) ||
-      normalizeText(data.fixtureDate) ||
+      normalizeText(
+        data.fixtureDate
+      ) ||
       null,
 
     fixtureStatus: {
       short:
         normalizeText(
           fixtureStatus.short
-        ) || null,
+        ) ||
+        null,
+
       long:
         normalizeText(
           fixtureStatus.long
-        ) || null,
+        ) ||
+        null,
     },
 
     publicPrediction: {
@@ -216,27 +296,41 @@ function toPublicPrediction(
           publicPrediction.overview,
           "Public match analysis is available."
         ),
+
       risk:
         normalizeText(
           publicPrediction.risk,
           "Medium"
         ),
+
       riskScore:
-        typeof publicPrediction.riskScore ===
-          "number" &&
-        Number.isFinite(
+        normalizeNumber(
           publicPrediction.riskScore
-        )
-          ? publicPrediction.riskScore
-          : null,
+        ),
+
+      /*
+       * Safe public market-family hint.
+       *
+       * This reveals only the category,
+       * not the protected VIP pick.
+       */
+      marketCategory:
+        normalizeText(
+          publicPrediction
+            .marketCategory
+        ) ||
+        null,
+
       keyInsights:
         normalizeStringArray(
-          publicPrediction.keyInsights
+          publicPrediction
+            .keyInsights
         ),
+
       teaser:
         normalizeText(
           publicPrediction.teaser,
-          "The final prediction and premium match intelligence are reserved for VIP members."
+          "The strongest qualified prediction and premium match intelligence are reserved for VIP members."
         ),
     },
 
@@ -244,6 +338,7 @@ function toPublicPrediction(
       serializeTimestamp(
         data.publishedAt
       ),
+
     updatedAt:
       serializeTimestamp(
         data.updatedAt
@@ -272,75 +367,107 @@ function getErrorStatus(
 }
 
 export async function GET(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
-    const limit = getSafeLimit(
-      request.nextUrl.searchParams.get(
-        "limit"
-      )
-    );
+    const limit =
+      getSafeLimit(
+        request
+          .nextUrl
+          .searchParams
+          .get(
+            "limit"
+          )
+      );
 
-    const snapshot = await adminDb
-      .collection(COLLECTION_NAME)
-      .where(
-        "status",
-        "==",
-        "published"
-      )
-      .orderBy(
-        "publishedAt",
-        "desc"
-      )
-      .limit(limit)
-      .get();
+    const snapshot =
+      await adminDb
+        .collection(
+          COLLECTION_NAME
+        )
+        .where(
+          "status",
+          "==",
+          "published"
+        )
+        .orderBy(
+          "publishedAt",
+          "desc"
+        )
+        .limit(
+          limit
+        )
+        .get();
 
     const predictions =
-      snapshot.docs.map((document) =>
-        toPublicPrediction(
-          document.id,
-          document.data()
-        )
+      snapshot.docs.map(
+        (
+          document
+        ) =>
+          toPublicPrediction(
+            document.id,
+            document.data()
+          )
       );
 
     return NextResponse.json(
       {
-        success: true,
+        success:
+          true,
+
         engine:
           "ZERRA AI Prediction Engine",
-        sport: "Football",
-        count: predictions.length,
+
+        sport:
+          "Football",
+
+        count:
+          predictions.length,
+
         predictions,
       },
       {
-        status: 200,
+        status:
+          200,
+
         headers: {
           "Cache-Control":
             "public, s-maxage=60, stale-while-revalidate=300",
         },
       }
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "[PUBLIC_PREDICTIONS_GET_ERROR]",
       error
     );
 
     const message =
-      error instanceof Error
+      error instanceof
+        Error
         ? error.message
         : "Unable to load public predictions.";
 
     return NextResponse.json(
       {
-        success: false,
-        error: message,
+        success:
+          false,
+
+        error:
+          message,
       },
       {
         status:
-          getErrorStatus(message),
+          getErrorStatus(
+            message
+          ),
+
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control":
+            "no-store",
         },
       }
     );

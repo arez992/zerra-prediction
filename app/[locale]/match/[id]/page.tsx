@@ -40,7 +40,9 @@ function clampPercent(
     Number(value);
 
   if (
-    !Number.isFinite(parsed)
+    !Number.isFinite(
+      parsed
+    )
   ) {
     return 0;
   }
@@ -49,7 +51,9 @@ function clampPercent(
     0,
     Math.min(
       100,
-      Math.round(parsed)
+      Math.round(
+        parsed
+      )
     )
   );
 }
@@ -57,12 +61,16 @@ function clampPercent(
 function formatFixtureDate(
   value?: string
 ): string {
-  if (!value) {
+  if (
+    !value
+  ) {
     return "Date unavailable";
   }
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
   if (
     Number.isNaN(
@@ -77,25 +85,34 @@ function formatFixtureDate(
     {
       weekday:
         "short",
+
       month:
         "short",
+
       day:
         "numeric",
+
       year:
         "numeric",
     }
-  ).format(date);
+  ).format(
+    date
+  );
 }
 
 function formatFixtureTime(
   value?: string
 ): string {
-  if (!value) {
+  if (
+    !value
+  ) {
     return "TBD";
   }
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
   if (
     Number.isNaN(
@@ -110,42 +127,32 @@ function formatFixtureTime(
     {
       hour:
         "2-digit",
+
       minute:
         "2-digit",
     }
-  ).format(date);
+  ).format(
+    date
+  );
 }
 
-function getStrongestGoalMarket(
-  prediction: any
-) {
-  const over25 =
-    clampPercent(
-      prediction?.over25
-    );
-
-  const under25 =
-    clampPercent(
-      prediction?.under25
-    );
-
+function formatMarketValue(
+  value:
+    number | undefined
+): string {
   if (
-    over25 >= under25
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value
+    )
   ) {
-    return {
-      label:
-        "Over 2.5 Goals",
-      confidence:
-        over25,
-    };
+    return "Unavailable";
   }
 
-  return {
-    label:
-      "Under 2.5 Goals",
-    confidence:
-      under25,
-  };
+  return `${Math.round(
+    value
+  )}%`;
 }
 
 export default function MatchDetailsPage() {
@@ -202,6 +209,7 @@ export default function MatchDetailsPage() {
             {
               cache:
                 "no-store",
+
               signal:
                 controller.signal,
             }
@@ -368,57 +376,94 @@ export default function MatchDetailsPage() {
     match.fixture;
 
   const homeTeam =
-    fixture?.teams
+    fixture
+      ?.teams
       ?.home;
 
   const awayTeam =
-    fixture?.teams
+    fixture
+      ?.teams
       ?.away;
 
   const homeGoals =
-    fixture?.goals
+    fixture
+      ?.goals
       ?.home;
 
   const awayGoals =
-    fixture?.goals
+    fixture
+      ?.goals
       ?.away;
 
-  const goalMarket =
-    getStrongestGoalMarket(
-      prediction
-    );
+  const primaryPrediction =
+    prediction
+      .vipPrediction
+      .primaryPrediction;
+
+  const markets =
+    prediction
+      .vipPrediction
+      .markets;
+
+  const hasStrongPrediction =
+    primaryPrediction
+      .qualified;
+
+  const primaryPick =
+    primaryPrediction
+      .pick;
+
+  const primaryCategory =
+    primaryPrediction
+      .category;
+
+  const primaryConfidence =
+    primaryPrediction
+      .confidence;
 
   const tabs: {
-    label: string;
-    value: ActiveTab;
+    label:
+      string;
+
+    value:
+      ActiveTab;
   }[] = [
     {
       label:
         "Match Overview",
+
       value:
         "overview",
     },
+
     {
       label:
         "AI Prediction",
+
       value:
         "prediction",
     },
+
     {
       label:
         "Statistics",
+
       value:
         "statistics",
     },
+
     {
       label:
         "Timeline",
+
       value:
         "timeline",
     },
+
     {
       label:
         "Lineups",
+
       value:
         "lineups",
     },
@@ -608,31 +653,31 @@ export default function MatchDetailsPage() {
             <div className="grid gap-6">
               <VipGate
                 fallbackTitle="Premium AI Prediction Locked"
-                fallbackText="Upgrade to VIP to unlock ZERRA AI confidence, goal prediction, probability analysis, risk intelligence, and premium match verdict."
+                fallbackText="Upgrade to VIP to unlock ZERRA's strongest qualified market pick, confidence, market probabilities, risk intelligence, and premium match reasoning."
               >
                 <section className="overflow-hidden rounded-[1.75rem] border border-[#dce8df] bg-white">
                   <div className="border-b border-[#e7eee9] px-6 py-5">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
-                      ZERRA AI Prediction
+                      ZERRA AI Primary Prediction
                     </p>
 
                     <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                       <div>
                         <h2 className="text-2xl font-black">
-                          AI Match Prediction
+                          Strongest Market Signal
                         </h2>
 
                         <p className="mt-2 text-sm text-[#66756c]">
-                          ZERRA model
-                          analysis based
-                          on available
-                          football data.
+                          ZERRA evaluates multiple
+                          football markets and
+                          selects only the strongest
+                          qualified prediction.
                         </p>
                       </div>
 
                       <ConfidenceBadge
                         value={
-                          prediction.confidence
+                          primaryConfidence
                         }
                       />
                     </div>
@@ -640,37 +685,47 @@ export default function MatchDetailsPage() {
 
                   <div className="grid gap-5 p-6 md:grid-cols-2">
                     <HighlightCard
-                      label="Goal Prediction"
+                      label="Primary Prediction"
                       value={
-                        goalMarket.label
+                        primaryPick
                       }
-                      detail={`${goalMarket.confidence}% model probability`}
+                      detail={
+                        hasStrongPrediction
+                          ? `${primaryCategory} · Qualified`
+                          : primaryCategory
+                      }
                     />
 
                     <HighlightCard
-                      label="Model Pick"
+                      label="Market Category"
                       value={
-                        prediction.valueBet ||
-                        "No value pick"
+                        primaryCategory
                       }
-                      detail={`Risk: ${prediction.risk}`}
+                      detail={
+                        hasStrongPrediction
+                          ? "Selected as strongest qualified market"
+                          : "No market passed the required threshold"
+                      }
                     />
 
                     <HighlightCard
                       label="Expected Goals"
                       value={`${Number(
-                        prediction.homeExpectedGoals ??
+                        prediction
+                          .homeExpectedGoals ??
                           0
                       ).toFixed(
                         1
                       )} - ${Number(
-                        prediction.awayExpectedGoals ??
+                        prediction
+                          .awayExpectedGoals ??
                           0
                       ).toFixed(
                         1
                       )}`}
                       detail={`Total xG ${Number(
-                        prediction.expectedGoals ??
+                        prediction
+                          .expectedGoals ??
                           0
                       ).toFixed(
                         1
@@ -678,19 +733,40 @@ export default function MatchDetailsPage() {
                     />
 
                     <HighlightCard
-                      label="Exact Score Estimate"
+                      label="Supplemental Score Estimate"
                       value={
                         prediction
-                          ?.vipPrediction
-                          ?.exactScore ||
+                          .vipPrediction
+                          .exactScore ||
                         "Unavailable"
                       }
-                      detail="Model estimate"
+                      detail="Supplemental model estimate only"
                     />
                   </div>
+
+                  {!hasStrongPrediction && (
+                    <div className="mx-6 mb-6 rounded-2xl border border-[#f0e1b8] bg-[#fffaf0] p-5">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#9a741c]">
+                        Prediction Withheld
+                      </p>
+
+                      <p className="mt-2 text-sm leading-7 text-[#6c6042]">
+                        {
+                          primaryPrediction
+                            .reason
+                        }
+                      </p>
+                    </div>
+                  )}
                 </section>
 
-                <ProbabilitySection
+                <PrimaryMarketSection
+                  prediction={
+                    prediction
+                  }
+                />
+
+                <SupportingOutcomeSection
                   homeName={
                     homeTeam
                       ?.name ||
@@ -762,7 +838,9 @@ export default function MatchDetailsPage() {
                 </section>
 
                 <AIAnalysis
-                  match={match}
+                  match={
+                    match
+                  }
                   prediction={
                     prediction
                   }
@@ -845,32 +923,44 @@ export default function MatchDetailsPage() {
 
               <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
-                  Goal Markets
+                  Core Goal Signals
                 </p>
 
                 <h2 className="mt-2 text-xl font-black">
-                  Model Probabilities
+                  Market Probabilities
                 </h2>
 
                 <div className="mt-6 grid gap-5">
                   <ProbabilityBar
                     label="Over 2.5 Goals"
                     value={
-                      prediction.over25
+                      markets.over25
                     }
                   />
 
                   <ProbabilityBar
                     label="Under 2.5 Goals"
                     value={
-                      prediction.under25
+                      markets.under25
                     }
                   />
 
                   <ProbabilityBar
-                    label="Both Teams to Score"
+                    label="BTTS Yes"
                     value={
-                      prediction.btts
+                      markets.bttsYes ??
+                      markets.btts
+                    }
+                  />
+
+                  <ProbabilityBar
+                    label="BTTS No"
+                    value={
+                      markets.bttsNo ??
+                      (
+                        100 -
+                        markets.btts
+                      )
                     }
                   />
                 </div>
@@ -878,29 +968,39 @@ export default function MatchDetailsPage() {
 
               <section className="rounded-[1.75rem] bg-[#102117] p-6 text-white">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6be39e]">
-                  ZERRA Verdict
+                  ZERRA Primary Verdict
                 </p>
 
                 <h2 className="mt-3 text-2xl font-black">
                   {
-                    prediction
-                      ?.vipPrediction
-                      ?.finalPrediction ||
-                    prediction.valueBet ||
-                    goalMarket.label
+                    primaryPick
                   }
                 </h2>
+
+                <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[#6be39e]">
+                  {
+                    primaryCategory
+                  }
+                </p>
 
                 <p className="mt-3 text-sm leading-6 text-white/60">
                   Confidence{" "}
                   {Math.round(
-                    prediction.confidence
+                    primaryConfidence
                   )}
                   % · Risk{" "}
                   {
                     prediction.risk
                   }
                 </p>
+
+                {!hasStrongPrediction && (
+                  <p className="mt-4 text-sm leading-6 text-white/55">
+                    ZERRA is not forcing
+                    a weak prediction for
+                    this match.
+                  </p>
+                )}
               </section>
             </aside>
           </div>
@@ -910,10 +1010,48 @@ export default function MatchDetailsPage() {
           "prediction" && (
           <VipGate
             fallbackTitle="Premium AI Prediction Locked"
-            fallbackText="Upgrade to VIP to unlock full ZERRA AI match prediction intelligence."
+            fallbackText="Upgrade to VIP to unlock full ZERRA AI market prediction intelligence."
           >
             <div className="grid gap-6">
-              <ProbabilitySection
+              <section className="grid gap-5 md:grid-cols-3">
+                <HighlightCard
+                  label="Primary Prediction"
+                  value={
+                    primaryPick
+                  }
+                  detail={
+                    primaryCategory
+                  }
+                />
+
+                <HighlightCard
+                  label="Confidence"
+                  value={`${Math.round(
+                    primaryConfidence
+                  )}%`}
+                  detail={
+                    hasStrongPrediction
+                      ? "Evidence-adjusted market confidence"
+                      : "Below qualification standard"
+                  }
+                />
+
+                <HighlightCard
+                  label="Risk"
+                  value={
+                    prediction.risk
+                  }
+                  detail={`${prediction.riskScore}/100 risk score`}
+                />
+              </section>
+
+              <PrimaryMarketSection
+                prediction={
+                  prediction
+                }
+              />
+
+              <SupportingOutcomeSection
                 homeName={
                   homeTeam
                     ?.name ||
@@ -935,35 +1073,10 @@ export default function MatchDetailsPage() {
                 }
               />
 
-              <section className="grid gap-5 md:grid-cols-3">
-                <HighlightCard
-                  label="Goal Prediction"
-                  value={
-                    goalMarket.label
-                  }
-                  detail={`${goalMarket.confidence}% probability`}
-                />
-
-                <HighlightCard
-                  label="Value Pick"
-                  value={
-                    prediction.valueBet ||
-                    "No value pick"
-                  }
-                  detail={`Risk: ${prediction.risk}`}
-                />
-
-                <HighlightCard
-                  label="Confidence"
-                  value={`${Math.round(
-                    prediction.confidence
-                  )}%`}
-                  detail="ZERRA model confidence"
-                />
-              </section>
-
               <AIAnalysis
-                match={match}
+                match={
+                  match
+                }
                 prediction={
                   prediction
                 }
@@ -1006,7 +1119,8 @@ export default function MatchDetailsPage() {
 function TeamHero({
   team,
 }: {
-  team: any;
+  team:
+    any;
 }) {
   const name =
     team?.name ||
@@ -1047,7 +1161,8 @@ function TeamHero({
 function ConfidenceBadge({
   value,
 }: {
-  value: number;
+  value:
+    number;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-[#eaf7ef] px-4 py-3">
@@ -1066,7 +1181,7 @@ function ConfidenceBadge({
         </p>
 
         <p className="text-sm font-black text-[#102117]">
-          AI Model
+          Primary Market
         </p>
       </div>
     </div>
@@ -1078,9 +1193,14 @@ function HighlightCard({
   value,
   detail,
 }: {
-  label: string;
-  value: string;
-  detail: string;
+  label:
+    string;
+
+  value:
+    string;
+
+  detail:
+    string;
 }) {
   return (
     <div className="rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-5">
@@ -1099,29 +1219,300 @@ function HighlightCard({
   );
 }
 
-function ProbabilitySection({
+function PrimaryMarketSection({
+  prediction,
+}: {
+  prediction:
+    ReturnType<
+      typeof calculatePrediction
+    >;
+}) {
+  const markets =
+    prediction
+      .vipPrediction
+      .markets;
+
+  return (
+    <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
+        ZERRA Market Intelligence
+      </p>
+
+      <h2 className="mt-2 text-2xl font-black">
+        Primary Market Analysis
+      </h2>
+
+      <p className="mt-3 text-sm leading-7 text-[#66756c]">
+        ZERRA compares multiple
+        football markets and selects
+        the strongest qualified signal
+        instead of forcing a match-winner
+        prediction.
+      </p>
+
+      <div className="mt-7 grid gap-6 md:grid-cols-2">
+        <MarketGroup
+          title="Total Goals"
+          items={[
+            {
+              label:
+                "Over 1.5",
+
+              value:
+                markets.over15,
+            },
+            {
+              label:
+                "Under 1.5",
+
+              value:
+                markets.under15,
+            },
+            {
+              label:
+                "Over 2.5",
+
+              value:
+                markets.over25,
+            },
+            {
+              label:
+                "Under 2.5",
+
+              value:
+                markets.under25,
+            },
+            {
+              label:
+                "Over 3.5",
+
+              value:
+                markets.over35,
+            },
+            {
+              label:
+                "Under 3.5",
+
+              value:
+                markets.under35,
+            },
+          ]}
+        />
+
+        <MarketGroup
+          title="Both Teams To Score"
+          items={[
+            {
+              label:
+                "BTTS Yes",
+
+              value:
+                markets.bttsYes ??
+                markets.btts,
+            },
+            {
+              label:
+                "BTTS No",
+
+              value:
+                markets.bttsNo ??
+                (
+                  100 -
+                  markets.btts
+                ),
+            },
+          ]}
+        />
+
+        <MarketGroup
+          title="Home Team Goals"
+          items={[
+            {
+              label:
+                "Over 0.5",
+
+              value:
+                markets.homeOver05,
+            },
+            {
+              label:
+                "Under 0.5",
+
+              value:
+                markets.homeUnder05,
+            },
+            {
+              label:
+                "Over 1.5",
+
+              value:
+                markets.homeOver15,
+            },
+            {
+              label:
+                "Under 1.5",
+
+              value:
+                markets.homeUnder15,
+            },
+          ]}
+        />
+
+        <MarketGroup
+          title="Away Team Goals"
+          items={[
+            {
+              label:
+                "Over 0.5",
+
+              value:
+                markets.awayOver05,
+            },
+            {
+              label:
+                "Under 0.5",
+
+              value:
+                markets.awayUnder05,
+            },
+            {
+              label:
+                "Over 1.5",
+
+              value:
+                markets.awayOver15,
+            },
+            {
+              label:
+                "Under 1.5",
+
+              value:
+                markets.awayUnder15,
+            },
+          ]}
+        />
+
+        <MarketGroup
+          title="Double Chance"
+          items={[
+            {
+              label:
+                "1X",
+
+              value:
+                markets.doubleChance1X,
+            },
+            {
+              label:
+                "X2",
+
+              value:
+                markets.doubleChanceX2,
+            },
+            {
+              label:
+                "12",
+
+              value:
+                markets.doubleChance12,
+            },
+          ]}
+        />
+      </div>
+    </section>
+  );
+}
+
+function MarketGroup({
+  title,
+  items,
+}: {
+  title:
+    string;
+
+  items:
+    Array<{
+      label:
+        string;
+
+      value:
+        number | undefined;
+    }>;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#e2ebe5] bg-[#fbfdfb] p-5">
+      <p className="text-sm font-black text-[#102117]">
+        {title}
+      </p>
+
+      <div className="mt-5 grid gap-4">
+        {items.map(
+          (
+            item
+          ) => (
+            <div
+              key={
+                item.label
+              }
+              className="flex items-center justify-between gap-4"
+            >
+              <span className="text-sm font-bold text-[#66756c]">
+                {
+                  item.label
+                }
+              </span>
+
+              <span className="text-sm font-black text-[#139653]">
+                {formatMarketValue(
+                  item.value
+                )}
+              </span>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SupportingOutcomeSection({
   homeName,
   awayName,
   home,
   draw,
   away,
 }: {
-  homeName: string;
-  awayName: string;
-  home: number;
-  draw: number;
-  away: number;
+  homeName:
+    string;
+
+  awayName:
+    string;
+
+  home:
+    number;
+
+  draw:
+    number;
+
+  away:
+    number;
 }) {
   return (
     <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
-        Probability Breakdown
+        Supporting Analysis
       </p>
 
       <h2 className="mt-2 text-2xl font-black">
-        Match Outcome
-        Probability
+        Match Outcome Probabilities
       </h2>
+
+      <p className="mt-3 text-sm leading-7 text-[#66756c]">
+        These 1X2 probabilities
+        provide supporting context only.
+        They do not define ZERRA&apos;s
+        canonical primary prediction.
+      </p>
 
       <div className="mt-7 grid gap-6">
         <ProbabilityBar
@@ -1157,8 +1548,11 @@ function ProbabilityBar({
   label,
   value,
 }: {
-  label: string;
-  value: number;
+  label:
+    string;
+
+  value:
+    number;
 }) {
   const safeValue =
     clampPercent(
@@ -1194,8 +1588,11 @@ function InfoRow({
   label,
   value,
 }: {
-  label: string;
-  value: string;
+  label:
+    string;
+
+  value:
+    string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-[#edf2ee] pb-3 last:border-0 last:pb-0">
