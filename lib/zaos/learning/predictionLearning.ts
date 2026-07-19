@@ -13,17 +13,41 @@ import type {
 } from "./types";
 
 type PredictionLearningInput = {
-  predictionId: string;
-  fixtureId: string;
+  predictionId:
+    string;
 
-  correct: boolean;
+  fixtureId:
+    string;
 
-  result: string;
+  correct:
+    boolean;
 
-  valueBet?: string | null;
+  result:
+    string;
+
+  /*
+   * Legacy/backward-compatible fields.
+   */
+  valueBet?:
+    string | null;
 
   finalPrediction?:
     string | null;
+
+  /*
+   * Canonical ZERRA Market Architecture.
+   */
+  primaryMarketCategory?:
+    string | null;
+
+  primaryPick?:
+    string | null;
+
+  primaryQualified?:
+    boolean | null;
+
+  primaryConfidence?:
+    number | null;
 
   confidence?:
     number | null;
@@ -38,14 +62,29 @@ type PredictionLearningInput = {
     string | null;
 
   actual?: {
-    homeGoals?: number;
-    awayGoals?: number;
-    totalGoals?: number;
-    actualWinner?: string;
-    btts?: boolean;
-    over25?: boolean;
-    under25?: boolean;
-    exactScore?: string;
+    homeGoals?:
+      number;
+
+    awayGoals?:
+      number;
+
+    totalGoals?:
+      number;
+
+    actualWinner?:
+      string;
+
+    btts?:
+      boolean;
+
+    over25?:
+      boolean;
+
+    under25?:
+      boolean;
+
+    exactScore?:
+      string;
   } | null;
 };
 
@@ -53,29 +92,51 @@ const COLLECTION =
   "zaosLearning";
 
 function normalizeText(
-  value: unknown
-): string | null {
-  return typeof value ===
+  value:
+    unknown
+):
+  string | null {
+  return (
+    typeof value ===
       "string" &&
     value.trim()
+  )
     ? value.trim()
     : null;
 }
 
 function normalizeNumber(
-  value: unknown
-): number | null {
-  return typeof value ===
+  value:
+    unknown
+):
+  number | null {
+  return (
+    typeof value ===
       "number" &&
     Number.isFinite(
       value
     )
+  )
+    ? value
+    : null;
+}
+
+function normalizeBoolean(
+  value:
+    unknown
+):
+  boolean | null {
+  return (
+    typeof value ===
+      "boolean"
+  )
     ? value
     : null;
 }
 
 function normalizeIdPart(
-  value: string
+  value:
+    string
 ): string {
   return value
     .trim()
@@ -90,8 +151,26 @@ function normalizeIdPart(
     );
 }
 
+function normalizeTag(
+  value:
+    string
+): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
+    .replace(
+      /^-+|-+$/g,
+      ""
+    );
+}
+
 function createLearningRecordId(
-  predictionId: string
+  predictionId:
+    string
 ): string {
   /*
    * Deterministic ID.
@@ -122,13 +201,17 @@ export async function recordPredictionLearning(
       input.fixtureId
     );
 
-  if (!predictionId) {
+  if (
+    !predictionId
+  ) {
     throw new Error(
       "Prediction ID is required for prediction learning."
     );
   }
 
-  if (!fixtureId) {
+  if (
+    !fixtureId
+  ) {
     throw new Error(
       "Fixture ID is required for prediction learning."
     );
@@ -144,9 +227,27 @@ export async function recordPredictionLearning(
       input.finalPrediction
     );
 
-  const modelVersion =
+  const primaryMarketCategory =
     normalizeText(
-      input.modelVersion
+      input
+        .primaryMarketCategory
+    );
+
+  const primaryPick =
+    normalizeText(
+      input.primaryPick
+    );
+
+  const primaryQualified =
+    normalizeBoolean(
+      input
+        .primaryQualified
+    );
+
+  const primaryConfidence =
+    normalizeNumber(
+      input
+        .primaryConfidence
     );
 
   const confidence =
@@ -159,10 +260,24 @@ export async function recordPredictionLearning(
       input.risk
     );
 
+  const modelVersion =
+    normalizeText(
+      input.modelVersion
+    );
+
   const exactScore =
     normalizeText(
       input.exactScore
     );
+
+  const canonicalConfidence =
+    primaryConfidence ??
+    confidence;
+
+  const canonicalPick =
+    primaryPick ??
+    finalPrediction ??
+    valueBet;
 
   const outcomeLabel =
     input.correct
@@ -174,6 +289,16 @@ export async function recordPredictionLearning(
    * so prediction learning remains
    * compatible with the global learning
    * metrics and dashboard.
+   *
+   * The primary market fields allow
+   * future Accuracy/Calibration systems
+   * to evaluate performance by:
+   *
+   * - market family
+   * - market pick
+   * - confidence
+   * - qualification state
+   * - model version
    */
   const evaluation =
     evaluateLearningOutcome({
@@ -193,7 +318,9 @@ export async function recordPredictionLearning(
         true,
 
       executionMessage:
-        `Prediction ${predictionId} was settled as ${outcomeLabel}. Final result: ${input.result}.`,
+        `Prediction ${predictionId} was settled as ${outcomeLabel}. ` +
+        `Primary pick: ${canonicalPick || "unknown"}. ` +
+        `Final result: ${input.result}.`,
 
       executionData: {
         predictionId,
@@ -206,11 +333,29 @@ export async function recordPredictionLearning(
         result:
           input.result,
 
+        /*
+         * Canonical market-learning data.
+         */
+        primaryMarketCategory,
+
+        primaryPick,
+
+        primaryQualified,
+
+        primaryConfidence,
+
+        /*
+         * Backward-compatible fields.
+         */
         valueBet,
 
         finalPrediction,
 
         confidence,
+
+        canonicalConfidence,
+
+        canonicalPick,
 
         risk,
 
@@ -228,14 +373,34 @@ export async function recordPredictionLearning(
         "settlement",
         outcomeLabel,
 
+        ...(primaryMarketCategory
+          ? [
+              `market-${normalizeTag(
+                primaryMarketCategory
+              )}`,
+            ]
+          : []),
+
+        ...(primaryPick
+          ? [
+              `pick-${normalizeTag(
+                primaryPick
+              )}`,
+            ]
+          : []),
+
+        ...(primaryQualified ===
+        true
+          ? [
+              "qualified",
+            ]
+          : []),
+
         ...(valueBet
           ? [
-              valueBet
-                .toLowerCase()
-                .replace(
-                  /\s+/g,
-                  "-"
-                ),
+              normalizeTag(
+                valueBet
+              ),
             ]
           : []),
 
@@ -261,6 +426,24 @@ export async function recordPredictionLearning(
         result:
           input.result,
 
+        /*
+         * Canonical ZERRA prediction.
+         */
+        primaryMarketCategory,
+
+        primaryPick,
+
+        primaryQualified,
+
+        primaryConfidence,
+
+        canonicalPick,
+
+        canonicalConfidence,
+
+        /*
+         * Legacy compatibility.
+         */
         modelVersion,
 
         confidence,
@@ -286,15 +469,15 @@ export async function recordPredictionLearning(
 
   const record:
     LearningRecord = {
-      ...evaluation.record,
+    ...evaluation.record,
 
-      /*
-       * Replace the evaluator's UUID-based
-       * ID with a deterministic prediction
-       * learning ID.
-       */
-      id:
-        deterministicId,
+    /*
+     * Replace the evaluator's UUID-based
+     * ID with a deterministic prediction
+     * learning ID.
+     */
+    id:
+      deterministicId,
   };
 
   /*

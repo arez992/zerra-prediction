@@ -24,8 +24,10 @@ import type {
 } from "./data-completeness";
 
 import type {
-  PredictionResult,
+  PredictionMarketCategory,
   PredictionMarketProbabilities,
+  PredictionPrimarySelection,
+  PredictionResult,
   PredictionRisk,
 } from "./prediction";
 
@@ -33,10 +35,38 @@ export type AIScoreResult =
   PredictionResult;
 
 const MODEL_VERSION =
-  "zerra-ai-v4.3-factor-confidence";
+  "zerra-ai-v5.0-market-selection";
 
 const DATA_VERSION =
-  "fixture-intelligence-v4-factor-architecture-v1";
+  "fixture-intelligence-v5-market-architecture-v1";
+
+type MainProbabilities = {
+  homeWin: number;
+  draw: number;
+  awayWin: number;
+};
+
+type MarketCandidate = {
+  category:
+    Exclude<
+      PredictionMarketCategory,
+      "No Strong Prediction"
+    >;
+
+  pick: string;
+
+  probability: number;
+
+  confidence: number;
+
+  minimumProbability: number;
+
+  minimumConfidence: number;
+
+  qualified: boolean;
+
+  reason: string;
+};
 
 function clamp(
   value: number,
@@ -72,11 +102,7 @@ function normalizeProbabilities(
   homeWin: number,
   draw: number,
   awayWin: number
-): {
-  homeWin: number;
-  draw: number;
-  awayWin: number;
-} {
+): MainProbabilities {
   const safeHome =
     Math.max(
       1,
@@ -149,15 +175,85 @@ function sigmoid(
   );
 }
 
+function factorial(
+  value: number
+): number {
+  if (
+    value <=
+    1
+  ) {
+    return 1;
+  }
+
+  let result =
+    1;
+
+  for (
+    let index = 2;
+    index <= value;
+    index += 1
+  ) {
+    result *=
+      index;
+  }
+
+  return result;
+}
+
+function poissonProbability(
+  lambda: number,
+  goals: number
+): number {
+  if (
+    lambda < 0 ||
+    goals < 0
+  ) {
+    return 0;
+  }
+
+  return (
+    Math.exp(
+      -lambda
+    ) *
+    lambda ** goals /
+    factorial(
+      goals
+    )
+  );
+}
+
+function probabilityUnderThreshold(
+  lambda: number,
+  maximumGoals: number
+): number {
+  let probability =
+    0;
+
+  for (
+    let goals = 0;
+    goals <= maximumGoals;
+    goals += 1
+  ) {
+    probability +=
+      poissonProbability(
+        lambda,
+        goals
+      );
+  }
+
+  return clamp(
+    probability *
+      100,
+    0,
+    100
+  );
+}
+
 function buildMainProbabilities(
   homeRating: number,
   awayRating: number,
   evidenceReliability: number
-): {
-  homeWin: number;
-  draw: number;
-  awayWin: number;
-} {
+): MainProbabilities {
   const ratingDifference =
     homeRating -
     awayRating;
@@ -212,37 +308,12 @@ function buildMainProbabilities(
   );
 }
 
-/*
- * Factor Architecture v4 does not
- * replace the existing model abruptly.
- *
- * It applies a controlled adjustment
- * to the established 1X2 probabilities.
- *
- * Maximum directional shift is kept
- * intentionally small to avoid unstable
- * prediction changes during rollout.
- */
 function applyFactorInfluence(
-  baseProbabilities: {
-    homeWin: number;
-    draw: number;
-    awayWin: number;
-  },
+  baseProbabilities:
+    MainProbabilities,
   factorSummary:
     PerformanceFactorSummary
-): {
-  homeWin: number;
-  draw: number;
-  awayWin: number;
-} {
-  /*
-   * weightedScore:
-   *
-   * 50  = neutral
-   * >50 = home signal
-   * <50 = away signal
-   */
+): MainProbabilities {
   const directionalSignal =
     clamp(
       (
@@ -270,23 +341,14 @@ function applyFactorInfluence(
       1
     );
 
-  /*
-   * At maximum evidence strength,
-   * factor architecture can move
-   * Home/Away by at most 8 points.
-   */
-  const maximumShift = 8;
+  const maximumShift =
+    8;
 
   const directionalShift =
     directionalSignal *
     maximumShift *
     evidenceStrength;
 
-  /*
-   * High uncertainty slightly
-   * protects the draw probability
-   * instead of forcing a side.
-   */
   const uncertaintyDrawBoost =
     clamp(
       (
@@ -314,268 +376,253 @@ function applyFactorInfluence(
   );
 }
 
-function chooseFinalPrediction(
-  markets:
-    PredictionMarketProbabilities
-): string {
-  const outcomes = [
-    {
-      label:
-        "Home Win",
+function buildExtendedMarkets(
+  base:
+    MainProbabilities,
 
-      value:
-        markets.homeWin,
-    },
-
-    {
-      label:
-        "Draw",
-
-      value:
-        markets.draw,
-    },
-
-    {
-      label:
-        "Away Win",
-
-      value:
-        markets.awayWin,
-    },
-  ];
-
-  outcomes.sort(
-    (
-      first,
-      second
-    ) =>
-      second.value -
-      first.value
-  );
-
-  return outcomes[0].label;
-}
-
-function chooseExactScore(
-  homeExpectedGoals: number,
-  awayExpectedGoals: number,
-  markets:
-    PredictionMarketProbabilities,
-  finalPrediction: string
-): string {
-  let homeGoals =
-    Math.max(
-      0,
-      Math.round(
-        homeExpectedGoals
-      )
-    );
-
-  let awayGoals =
-    Math.max(
-      0,
-      Math.round(
-        awayExpectedGoals
-      )
-    );
-
-  const prefersOver25 =
-    markets.over25 >
-    markets.under25;
-
-  if (
-    finalPrediction ===
-    "Home Win"
-  ) {
-    if (
-      homeGoals <=
-      awayGoals
-    ) {
-      homeGoals =
-        awayGoals + 1;
-    }
-  } else if (
-    finalPrediction ===
-    "Away Win"
-  ) {
-    if (
-      awayGoals <=
-      homeGoals
-    ) {
-      awayGoals =
-        homeGoals + 1;
-    }
-  } else if (
-    finalPrediction ===
-    "Draw"
-  ) {
-    const averageGoals =
-      Math.max(
-        0,
-        Math.round(
-          (
-            homeExpectedGoals +
-            awayExpectedGoals
-          ) /
-            2
-        )
-      );
-
-    homeGoals =
-      averageGoals;
-
-    awayGoals =
-      averageGoals;
+  goals: {
+    over25: number;
+    under25: number;
+    btts: number;
+    homeExpectedGoals: number;
+    awayExpectedGoals: number;
+    expectedGoals: number;
   }
+): PredictionMarketProbabilities {
+  const totalExpectedGoals =
+    Math.max(
+      0,
+      goals.expectedGoals
+    );
 
-  if (
-    prefersOver25
-  ) {
-    if (
-      homeGoals +
-        awayGoals <
+  const homeExpectedGoals =
+    Math.max(
+      0,
+      goals.homeExpectedGoals
+    );
+
+  const awayExpectedGoals =
+    Math.max(
+      0,
+      goals.awayExpectedGoals
+    );
+
+  const under15 =
+    probabilityUnderThreshold(
+      totalExpectedGoals,
+      1
+    );
+
+  const over15 =
+    100 -
+    under15;
+
+  const under35 =
+    probabilityUnderThreshold(
+      totalExpectedGoals,
       3
-    ) {
-      if (
-        finalPrediction ===
-        "Home Win"
-      ) {
-        homeGoals = 2;
-        awayGoals = 1;
-      } else if (
-        finalPrediction ===
-        "Away Win"
-      ) {
-        homeGoals = 1;
-        awayGoals = 2;
-      } else {
-        homeGoals = 2;
-        awayGoals = 2;
-      }
-    }
-  } else {
-    if (
-      homeGoals +
-        awayGoals >
-      2
-    ) {
-      if (
-        finalPrediction ===
-        "Home Win"
-      ) {
-        homeGoals = 1;
-        awayGoals = 0;
-      } else if (
-        finalPrediction ===
-        "Away Win"
-      ) {
-        homeGoals = 0;
-        awayGoals = 1;
-      } else {
-        homeGoals = 1;
-        awayGoals = 1;
-      }
-    }
-  }
+    );
 
-  if (
-    finalPrediction ===
-      "Home Win" &&
-    homeGoals <=
-      awayGoals
-  ) {
-    homeGoals =
-      awayGoals + 1;
-  }
+  const over35 =
+    100 -
+    under35;
 
-  if (
-    finalPrediction ===
-      "Away Win" &&
-    awayGoals <=
-      homeGoals
-  ) {
-    awayGoals =
-      homeGoals + 1;
-  }
+  const homeUnder05 =
+    probabilityUnderThreshold(
+      homeExpectedGoals,
+      0
+    );
 
-  if (
-    finalPrediction ===
-    "Draw"
-  ) {
-    const drawGoals =
-      prefersOver25
-        ? 2
-        : 1;
+  const homeOver05 =
+    100 -
+    homeUnder05;
 
-    homeGoals =
-      drawGoals;
+  const homeUnder15 =
+    probabilityUnderThreshold(
+      homeExpectedGoals,
+      1
+    );
 
-    awayGoals =
-      drawGoals;
-  }
+  const homeOver15 =
+    100 -
+    homeUnder15;
 
-  return `${homeGoals}-${awayGoals}`;
+  const awayUnder05 =
+    probabilityUnderThreshold(
+      awayExpectedGoals,
+      0
+    );
+
+  const awayOver05 =
+    100 -
+    awayUnder05;
+
+  const awayUnder15 =
+    probabilityUnderThreshold(
+      awayExpectedGoals,
+      1
+    );
+
+  const awayOver15 =
+    100 -
+    awayUnder15;
+
+  const bttsYes =
+    clamp(
+      goals.btts,
+      0,
+      100
+    );
+
+  const bttsNo =
+    100 -
+    bttsYes;
+
+  const doubleChance1X =
+    clamp(
+      base.homeWin +
+        base.draw,
+      0,
+      100
+    );
+
+  const doubleChanceX2 =
+    clamp(
+      base.awayWin +
+        base.draw,
+      0,
+      100
+    );
+
+  const doubleChance12 =
+    clamp(
+      base.homeWin +
+        base.awayWin,
+      0,
+      100
+    );
+
+  return {
+    homeWin:
+      base.homeWin,
+
+    draw:
+      base.draw,
+
+    awayWin:
+      base.awayWin,
+
+    over25:
+      round(
+        goals.over25
+      ),
+
+    under25:
+      round(
+        goals.under25
+      ),
+
+    btts:
+      round(
+        bttsYes
+      ),
+
+    over15:
+      round(
+        over15
+      ),
+
+    under15:
+      round(
+        under15
+      ),
+
+    over35:
+      round(
+        over35
+      ),
+
+    under35:
+      round(
+        under35
+      ),
+
+    bttsYes:
+      round(
+        bttsYes
+      ),
+
+    bttsNo:
+      round(
+        bttsNo
+      ),
+
+    homeOver05:
+      round(
+        homeOver05
+      ),
+
+    homeUnder05:
+      round(
+        homeUnder05
+      ),
+
+    homeOver15:
+      round(
+        homeOver15
+      ),
+
+    homeUnder15:
+      round(
+        homeUnder15
+      ),
+
+    awayOver05:
+      round(
+        awayOver05
+      ),
+
+    awayUnder05:
+      round(
+        awayUnder05
+      ),
+
+    awayOver15:
+      round(
+        awayOver15
+      ),
+
+    awayUnder15:
+      round(
+        awayUnder15
+      ),
+
+    doubleChance1X:
+      round(
+        doubleChance1X
+      ),
+
+    doubleChanceX2:
+      round(
+        doubleChanceX2
+      ),
+
+    doubleChance12:
+      round(
+        doubleChance12
+      ),
+  };
 }
 
-/*
- * Confidence Redesign v4
- *
- * Confidence is no longer derived
- * mainly from prediction probability.
- *
- * It now combines:
- *
- * - probability separation
- * - factor confidence
- * - factor reliability
- * - data completeness
- * - freshness
- * - model uncertainty
- *
- * Missing or weak evidence lowers
- * confidence instead of creating
- * fake certainty.
- */
-function calculateV4Confidence(
-  markets:
-    PredictionMarketProbabilities,
+function calculateMarketConfidence(
+  probability: number,
+
   factorSummary:
     PerformanceFactorSummary,
+
   dataCompleteness:
     DataCompletenessResult
 ): number {
-  const orderedOutcomes = [
-    markets.homeWin,
-    markets.draw,
-    markets.awayWin,
-  ].sort(
-    (
-      first,
-      second
-    ) =>
-      second -
-      first
-  );
-
-  const strongest =
-    orderedOutcomes[0];
-
-  const second =
-    orderedOutcomes[1];
-
-  const probabilityGap =
-    strongest -
-    second;
-
-  const probabilityEvidence =
-    clamp(
-      42 +
-        probabilityGap *
-          1.65,
-      35,
-      88
-    );
-
   const factorEvidence =
     (
       factorSummary
@@ -602,17 +649,17 @@ function calculateV4Confidence(
     );
 
   const baseConfidence =
-    probabilityEvidence *
-      0.38 +
+    probability *
+      0.55 +
     factorEvidence *
-      0.34 +
+      0.2 +
     dataEvidence *
-      0.28;
+      0.25;
 
   const uncertaintyPenalty =
     factorSummary
       .uncertainty *
-      0.22;
+      0.18;
 
   const criticalPenalty =
     Math.min(
@@ -638,20 +685,14 @@ function calculateV4Confidence(
     criticalPenalty -
     warningPenalty;
 
-  /*
-   * Hard confidence caps.
-   *
-   * Poor data can never produce
-   * an artificially high score.
-   */
   const maximumConfidence =
     dataCompleteness
       .vipReady
       ? factorSummary
           .uncertainty <=
         25
-        ? 88
-        : 82
+        ? 90
+        : 84
       : dataCompleteness
             .score >=
           60
@@ -661,90 +702,467 @@ function calculateV4Confidence(
   return Math.round(
     clamp(
       adjusted,
-      30,
+      25,
       maximumConfidence
     )
   );
 }
 
-function chooseValueBet(
+function createMarketCandidate(
+  category:
+    MarketCandidate["category"],
+
+  pick: string,
+
+  probability: number,
+
+  minimumProbability: number,
+
+  minimumConfidence: number,
+
+  factorSummary:
+    PerformanceFactorSummary,
+
+  dataCompleteness:
+    DataCompletenessResult
+): MarketCandidate {
+  const confidence =
+    calculateMarketConfidence(
+      probability,
+      factorSummary,
+      dataCompleteness
+    );
+
+  const qualified =
+    dataCompleteness
+      .vipReady &&
+    probability >=
+      minimumProbability &&
+    confidence >=
+      minimumConfidence;
+
+  return {
+    category,
+
+    pick,
+
+    probability:
+      round(
+        probability
+      ),
+
+    confidence,
+
+    minimumProbability,
+
+    minimumConfidence,
+
+    qualified,
+
+    reason:
+      qualified
+        ? `${pick} qualified with a raw market probability of ${round(
+            probability
+          )}% and an evidence-adjusted confidence of ${confidence}%.`
+        : `${pick} did not meet ZERRA's publication threshold. Raw market probability: ${round(
+            probability
+          )}%. Evidence-adjusted confidence: ${confidence}%.`,
+  };
+}
+
+function buildMarketCandidates(
   markets:
     PredictionMarketProbabilities,
-  confidence: number,
+
+  factorSummary:
+    PerformanceFactorSummary,
+
   dataCompleteness:
-    DataCompletenessResult,
-  risk:
-    PredictionRisk
-): string {
+    DataCompletenessResult
+): MarketCandidate[] {
+  const candidates:
+    MarketCandidate[] = [];
+
+  const add =
+    (
+      category:
+        MarketCandidate["category"],
+
+      pick:
+        string,
+
+      probability:
+        number | undefined,
+
+      minimumProbability:
+        number,
+
+      minimumConfidence:
+        number
+    ) => {
+      if (
+        typeof probability !==
+          "number" ||
+        !Number.isFinite(
+          probability
+        )
+      ) {
+        return;
+      }
+
+      candidates.push(
+        createMarketCandidate(
+          category,
+          pick,
+          probability,
+          minimumProbability,
+          minimumConfidence,
+          factorSummary,
+          dataCompleteness
+        )
+      );
+    };
+
+  /*
+   * Total Goals
+   *
+   * 1.5 requires stronger raw probability
+   * because it can otherwise become a
+   * trivial market too frequently.
+   */
+  add(
+    "Total Goals",
+    "Over 1.5 Goals",
+    markets.over15,
+    76,
+    68
+  );
+
+  add(
+    "Total Goals",
+    "Under 1.5 Goals",
+    markets.under15,
+    72,
+    67
+  );
+
+  add(
+    "Total Goals",
+    "Over 2.5 Goals",
+    markets.over25,
+    68,
+    65
+  );
+
+  add(
+    "Total Goals",
+    "Under 2.5 Goals",
+    markets.under25,
+    68,
+    65
+  );
+
+  add(
+    "Total Goals",
+    "Over 3.5 Goals",
+    markets.over35,
+    70,
+    66
+  );
+
+  add(
+    "Total Goals",
+    "Under 3.5 Goals",
+    markets.under35,
+    76,
+    68
+  );
+
+  /*
+   * BTTS
+   */
+  add(
+    "BTTS",
+    "BTTS Yes",
+    markets.bttsYes ??
+      markets.btts,
+    68,
+    65
+  );
+
+  add(
+    "BTTS",
+    "BTTS No",
+    markets.bttsNo ??
+      (
+        100 -
+        markets.btts
+      ),
+    68,
+    65
+  );
+
+  /*
+   * Team Total Goals
+   *
+   * Over/Under 0.5 requires a higher
+   * threshold because it is naturally
+   * easier to reach a high probability.
+   */
+  add(
+    "Team Total Goals",
+    "Home Team Over 0.5 Goals",
+    markets.homeOver05,
+    78,
+    69
+  );
+
+  add(
+    "Team Total Goals",
+    "Home Team Under 0.5 Goals",
+    markets.homeUnder05,
+    72,
+    67
+  );
+
+  add(
+    "Team Total Goals",
+    "Home Team Over 1.5 Goals",
+    markets.homeOver15,
+    69,
+    65
+  );
+
+  add(
+    "Team Total Goals",
+    "Home Team Under 1.5 Goals",
+    markets.homeUnder15,
+    75,
+    68
+  );
+
+  add(
+    "Team Total Goals",
+    "Away Team Over 0.5 Goals",
+    markets.awayOver05,
+    78,
+    69
+  );
+
+  add(
+    "Team Total Goals",
+    "Away Team Under 0.5 Goals",
+    markets.awayUnder05,
+    72,
+    67
+  );
+
+  add(
+    "Team Total Goals",
+    "Away Team Over 1.5 Goals",
+    markets.awayOver15,
+    69,
+    65
+  );
+
+  add(
+    "Team Total Goals",
+    "Away Team Under 1.5 Goals",
+    markets.awayUnder15,
+    75,
+    68
+  );
+
+  /*
+   * Double Chance
+   *
+   * Higher thresholds prevent Double
+   * Chance from automatically winning
+   * simply because two 1X2 outcomes are
+   * combined.
+   */
+  add(
+    "Double Chance",
+    "Double Chance 1X",
+    markets.doubleChance1X,
+    78,
+    70
+  );
+
+  add(
+    "Double Chance",
+    "Double Chance X2",
+    markets.doubleChanceX2,
+    78,
+    70
+  );
+
+  add(
+    "Double Chance",
+    "Double Chance 12",
+    markets.doubleChance12,
+    80,
+    71
+  );
+
+  return candidates;
+}
+
+function candidateRankingScore(
+  candidate:
+    MarketCandidate
+): number {
+  /*
+   * Qualification confidence is the
+   * main ranking signal.
+   *
+   * Probability remains important but
+   * does not dominate data quality and
+   * reliability adjustments.
+   */
+  return (
+    candidate.confidence *
+      0.65 +
+    candidate.probability *
+      0.35
+  );
+}
+
+function selectPrimaryPrediction(
+  candidates:
+    MarketCandidate[],
+
+  dataCompleteness:
+    DataCompletenessResult
+): PredictionPrimarySelection {
   if (
     !dataCompleteness
       .vipReady
   ) {
-    return "No Value";
+    return {
+      category:
+        "No Strong Prediction",
+
+      pick:
+        "Insufficient Data",
+
+      confidence:
+        0,
+
+      qualified:
+        false,
+
+      reason:
+        "The available match evidence does not meet ZERRA's minimum data-quality standard for a premium prediction.",
+    };
   }
 
-  const minimumConfidence =
-    risk === "High"
-      ? 70
-      : risk ===
-          "Medium"
-        ? 63
-        : 58;
+  const qualifiedCandidates =
+    candidates
+      .filter(
+        (
+          candidate
+        ) =>
+          candidate
+            .qualified
+      )
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          candidateRankingScore(
+            second
+          ) -
+          candidateRankingScore(
+            first
+          )
+      );
+
+  const strongest =
+    qualifiedCandidates[0];
 
   if (
-    confidence <
-    minimumConfidence
+    !strongest
   ) {
-    return "No Value";
+    const strongestAvailable =
+      [...candidates].sort(
+        (
+          first,
+          second
+        ) =>
+          candidateRankingScore(
+            second
+          ) -
+          candidateRankingScore(
+            first
+          )
+      )[0];
+
+    return {
+      category:
+        "No Strong Prediction",
+
+      pick:
+        "No Strong Prediction",
+
+      confidence:
+        strongestAvailable
+          ?.confidence ??
+        0,
+
+      qualified:
+        false,
+
+      reason:
+        strongestAvailable
+          ? `The strongest available signal was ${strongestAvailable.pick}, but it did not meet ZERRA's minimum publication threshold.`
+          : "No supported market produced sufficient evidence for a reliable primary prediction.",
+    };
   }
 
-  if (
-    markets.homeWin >=
-    62
-  ) {
-    return "Home Win";
-  }
+  return {
+    category:
+      strongest.category,
 
-  if (
-    markets.awayWin >=
-    62
-  ) {
-    return "Away Win";
-  }
+    pick:
+      strongest.pick,
 
-  if (
-    markets.over25 >=
-    70
-  ) {
-    return "Over 2.5 Goals";
-  }
+    confidence:
+      strongest.confidence,
 
-  if (
-    markets.under25 >=
-    70
-  ) {
-    return "Under 2.5 Goals";
-  }
+    qualified:
+      true,
 
-  if (
-    markets.btts >=
-    70
-  ) {
-    return "BTTS Yes";
-  }
+    reason:
+      strongest.reason,
+  };
+}
 
-  if (
-    markets.draw >=
-      34 &&
-    confidence >=
-      65 &&
-    risk !==
-      "High"
-  ) {
-    return "Draw";
-  }
+function chooseSupplementalExactScore(
+  homeExpectedGoals:
+    number,
 
-  return "No Value";
+  awayExpectedGoals:
+    number
+): string {
+  const homeGoals =
+    Math.max(
+      0,
+      Math.round(
+        homeExpectedGoals
+      )
+    );
+
+  const awayGoals =
+    Math.max(
+      0,
+      Math.round(
+        awayExpectedGoals
+      )
+    );
+
+  return `${homeGoals}-${awayGoals}`;
 }
 
 function riskFromScore(
@@ -767,10 +1185,16 @@ function riskFromScore(
   return "Low";
 }
 
-function applyV4RiskAdjustment(
-  baseRiskScore: number,
+function applyV5RiskAdjustment(
+  baseRiskScore:
+    number,
+
+  primaryPrediction:
+    PredictionPrimarySelection,
+
   dataCompleteness:
     DataCompletenessResult,
+
   factorSummary:
     PerformanceFactorSummary
 ): {
@@ -801,6 +1225,14 @@ function applyV4RiskAdjustment(
     factorSummary
       .uncertainty;
 
+  const marketConfidenceRisk =
+    primaryPrediction
+      .qualified
+      ? 100 -
+        primaryPrediction
+          .confidence
+      : 75;
+
   const criticalPenalty =
     Math.min(
       32,
@@ -821,13 +1253,15 @@ function applyV4RiskAdjustment(
 
   const dataRiskScore =
     completenessRisk *
-      0.3 +
+      0.24 +
     reliabilityRisk *
-      0.22 +
+      0.18 +
     freshnessRisk *
-      0.15 +
+      0.12 +
     factorUncertaintyRisk *
-      0.33 +
+      0.22 +
+    marketConfidenceRisk *
+      0.24 +
     criticalPenalty +
     warningPenalty;
 
@@ -857,56 +1291,24 @@ function applyV4RiskAdjustment(
 function buildPublicPrediction(
   risk:
     PredictionRisk,
-  riskScore: number,
+
+  riskScore:
+    number,
+
+  primaryPrediction:
+    PredictionPrimarySelection,
+
   markets:
     PredictionMarketProbabilities,
+
   dataCompleteness:
     DataCompletenessResult,
+
   factorSummary:
     PerformanceFactorSummary
 ) {
   const keyInsights:
     string[] = [];
-
-  const strongestOutcome =
-    Math.max(
-      markets.homeWin,
-      markets.draw,
-      markets.awayWin
-    );
-
-  if (
-    strongestOutcome >=
-    58
-  ) {
-    keyInsights.push(
-      "The prediction model identifies a measurable difference between the leading match outcomes."
-    );
-  } else {
-    keyInsights.push(
-      "The match remains relatively balanced across the main outcome probabilities."
-    );
-  }
-
-  if (
-    factorSummary
-      .weightedScore >=
-    56
-  ) {
-    keyInsights.push(
-      "The combined performance factors lean toward the home team."
-    );
-  }
-
-  if (
-    factorSummary
-      .weightedScore <=
-    44
-  ) {
-    keyInsights.push(
-      "The combined performance factors lean toward the away team."
-    );
-  }
 
   if (
     markets.over25 >=
@@ -927,11 +1329,29 @@ function buildPublicPrediction(
   }
 
   if (
-    markets.btts >=
-    60
+    (
+      markets.bttsYes ??
+      markets.btts
+    ) >=
+    65
   ) {
     keyInsights.push(
-      "Both teams show a positive scoring signal."
+      "Both teams show a meaningful positive scoring signal."
+    );
+  }
+
+  if (
+    (
+      markets.bttsNo ??
+      (
+        100 -
+        markets.btts
+      )
+    ) >=
+    65
+  ) {
+    keyInsights.push(
+      "The model identifies a meaningful possibility that at least one team may fail to score."
     );
   }
 
@@ -958,19 +1378,41 @@ function buildPublicPrediction(
     );
   }
 
+  if (
+    primaryPrediction
+      .qualified
+  ) {
+    keyInsights.push(
+      `ZERRA identified the strongest qualified signal in the ${primaryPrediction.category} market family.`
+    );
+  } else {
+    keyInsights.push(
+      "No market currently meets ZERRA's minimum standard for a strong primary prediction."
+    );
+  }
+
   return {
     overview:
-      "ZERRA AI v4.3 evaluated weighted performance factors, attack and defense strength, venue performance, recent form, goal signals, model uncertainty, risk, and source-data completeness.",
+      "ZERRA AI v5.0 evaluates goal markets, both-teams-to-score signals, team goal totals, double-chance probabilities, performance factors, model uncertainty, risk, and source-data completeness before selecting a primary prediction.",
 
     risk,
+
     riskScore,
+
     keyInsights,
 
     teaser:
-      dataCompleteness
-        .vipReady
-        ? "The final prediction, confidence score, exact-score estimate, and model selection are reserved for VIP."
-        : "VIP prediction details are withheld until the available match data meets the required quality threshold.",
+      primaryPrediction
+        .qualified
+        ? "The strongest qualified market, confidence score, supplemental exact-score estimate, and full reasoning are reserved for VIP."
+        : dataCompleteness
+            .vipReady
+          ? "ZERRA did not identify a market strong enough to meet the current primary-prediction threshold."
+          : "VIP prediction details are withheld until the available match data meets the required quality threshold.",
+
+    marketCategory:
+      primaryPrediction
+        .category,
   };
 }
 
@@ -1069,16 +1511,76 @@ function buildFactorReasoning(
         5
       );
 
-  strongestFactors
-    .forEach(
-      (
-        factor
-      ) => {
-        reasoning.push(
-          `${factor.key}: ${factor.reason}`
-        );
-      }
-    );
+  strongestFactors.forEach(
+    (
+      factor
+    ) => {
+      reasoning.push(
+        `${factor.key}: ${factor.reason}`
+      );
+    }
+  );
+
+  return reasoning;
+}
+
+function buildMarketReasoning(
+  candidates:
+    MarketCandidate[],
+
+  primaryPrediction:
+    PredictionPrimarySelection
+): string[] {
+  const ranked =
+    [...candidates]
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          candidateRankingScore(
+            second
+          ) -
+          candidateRankingScore(
+            first
+          )
+      )
+      .slice(
+        0,
+        6
+      );
+
+  const reasoning = [
+    `Primary market decision: ${primaryPrediction.pick}.`,
+
+    `Primary market category: ${primaryPrediction.category}.`,
+
+    `Primary confidence: ${primaryPrediction.confidence}%.`,
+
+    `Qualification status: ${
+      primaryPrediction
+        .qualified
+        ? "qualified"
+        : "not qualified"
+    }.`,
+
+    primaryPrediction.reason,
+  ];
+
+  ranked.forEach(
+    (
+      candidate
+    ) => {
+      reasoning.push(
+        `${candidate.pick}: probability ${candidate.probability}%, confidence ${candidate.confidence}%, qualification ${
+          candidate
+            .qualified
+            ? "passed"
+            : "failed"
+        }.`
+      );
+    }
+  );
 
   return reasoning;
 }
@@ -1106,14 +1608,6 @@ export function calculateAIScore(
       match
     );
 
-  /*
-   * Factor Architecture v4
-   *
-   * This consumes data already present
-   * in the prediction pipeline.
-   *
-   * It creates zero new API calls.
-   */
   const factorSummary =
     buildPerformanceFactors({
       match,
@@ -1188,34 +1682,54 @@ export function calculateAIScore(
         .evidenceReliability
     );
 
-  /*
-   * Controlled v4 factor influence.
-   */
   const adjustedProbabilities =
     applyFactorInfluence(
       baseProbabilities,
       factorSummary
     );
 
-  const markets:
-    PredictionMarketProbabilities =
-    {
-      ...adjustedProbabilities,
+  /*
+   * 1X2 is retained as supporting
+   * analysis only.
+   *
+   * The canonical prediction is selected
+   * later from ZERRA's approved market
+   * families.
+   */
+  const markets =
+    buildExtendedMarkets(
+      adjustedProbabilities,
+      {
+        over25:
+          goals.over25,
 
-      over25:
-        goals.over25,
+        under25:
+          goals.under25,
 
-      under25:
-        goals.under25,
+        btts:
+          goals.btts,
 
-      btts:
-        goals.btts,
-    };
+        homeExpectedGoals:
+          goals.homeExpectedGoals,
 
-  const confidence =
-    calculateV4Confidence(
+        awayExpectedGoals:
+          goals.awayExpectedGoals,
+
+        expectedGoals:
+          goals.expectedGoals,
+      }
+    );
+
+  const marketCandidates =
+    buildMarketCandidates(
       markets,
       factorSummary,
+      dataCompleteness
+    );
+
+  const primaryPrediction =
+    selectPrimaryPrediction(
+      marketCandidates,
       dataCompleteness
     );
 
@@ -1227,50 +1741,41 @@ export function calculateAIScore(
     );
 
   const riskResult =
-    applyV4RiskAdjustment(
+    applyV5RiskAdjustment(
       baseRiskResult
         .riskScore,
+      primaryPrediction,
       dataCompleteness,
       factorSummary
     );
 
-  const valueBet =
-    chooseValueBet(
-      markets,
-      confidence,
-      dataCompleteness,
-      riskResult.risk
-    );
-
-  const calculatedFinalPrediction =
-    chooseFinalPrediction(
-      markets
-    );
-
-  const calculatedExactScore =
-    chooseExactScore(
-      goals.homeExpectedGoals,
-      goals.awayExpectedGoals,
-      markets,
-      calculatedFinalPrediction
-    );
-
-  const finalPrediction =
-    dataCompleteness
-      .vipReady
-      ? calculatedFinalPrediction
-      : "Insufficient Data";
-
   const exactScore =
     dataCompleteness
       .vipReady
-      ? calculatedExactScore
+      ? chooseSupplementalExactScore(
+          goals.homeExpectedGoals,
+          goals.awayExpectedGoals
+        )
       : "N/A";
+
+  const finalPrediction =
+    primaryPrediction.pick;
+
+  const valueBet =
+    primaryPrediction
+      .qualified
+      ? primaryPrediction.pick
+      : "No Value";
+
+  const confidence =
+    primaryPrediction
+      .confidence;
 
   const publicPrediction =
     buildPublicPrediction(
       riskResult.risk,
       riskResult.riskScore,
+      primaryPrediction,
       markets,
       dataCompleteness,
       factorSummary
@@ -1295,24 +1800,22 @@ export function calculateAIScore(
       2
     )} for the away team.`,
 
-    `Factor Architecture v4 produced a directional score of ${factorSummary.weightedScore}/100.`,
+    `Supporting 1X2 probabilities are Home ${markets.homeWin}%, Draw ${markets.draw}%, Away ${markets.awayWin}%.`,
 
-    `Factor confidence is ${factorSummary.weightedConfidence}%, factor reliability is ${factorSummary.weightedReliability}%, and model uncertainty is ${factorSummary.uncertainty}%.`,
+    `1X2 probabilities are supporting analysis only and no longer define the canonical ZERRA prediction.`,
 
-    `The final match outcome is ${finalPrediction} and the consistent exact-score estimate is ${exactScore}.`,
+    `The canonical ZERRA prediction is ${primaryPrediction.pick} in the ${primaryPrediction.category} market family.`,
 
-    `The exact-score estimate is aligned with the model's stronger ${
-      markets.over25 >
-      markets.under25
-        ? "Over 2.5"
-        : "Under 2.5"
-    } goal-market signal.`,
-
-    `Confidence Redesign v4 produced a final confidence of ${confidence}%.`,
+    `The selected market confidence is ${primaryPrediction.confidence}%.`,
 
     `The prediction risk is ${riskResult.risk} with an adjusted score of ${riskResult.riskScore}/100.`,
 
-    `The selected model signal is ${valueBet}.`,
+    `The supplemental exact-score estimate is ${exactScore} and does not override the primary market selection.`,
+
+    ...buildMarketReasoning(
+      marketCandidates,
+      primaryPrediction
+    ),
 
     ...buildFactorReasoning(
       factorSummary
@@ -1365,9 +1868,15 @@ export function calculateAIScore(
 
     vipPrediction: {
       finalPrediction,
+
+      primaryPrediction,
+
       confidence,
+
       exactScore,
+
       valueBet,
+
       markets,
 
       expectedGoals: {
@@ -1410,7 +1919,9 @@ export function calculateAIScore(
 
     status:
       dataCompleteness
-        .vipReady
+          .vipReady &&
+        primaryPrediction
+          .qualified
         ? "review"
         : "draft",
   };

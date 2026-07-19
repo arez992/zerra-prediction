@@ -23,36 +23,59 @@ import type {
 
 export type PredictionDocument = {
   fixtureId: string;
-  fixtureDate: string | null;
+
+  fixtureDate:
+    string | null;
 
   competition: {
-    id: number | null;
-    name: string | null;
-    country: string | null;
-    season: number | null;
-    round: string | null;
+    id:
+      number | null;
+
+    name:
+      string | null;
+
+    country:
+      string | null;
+
+    season:
+      number | null;
+
+    round:
+      string | null;
   };
 
   teams: {
     home: {
-      id: number | null;
-      name: string;
+      id:
+        number | null;
+
+      name:
+        string;
     };
 
     away: {
-      id: number | null;
-      name: string;
+      id:
+        number | null;
+
+      name:
+        string;
     };
   };
 
   venue: {
-    name: string | null;
-    city: string | null;
+    name:
+      string | null;
+
+    city:
+      string | null;
   };
 
   fixtureStatus: {
-    short: string | null;
-    long: string | null;
+    short:
+      string | null;
+
+    long:
+      string | null;
   };
 
   publicPrediction:
@@ -62,181 +85,344 @@ export type PredictionDocument = {
     PredictionResult["vipPrediction"];
 
   probabilities: {
-    homeWin: number;
-    draw: number;
-    awayWin: number;
-    over25: number;
-    under25: number;
-    btts: number;
+    /*
+     * Supporting 1X2 probabilities.
+     */
+    homeWin:
+      number;
+
+    draw:
+      number;
+
+    awayWin:
+      number;
+
+    /*
+     * Core goal markets.
+     */
+    over25:
+      number;
+
+    under25:
+      number;
+
+    btts:
+      number;
+
+    /*
+     * Extended ZERRA market
+     * architecture.
+     */
+    over15?:
+      number;
+
+    under15?:
+      number;
+
+    over35?:
+      number;
+
+    under35?:
+      number;
+
+    bttsYes?:
+      number;
+
+    bttsNo?:
+      number;
+
+    homeOver05?:
+      number;
+
+    homeUnder05?:
+      number;
+
+    homeOver15?:
+      number;
+
+    homeUnder15?:
+      number;
+
+    awayOver05?:
+      number;
+
+    awayUnder05?:
+      number;
+
+    awayOver15?:
+      number;
+
+    awayUnder15?:
+      number;
+
+    doubleChance1X?:
+      number;
+
+    doubleChanceX2?:
+      number;
+
+    doubleChance12?:
+      number;
   };
 
   risk: {
-    label: PredictionResult["risk"];
-    score: number;
+    label:
+      PredictionResult["risk"];
+
+    score:
+      number;
   };
 
   expectedGoals: {
-    home: number;
-    away: number;
-    total: number;
+    home:
+      number;
+
+    away:
+      number;
+
+    total:
+      number;
   };
 
-  model: PredictionResult["model"];
+  model:
+    PredictionResult["model"];
 
-  review: PredictionResult["review"];
+  review:
+    PredictionResult["review"];
 
-  status: PredictionStatus;
+  status:
+    PredictionStatus;
 
   explanation: {
-    publicSummary: string;
-    publicReasons: string[];
-    vipSummary: string;
-    vipReasons: string[];
+    publicSummary:
+      string;
+
+    publicReasons:
+      string[];
+
+    vipSummary:
+      string;
+
+    vipReasons:
+      string[];
   };
 
-  validation: ValidationResult;
+  validation:
+    ValidationResult;
 
-  /*
-   * Prediction Engine v3 metadata.
-   *
-   * These fields remain optional so
-   * existing v2 consumers and older
-   * Firestore documents continue to work.
-   */
-  dataQuality?: PredictionDataQuality;
+  dataQuality?:
+    PredictionDataQuality;
 
-  generationDecision?: GenerationDecision;
+  generationDecision?:
+    GenerationDecision;
 
   openAIEligibility?:
     OpenAIAnalysisEligibility;
 
-  source: string;
+  source:
+    string;
 
-  generatedAt: string;
-  updatedAt: string;
+  generatedAt:
+    string;
+
+  updatedAt:
+    string;
 };
 
 type BuildPredictionDocumentInput = {
-  fixture: unknown;
+  fixture:
+    unknown;
 
-  prediction: PredictionResult;
+  prediction:
+    PredictionResult;
 
-  explanation: ExplanationResult;
+  explanation:
+    ExplanationResult;
 
-  context: AIContext;
+  context:
+    AIContext;
 
-  validation: ValidationResult;
+  validation:
+    ValidationResult;
 
-  dataQuality?: PredictionDataQuality;
+  dataQuality?:
+    PredictionDataQuality;
 
-  generationDecision?: GenerationDecision;
+  generationDecision?:
+    GenerationDecision;
 
   openAIEligibility?:
     OpenAIAnalysisEligibility;
 
-  source: string;
+  source:
+    string;
 };
 
 type FixtureLike = {
   fixture?: {
-    id?: number | string;
+    id?:
+      number | string;
 
-    date?: string;
+    date?:
+      string;
 
     status?: {
-      short?: string;
-      long?: string;
+      short?:
+        string;
+
+      long?:
+        string;
     };
 
     venue?: {
-      name?: string;
-      city?: string;
+      name?:
+        string;
+
+      city?:
+        string;
     };
   };
 
   league?: {
-    id?: number;
-    name?: string;
-    country?: string;
-    season?: number;
-    round?: string;
+    id?:
+      number;
+
+    name?:
+      string;
+
+    country?:
+      string;
+
+    season?:
+      number;
+
+    round?:
+      string;
   };
 
   teams?: {
     home?: {
-      id?: number;
-      name?: string;
+      id?:
+        number;
+
+      name?:
+        string;
     };
 
     away?: {
-      id?: number;
-      name?: string;
+      id?:
+        number;
+
+      name?:
+        string;
     };
   };
 };
 
 function safeString(
-  value: unknown
-): string | null {
-  return typeof value === "string" &&
-    value.trim().length > 0
+  value:
+    unknown
+):
+  string | null {
+  return (
+    typeof value ===
+      "string" &&
+    value.trim().length >
+      0
+  )
     ? value.trim()
     : null;
 }
 
 function safeNumber(
-  value: unknown
-): number | null {
-  return typeof value === "number" &&
-    Number.isFinite(value)
+  value:
+    unknown
+):
+  number | null {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value
+    )
+  )
     ? value
     : null;
 }
 
 export function buildPredictionDocument(
-  input: BuildPredictionDocumentInput
+  input:
+    BuildPredictionDocumentInput
 ): PredictionDocument {
   const fixture =
-    input.fixture as FixtureLike;
+    input.fixture as
+      FixtureLike;
 
   const generatedAt =
-    input.prediction.model.generatedAt ||
-    new Date().toISOString();
+    input
+      .prediction
+      .model
+      .generatedAt ||
+    new Date()
+      .toISOString();
 
-  const document: PredictionDocument = {
-    fixtureId: String(
-      fixture.fixture?.id ?? ""
-    ),
+  const markets =
+    input
+      .prediction
+      .vipPrediction
+      .markets;
+
+  const document:
+    PredictionDocument = {
+    fixtureId:
+      String(
+        fixture
+          .fixture
+          ?.id ??
+        ""
+      ),
 
     fixtureDate:
       safeString(
-        fixture.fixture?.date
+        fixture
+          .fixture
+          ?.date
       ),
 
     competition: {
       id:
         safeNumber(
-          fixture.league?.id
+          fixture
+            .league
+            ?.id
         ),
 
       name:
         safeString(
-          fixture.league?.name
+          fixture
+            .league
+            ?.name
         ),
 
       country:
         safeString(
-          fixture.league?.country
+          fixture
+            .league
+            ?.country
         ),
 
       season:
         safeNumber(
-          fixture.league?.season
+          fixture
+            .league
+            ?.season
         ),
 
       round:
         safeString(
-          fixture.league?.round
+          fixture
+            .league
+            ?.round
         ),
     },
 
@@ -244,124 +430,225 @@ export function buildPredictionDocument(
       home: {
         id:
           safeNumber(
-            fixture.teams?.home?.id
+            fixture
+              .teams
+              ?.home
+              ?.id
           ),
 
         name:
           safeString(
-            fixture.teams?.home?.name
-          ) || "Home team",
+            fixture
+              .teams
+              ?.home
+              ?.name
+          ) ||
+          "Home team",
       },
 
       away: {
         id:
           safeNumber(
-            fixture.teams?.away?.id
+            fixture
+              .teams
+              ?.away
+              ?.id
           ),
 
         name:
           safeString(
-            fixture.teams?.away?.name
-          ) || "Away team",
+            fixture
+              .teams
+              ?.away
+              ?.name
+          ) ||
+          "Away team",
       },
     },
 
     venue: {
       name:
         safeString(
-          fixture.fixture?.venue?.name
+          fixture
+            .fixture
+            ?.venue
+            ?.name
         ),
 
       city:
         safeString(
-          fixture.fixture?.venue?.city
+          fixture
+            .fixture
+            ?.venue
+            ?.city
         ),
     },
 
     fixtureStatus: {
       short:
         safeString(
-          fixture.fixture?.status?.short
+          fixture
+            .fixture
+            ?.status
+            ?.short
         ),
 
       long:
         safeString(
-          fixture.fixture?.status?.long
+          fixture
+            .fixture
+            ?.status
+            ?.long
         ),
     },
 
     publicPrediction:
-      input.prediction.publicPrediction,
+      input
+        .prediction
+        .publicPrediction,
 
     vipPrediction:
-      input.prediction.vipPrediction,
+      input
+        .prediction
+        .vipPrediction,
 
     probabilities: {
       homeWin:
-        input.prediction.homeWin,
+        markets.homeWin,
 
       draw:
-        input.prediction.draw,
+        markets.draw,
 
       awayWin:
-        input.prediction.awayWin,
+        markets.awayWin,
 
       over25:
-        input.prediction.over25,
+        markets.over25,
 
       under25:
-        input.prediction.under25,
+        markets.under25,
 
       btts:
-        input.prediction.btts,
+        markets.btts,
+
+      over15:
+        markets.over15,
+
+      under15:
+        markets.under15,
+
+      over35:
+        markets.over35,
+
+      under35:
+        markets.under35,
+
+      bttsYes:
+        markets.bttsYes,
+
+      bttsNo:
+        markets.bttsNo,
+
+      homeOver05:
+        markets.homeOver05,
+
+      homeUnder05:
+        markets.homeUnder05,
+
+      homeOver15:
+        markets.homeOver15,
+
+      homeUnder15:
+        markets.homeUnder15,
+
+      awayOver05:
+        markets.awayOver05,
+
+      awayUnder05:
+        markets.awayUnder05,
+
+      awayOver15:
+        markets.awayOver15,
+
+      awayUnder15:
+        markets.awayUnder15,
+
+      doubleChance1X:
+        markets
+          .doubleChance1X,
+
+      doubleChanceX2:
+        markets
+          .doubleChanceX2,
+
+      doubleChance12:
+        markets
+          .doubleChance12,
     },
 
     risk: {
       label:
-        input.prediction.risk,
+        input
+          .prediction
+          .risk,
 
       score:
-        input.prediction.riskScore,
+        input
+          .prediction
+          .riskScore,
     },
 
     expectedGoals: {
       home:
-        input.prediction
+        input
+          .prediction
           .homeExpectedGoals,
 
       away:
-        input.prediction
+        input
+          .prediction
           .awayExpectedGoals,
 
       total:
-        input.prediction
+        input
+          .prediction
           .expectedGoals,
     },
 
     model:
-      input.prediction.model,
+      input
+        .prediction
+        .model,
 
     review:
-      input.prediction.review,
+      input
+        .prediction
+        .review,
 
     status:
-      input.prediction.status,
+      input
+        .prediction
+        .status,
 
     explanation: {
       publicSummary:
-        input.explanation
+        input
+          .explanation
           .publicSummary,
 
       publicReasons:
-        input.explanation
+        input
+          .explanation
           .publicReasons,
 
       vipSummary:
-        input.explanation
+        input
+          .explanation
           .vipSummary,
 
       vipReasons:
-        input.explanation
+        input
+          .explanation
           .vipReasons,
     },
 
@@ -374,22 +661,35 @@ export function buildPredictionDocument(
     generatedAt,
 
     updatedAt:
-      new Date().toISOString(),
+      new Date()
+        .toISOString(),
   };
 
-  if (input.dataQuality) {
+  if (
+    input.dataQuality
+  ) {
     document.dataQuality =
       input.dataQuality;
   }
 
-  if (input.generationDecision) {
-    document.generationDecision =
-      input.generationDecision;
+  if (
+    input
+      .generationDecision
+  ) {
+    document
+      .generationDecision =
+      input
+        .generationDecision;
   }
 
-  if (input.openAIEligibility) {
-    document.openAIEligibility =
-      input.openAIEligibility;
+  if (
+    input
+      .openAIEligibility
+  ) {
+    document
+      .openAIEligibility =
+      input
+        .openAIEligibility;
   }
 
   return document;

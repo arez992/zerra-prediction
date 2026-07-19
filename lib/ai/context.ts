@@ -14,17 +14,41 @@ export type AIContext = {
     status: string;
     score: string;
   };
-  prediction: PredictionResult;
-  publicPrediction: PublicPrediction;
-  vipPrediction: VIPPrediction;
+
+  prediction:
+    PredictionResult;
+
+  publicPrediction:
+    PublicPrediction;
+
+  vipPrediction:
+    VIPPrediction;
+
   statistics: {
-    home: Record<string, string | number>;
-    away: Record<string, string | number>;
+    home:
+      Record<
+        string,
+        string | number
+      >;
+
+    away:
+      Record<
+        string,
+        string | number
+      >;
   };
-  lineupsAvailable: boolean;
-  eventsAvailable: boolean;
-  publicContextSummary: string;
-  vipContextSummary: string;
+
+  lineupsAvailable:
+    boolean;
+
+  eventsAvailable:
+    boolean;
+
+  publicContextSummary:
+    string;
+
+  vipContextSummary:
+    string;
 };
 
 type TeamStatisticsBlock = {
@@ -32,48 +56,76 @@ type TeamStatisticsBlock = {
     id?: number;
     name?: string;
   };
+
   statistics?: Array<{
     type?: string;
-    value?: string | number | null;
+
+    value?:
+      | string
+      | number
+      | null;
   }>;
 };
 
 function normalizeStats(
-  statistics: TeamStatisticsBlock[] = [],
+  statistics:
+    TeamStatisticsBlock[] = [],
+
   homeTeamId?: number,
+
   awayTeamId?: number
 ) {
-  const homeStats: Record<
-    string,
-    string | number
-  > = {};
+  const homeStats:
+    Record<
+      string,
+      string | number
+    > = {};
 
-  const awayStats: Record<
-    string,
-    string | number
-  > = {};
+  const awayStats:
+    Record<
+      string,
+      string | number
+    > = {};
 
-  for (const teamStats of statistics) {
-    const teamId = teamStats?.team?.id;
+  for (
+    const teamStats
+    of statistics
+  ) {
+    const teamId =
+      teamStats
+        ?.team
+        ?.id;
 
     const target =
-      teamId === homeTeamId
+      teamId ===
+      homeTeamId
         ? homeStats
-        : teamId === awayTeamId
-        ? awayStats
-        : Object.keys(homeStats).length === 0
-        ? homeStats
-        : awayStats;
+        : teamId ===
+            awayTeamId
+          ? awayStats
+          : Object.keys(
+                homeStats
+              ).length ===
+              0
+            ? homeStats
+            : awayStats;
 
-    for (const stat of teamStats.statistics || []) {
-      const key = stat.type?.trim();
+    for (
+      const stat
+      of teamStats
+        .statistics ||
+      []
+    ) {
+      const key =
+        stat.type?.trim();
 
       if (!key) {
         continue;
       }
 
       target[key] =
-        stat.value ?? "N/A";
+        stat.value ??
+        "N/A";
     }
   }
 
@@ -85,82 +137,172 @@ function normalizeStats(
 
 export function buildAIContext(
   match: unknown,
-  prediction: PredictionResult
-): AIContext {
-  const source = match as {
-    fixture?: {
-      teams?: {
-        home?: {
-          id?: number;
-          name?: string;
-        };
-        away?: {
-          id?: number;
-          name?: string;
-        };
-      };
-      league?: {
-        name?: string;
-        country?: string;
-      };
-      fixture?: {
-        venue?: {
-          name?: string;
-        };
-        status?: {
-          long?: string;
-        };
-      };
-      goals?: {
-        home?: number | null;
-        away?: number | null;
-      };
-    };
-    statistics?: TeamStatisticsBlock[];
-    lineups?: unknown[];
-    events?: unknown[];
-  };
 
-  const fixture = source.fixture;
+  prediction:
+    PredictionResult
+): AIContext {
+  const source =
+    match as {
+      fixture?: {
+        teams?: {
+          home?: {
+            id?: number;
+            name?: string;
+          };
+
+          away?: {
+            id?: number;
+            name?: string;
+          };
+        };
+
+        league?: {
+          name?: string;
+          country?: string;
+        };
+
+        fixture?: {
+          venue?: {
+            name?: string;
+          };
+
+          status?: {
+            long?: string;
+          };
+        };
+
+        goals?: {
+          home?:
+            number | null;
+
+          away?:
+            number | null;
+        };
+      };
+
+      statistics?:
+        TeamStatisticsBlock[];
+
+      lineups?:
+        unknown[];
+
+      events?:
+        unknown[];
+    };
+
+  const fixture =
+    source.fixture;
 
   const homeTeam =
-    fixture?.teams?.home?.name ||
+    fixture
+      ?.teams
+      ?.home
+      ?.name ||
     "Home team";
 
   const awayTeam =
-    fixture?.teams?.away?.name ||
+    fixture
+      ?.teams
+      ?.away
+      ?.name ||
     "Away team";
 
   const league =
-    fixture?.league?.name ||
+    fixture
+      ?.league
+      ?.name ||
     "Football";
 
   const country =
-    fixture?.league?.country ||
+    fixture
+      ?.league
+      ?.country ||
     "Unknown";
 
   const venue =
-    fixture?.fixture?.venue?.name ||
+    fixture
+      ?.fixture
+      ?.venue
+      ?.name ||
     "Unknown venue";
 
   const status =
-    fixture?.fixture?.status?.long ||
+    fixture
+      ?.fixture
+      ?.status
+      ?.long ||
     "Unknown status";
 
   const homeGoals =
-    fixture?.goals?.home ?? "-";
+    fixture
+      ?.goals
+      ?.home ??
+    "-";
 
   const awayGoals =
-    fixture?.goals?.away ?? "-";
+    fixture
+      ?.goals
+      ?.away ??
+    "-";
 
   const {
     homeStats,
     awayStats,
   } = normalizeStats(
-    source.statistics || [],
-    fixture?.teams?.home?.id,
-    fixture?.teams?.away?.id
+    source.statistics ||
+      [],
+
+    fixture
+      ?.teams
+      ?.home
+      ?.id,
+
+    fixture
+      ?.teams
+      ?.away
+      ?.id
   );
+
+  const primaryPrediction =
+    prediction
+      .vipPrediction
+      .primaryPrediction;
+
+  const publicContextSummary =
+    `${homeTeam} vs ${awayTeam} in ${league}. ` +
+    `Risk level: ${prediction.publicPrediction.risk}. ` +
+    `${prediction.publicPrediction.teaser}`;
+
+  let vipContextSummary:
+    string;
+
+  if (
+    primaryPrediction
+      .qualified
+  ) {
+    vipContextSummary =
+      `${homeTeam} vs ${awayTeam} in ${league}. ` +
+      `Primary market category: ${primaryPrediction.category}. ` +
+      `Primary prediction: ${primaryPrediction.pick}. ` +
+      `Evidence-adjusted confidence: ${primaryPrediction.confidence}%. ` +
+      `Risk: ${prediction.risk} (${prediction.riskScore}/100). ` +
+      `Supporting 1X2 probabilities: Home ${prediction.homeWin}%, Draw ${prediction.draw}%, Away ${prediction.awayWin}%.`;
+  } else if (
+    primaryPrediction
+      .pick ===
+    "Insufficient Data"
+  ) {
+    vipContextSummary =
+      `${homeTeam} vs ${awayTeam} in ${league}. ` +
+      `ZERRA withheld the primary prediction because the available match data did not meet the required quality standard. ` +
+      `Risk: ${prediction.risk} (${prediction.riskScore}/100).`;
+  } else {
+    vipContextSummary =
+      `${homeTeam} vs ${awayTeam} in ${league}. ` +
+      `ZERRA analyzed all supported primary markets but did not identify a strong enough prediction to meet the current qualification threshold. ` +
+      `Highest available evidence-adjusted confidence: ${primaryPrediction.confidence}%. ` +
+      `Risk: ${prediction.risk} (${prediction.riskScore}/100).`;
+  }
 
   return {
     matchInfo: {
@@ -170,38 +312,47 @@ export function buildAIContext(
       country,
       venue,
       status,
-      score: `${homeGoals} - ${awayGoals}`,
+
+      score:
+        `${homeGoals} - ${awayGoals}`,
     },
 
     prediction,
+
     publicPrediction:
-      prediction.publicPrediction,
+      prediction
+        .publicPrediction,
+
     vipPrediction:
-      prediction.vipPrediction,
+      prediction
+        .vipPrediction,
 
     statistics: {
-      home: homeStats,
-      away: awayStats,
+      home:
+        homeStats,
+
+      away:
+        awayStats,
     },
 
     lineupsAvailable:
-      Array.isArray(source.lineups) &&
-      source.lineups.length > 0,
+      Array.isArray(
+        source.lineups
+      ) &&
+      source.lineups
+        .length >
+        0,
 
     eventsAvailable:
-      Array.isArray(source.events) &&
-      source.events.length > 0,
+      Array.isArray(
+        source.events
+      ) &&
+      source.events
+        .length >
+        0,
 
-    publicContextSummary:
-      `${homeTeam} vs ${awayTeam} in ${league}. ` +
-      `Risk level: ${prediction.publicPrediction.risk}. ` +
-      `${prediction.publicPrediction.teaser}`,
+    publicContextSummary,
 
-    vipContextSummary:
-      `${homeTeam} vs ${awayTeam} in ${league}. ` +
-      `Final prediction: ${prediction.vipPrediction.finalPrediction}. ` +
-      `Confidence: ${prediction.vipPrediction.confidence}%. ` +
-      `Value signal: ${prediction.vipPrediction.valueBet}. ` +
-      `Risk: ${prediction.risk} (${prediction.riskScore}/100).`,
+    vipContextSummary,
   };
 }

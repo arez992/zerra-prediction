@@ -99,45 +99,76 @@ type FixtureLike = {
 
 type StoredPrediction = {
   id: string;
-  fixtureId: string;
-  fixtureDate: string;
 
-  prediction: Record<
-    string,
-    unknown
-  >;
+  fixtureId:
+    string;
 
-  data: DocumentData;
+  fixtureDate:
+    string;
+
+  prediction:
+    Record<
+      string,
+      unknown
+    >;
+
+  data:
+    DocumentData;
 };
 
 export type PredictionSettlementItem = {
-  predictionId: string;
-  fixtureId: string;
-  fixtureDate: string;
+  predictionId:
+    string;
 
-  settled: boolean;
-  skipped: boolean;
+  fixtureId:
+    string;
 
-  reason: string;
+  fixtureDate:
+    string;
 
-  correct: boolean | null;
-  result: string | null;
+  settled:
+    boolean;
+
+  skipped:
+    boolean;
+
+  reason:
+    string;
+
+  correct:
+    boolean | null;
+
+  result:
+    string | null;
 };
 
 export type PredictionSettlementSummary = {
-  checkedAt: string;
+  checkedAt:
+    string;
 
-  scannedPredictions: number;
-  eligiblePredictions: number;
+  scannedPredictions:
+    number;
 
-  uniqueFixtureDates: number;
-  apiDateRequests: number;
+  eligiblePredictions:
+    number;
 
-  settledPredictions: number;
-  skippedPredictions: number;
+  uniqueFixtureDates:
+    number;
 
-  missingFixtures: number;
-  unfinishedFixtures: number;
+  apiDateRequests:
+    number;
+
+  settledPredictions:
+    number;
+
+  skippedPredictions:
+    number;
+
+  missingFixtures:
+    number;
+
+  unfinishedFixtures:
+    number;
 
   items:
     PredictionSettlementItem[];
@@ -241,9 +272,11 @@ function asRecord(
 function asString(
   value: unknown
 ): string | null {
-  return typeof value ===
+  return (
+    typeof value ===
       "string" &&
     value.trim()
+  )
     ? value.trim()
     : null;
 }
@@ -251,11 +284,22 @@ function asString(
 function asNumber(
   value: unknown
 ): number | null {
-  return typeof value ===
+  return (
+    typeof value ===
       "number" &&
     Number.isFinite(
       value
     )
+  )
+    ? value
+    : null;
+}
+
+function asBoolean(
+  value: unknown
+): boolean | null {
+  return typeof value ===
+    "boolean"
     ? value
     : null;
 }
@@ -304,7 +348,8 @@ function toStoredPrediction(
 }
 
 function getFixtureId(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ): string {
   return normalizeFixtureId(
     fixture
@@ -314,7 +359,8 @@ function getFixtureId(
 }
 
 function getStatus(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ): string {
   return String(
     fixture
@@ -328,16 +374,24 @@ function getStatus(
 }
 
 function getFinalGoals(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ): {
-  home: number;
-  away: number;
+  home:
+    number;
+
+  away:
+    number;
 } | null {
   const home =
-    fixture.goals?.home;
+    fixture
+      .goals
+      ?.home;
 
   const away =
-    fixture.goals?.away;
+    fixture
+      .goals
+      ?.away;
 
   if (
     typeof home !==
@@ -361,7 +415,8 @@ function getFinalGoals(
 }
 
 function buildActualMetrics(
-  fixture: FixtureLike
+  fixture:
+    FixtureLike
 ) {
   const goals =
     getFinalGoals(
@@ -441,7 +496,9 @@ function buildFixtureMap(
         fixture
       );
 
-    if (fixtureId) {
+    if (
+      fixtureId
+    ) {
       map.set(
         fixtureId,
         fixture
@@ -455,7 +512,9 @@ function buildFixtureMap(
 async function loadUnsettledPredictions(
   limit: number
 ): Promise<{
-  scanned: number;
+  scanned:
+    number;
+
   eligible:
     StoredPrediction[];
 }> {
@@ -515,10 +574,6 @@ async function recordSettlementLearning(
       >
     >
 ): Promise<void> {
-  /*
-   * Only validated predictions
-   * can reach this function.
-   */
   if (
     typeof validation.correct !==
     "boolean"
@@ -531,6 +586,12 @@ async function recordSettlementLearning(
       stored
         .prediction
         .vipPrediction
+    );
+
+  const primaryPrediction =
+    asRecord(
+      vipPrediction
+        .primaryPrediction
     );
 
   const model =
@@ -555,6 +616,30 @@ async function recordSettlementLearning(
     asString(
       vipPrediction
         .finalPrediction
+    );
+
+  const primaryMarketCategory =
+    asString(
+      primaryPrediction
+        .category
+    );
+
+  const primaryPick =
+    asString(
+      primaryPrediction
+        .pick
+    );
+
+  const primaryQualified =
+    asBoolean(
+      primaryPrediction
+        .qualified
+    );
+
+  const primaryConfidence =
+    asNumber(
+      primaryPrediction
+        .confidence
     );
 
   const confidence =
@@ -599,6 +684,22 @@ async function recordSettlementLearning(
     result:
       validation.result,
 
+    /*
+     * Canonical ZERRA market
+     * prediction fields.
+     */
+    primaryMarketCategory,
+
+    primaryPick,
+
+    primaryQualified,
+
+    primaryConfidence,
+
+    /*
+     * Backward-compatible legacy
+     * prediction fields.
+     */
     valueBet,
 
     finalPrediction,
@@ -927,14 +1028,12 @@ async function settlePrediction(
   );
 
   /*
-   * The settlement is committed first.
+   * Settlement is committed first.
    *
-   * ZAOS learning is intentionally
-   * outside this Firestore batch.
-   *
-   * A learning failure must never
-   * roll back or invalidate a correct
-   * prediction settlement.
+   * ZAOS learning remains outside the
+   * Firestore settlement batch so a
+   * learning failure can never roll back
+   * a valid prediction settlement.
    */
   await batch.commit();
 
@@ -950,7 +1049,9 @@ async function settlePrediction(
       },
       actualMetrics
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "[PREDICTION_LEARNING_BRIDGE_ERROR]",
       {
@@ -998,7 +1099,8 @@ async function settlePrediction(
 
 export async function settlePendingPredictions(
   options?: {
-    limit?: number;
+    limit?:
+      number;
   }
 ): Promise<
   PredictionSettlementSummary
@@ -1031,7 +1133,8 @@ export async function settlePendingPredictions(
       groupedByDate.get(
         prediction
           .fixtureDate
-      ) || [];
+      ) ||
+      [];
 
     items.push(
       prediction
@@ -1088,7 +1191,9 @@ export async function settlePendingPredictions(
             .fixtureId
         );
 
-      if (!fixture) {
+      if (
+        !fixture
+      ) {
         missingFixtures +=
           1;
 

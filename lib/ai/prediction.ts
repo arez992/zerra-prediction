@@ -20,13 +20,76 @@ export type PredictionStatus =
   | "settled"
   | "failed";
 
+export type PredictionMarketCategory =
+  | "Total Goals"
+  | "Team Total Goals"
+  | "BTTS"
+  | "Double Chance"
+  | "No Strong Prediction";
+
+export type PredictionPrimarySelection = {
+  category:
+    PredictionMarketCategory;
+
+  pick: string;
+
+  confidence: number;
+
+  qualified: boolean;
+
+  reason: string;
+};
+
 export type PredictionMarketProbabilities = {
+  /*
+   * Supporting 1X2 analysis.
+   *
+   * These probabilities remain useful
+   * internally and in the UI, but they
+   * are no longer the canonical ZERRA
+   * prediction output.
+   */
   homeWin: number;
   draw: number;
   awayWin: number;
+
+  /*
+   * Existing goal markets.
+   */
   over25: number;
   under25: number;
   btts: number;
+
+  /*
+   * ZERRA Market Architecture.
+   *
+   * Optional during migration so older
+   * stored predictions remain compatible.
+   */
+  over15?: number;
+  under15?: number;
+
+  over35?: number;
+  under35?: number;
+
+  bttsYes?: number;
+  bttsNo?: number;
+
+  homeOver05?: number;
+  homeUnder05?: number;
+
+  homeOver15?: number;
+  homeUnder15?: number;
+
+  awayOver05?: number;
+  awayUnder05?: number;
+
+  awayOver15?: number;
+  awayUnder15?: number;
+
+  doubleChance1X?: number;
+  doubleChanceX2?: number;
+  doubleChance12?: number;
 };
 
 export type ExpectedGoalsResult = {
@@ -37,17 +100,58 @@ export type ExpectedGoalsResult = {
 
 export type PublicPrediction = {
   overview: string;
-  risk: PredictionRisk;
-  riskScore: number;
-  keyInsights: string[];
-  teaser: string;
+
+  risk:
+    PredictionRisk;
+
+  riskScore:
+    number;
+
+  keyInsights:
+    string[];
+
+  teaser:
+    string;
+
+  marketCategory?:
+    PredictionMarketCategory;
 };
 
 export type VIPPrediction = {
-  finalPrediction: string;
-  confidence: number;
-  exactScore: string;
-  valueBet: string;
+  /*
+   * Backwards-compatible display field.
+   *
+   * This now represents the selected
+   * ZERRA market pick, not necessarily
+   * Home Win / Draw / Away Win.
+   */
+  finalPrediction:
+    string;
+
+  /*
+   * Canonical prediction decision.
+   */
+  primaryPrediction:
+    PredictionPrimarySelection;
+
+  confidence:
+    number;
+
+  /*
+   * Supplemental only.
+   * Exact score must never override the
+   * primary market prediction.
+   */
+  exactScore:
+    string;
+
+  /*
+   * Backwards-compatible field.
+   * Later UI can rename this to
+   * Model Pick / Best Market.
+   */
+  valueBet:
+    string;
 
   markets:
     PredictionMarketProbabilities;
@@ -60,44 +164,74 @@ export type VIPPrediction = {
 };
 
 export type PredictionModelMetadata = {
-  version: string;
-  dataVersion: string;
-  generatedAt: string;
+  version:
+    string;
+
+  dataVersion:
+    string;
+
+  generatedAt:
+    string;
 };
 
 export type PredictionReview = {
-  approved: boolean;
+  approved:
+    boolean;
+
   reviewedBy:
     string | null;
+
   reviewedAt:
     string | null;
 };
 
 export type PredictionConsistencyMetadata = {
-  valid: boolean;
+  valid:
+    boolean;
+
   issues:
     PredictionConsistencyIssue[];
 };
 
 export type PredictionResult = {
-  confidence: number;
+  confidence:
+    number;
 
-  homeWin: number;
-  draw: number;
-  awayWin: number;
+  /*
+   * Supporting match-outcome analysis.
+   */
+  homeWin:
+    number;
 
-  over25: number;
-  under25: number;
-  btts: number;
+  draw:
+    number;
+
+  awayWin:
+    number;
+
+  /*
+   * Supporting goal probabilities.
+   */
+  over25:
+    number;
+
+  under25:
+    number;
+
+  btts:
+    number;
 
   risk:
     PredictionRisk;
 
-  riskScore: number;
+  riskScore:
+    number;
 
-  valueBet: string;
+  valueBet:
+    string;
 
-  expectedGoals: number;
+  expectedGoals:
+    number;
 
   homeExpectedGoals:
     number;
@@ -121,7 +255,9 @@ export type PredictionResult = {
     PredictionStatus;
 
   consistency?: {
-    valid: boolean;
+    valid:
+      boolean;
+
     issues:
       PredictionConsistencyIssue[];
   };
@@ -142,7 +278,7 @@ export function calculatePrediction(
 
   /*
    * The normalized prediction becomes
-   * the single canonical output used by:
+   * the canonical output used by:
    *
    * - explanation
    * - context
@@ -150,6 +286,12 @@ export function calculatePrediction(
    * - Firestore persistence
    * - admin dashboard
    * - VIP presentation
+   *
+   * From this market architecture,
+   * vipPrediction.primaryPrediction is
+   * the canonical prediction decision.
+   *
+   * 1X2 remains supporting analysis only.
    */
   return {
     ...consistency.prediction,
