@@ -11,6 +11,7 @@ import {
 
 import PredictionActions from "@/components/admin/PredictionActions";
 import PredictionGenerator from "@/components/admin/PredictionGenerator";
+import PredictionCalibrationDashboard from "@/components/admin/PredictionCalibrationDashboard";
 
 type PredictionItem = {
   id: string;
@@ -96,10 +97,13 @@ export default function AdminPredictionsPage() {
 
   const [predictions, setPredictions] =
     useState<PredictionItem[]>([]);
+
   const [loading, setLoading] =
     useState(true);
+
   const [refreshing, setRefreshing] =
     useState(false);
+
   const [error, setError] =
     useState("");
 
@@ -157,7 +161,9 @@ export default function AdminPredictionsPage() {
         }
 
         setPredictions(
-          Array.isArray(data.predictions)
+          Array.isArray(
+            data.predictions
+          )
             ? data.predictions
             : []
         );
@@ -264,23 +270,29 @@ export default function AdminPredictionsPage() {
           }
         />
 
+        <PredictionCalibrationDashboard />
+
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard
             label="Total"
             value={summary.total}
           />
+
           <SummaryCard
             label="Draft"
             value={summary.draft}
           />
+
           <SummaryCard
             label="Approved"
             value={summary.approved}
           />
+
           <SummaryCard
             label="Published"
             value={summary.published}
           />
+
           <SummaryCard
             label="Rejected"
             value={summary.rejected}
@@ -327,10 +339,12 @@ function PredictionCard({
   onChanged: () => void | Promise<void>;
 }) {
   const homeTeam =
-    item.teams?.home?.name || "Home team";
+    item.teams?.home?.name ||
+    "Home team";
 
   const awayTeam =
-    item.teams?.away?.name || "Away team";
+    item.teams?.away?.name ||
+    "Away team";
 
   const confidence =
     item.vipPrediction?.confidence ??
@@ -353,7 +367,8 @@ function PredictionCard({
             <div className="flex flex-wrap gap-2">
               <StatusBadge
                 status={
-                  item.status || "draft"
+                  item.status ||
+                  "draft"
                 }
               />
 
@@ -370,13 +385,15 @@ function PredictionCard({
             </div>
 
             <h2 className="mt-4 text-2xl font-black md:text-4xl">
-              {homeTeam} vs {awayTeam}
+              {homeTeam} vs{" "}
+              {awayTeam}
             </h2>
 
             <p className="mt-3 text-sm text-white/45">
               {item.competition?.name ||
                 "Competition unavailable"}
-              {item.competition?.country
+              {item.competition
+                ?.country
                 ? ` · ${item.competition.country}`
                 : ""}
             </p>
@@ -387,37 +404,42 @@ function PredictionCard({
               label="Confidence"
               value={`${confidence}%`}
             />
+
             <Metric
               label="Risk"
               value={
-                item.publicPrediction?.risk ||
+                item.publicPrediction
+                  ?.risk ||
                 "—"
               }
             />
+
             <Metric
               label="Risk Score"
               value={
                 item.publicPrediction
-                  ?.riskScore ?? "—"
+                  ?.riskScore ??
+                "—"
               }
             />
+
             <Metric
               label="Result"
               value={
                 item.correct === true
                   ? "Correct"
                   : item.correct === false
-                  ? "Wrong"
-                  : item.resultChecked
-                  ? "Checked"
-                  : "Pending"
+                    ? "Wrong"
+                    : item.resultChecked
+                      ? "Checked"
+                      : "Pending"
               }
             />
           </div>
         </div>
       </div>
 
-      <div className="grid gap-6 p-6 lg:grid-cols-2 md:p-8">
+      <div className="grid gap-6 p-6 md:p-8 lg:grid-cols-2">
         <PreviewPanel
           eyebrow="Public Layer"
           title="Public Prediction"
@@ -428,11 +450,13 @@ function PredictionCard({
           }
           items={
             item.publicPrediction
-              ?.keyInsights || []
+              ?.keyInsights ||
+            []
           }
           footer={
             item.publicPrediction
-              ?.teaser || null
+              ?.teaser ||
+            null
           }
         />
 
@@ -441,25 +465,33 @@ function PredictionCard({
           title="Protected VIP Prediction"
           description={`Final prediction: ${
             item.vipPrediction
-              ?.finalPrediction || "—"
+              ?.finalPrediction ||
+            "—"
           }`}
           items={[
             `Value signal: ${pick}`,
+
             `Exact score: ${
               item.vipPrediction
-                ?.exactScore || "—"
+                ?.exactScore ||
+              "—"
             }`,
+
             ...(
               item.vipPrediction
-                ?.reasoning || []
-            ).slice(0, 3),
+                ?.reasoning ||
+              []
+            ).slice(
+              0,
+              3
+            ),
           ]}
           footer="This section must never be exposed by the public API."
           premium
         />
       </div>
 
-      <div className="grid gap-6 border-t border-white/10 p-6 lg:grid-cols-2 md:p-8">
+      <div className="grid gap-6 border-t border-white/10 p-6 md:p-8 lg:grid-cols-2">
         <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#D4AF37]">
             Source Data
@@ -477,22 +509,66 @@ function PredictionCard({
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              ["Fixture", availability?.fixture],
-              ["Statistics", availability?.statistics],
-              ["Events", availability?.events],
-              ["Lineups", availability?.lineups],
-              ["H2H", availability?.headToHead],
-              ["Injuries", availability?.injuries],
-              ["Odds", availability?.odds],
-            ].map(([label, available]) => (
-              <AvailabilityBadge
-                key={String(label)}
-                label={String(label)}
-                available={
-                  available === true
-                }
-              />
-            ))}
+              [
+                "Fixture",
+                availability
+                  ?.fixture,
+              ],
+
+              [
+                "Statistics",
+                availability
+                  ?.statistics,
+              ],
+
+              [
+                "Events",
+                availability
+                  ?.events,
+              ],
+
+              [
+                "Lineups",
+                availability
+                  ?.lineups,
+              ],
+
+              [
+                "H2H",
+                availability
+                  ?.headToHead,
+              ],
+
+              [
+                "Injuries",
+                availability
+                  ?.injuries,
+              ],
+
+              [
+                "Odds",
+                availability
+                  ?.odds,
+              ],
+            ].map(
+              ([
+                label,
+                available,
+              ]) => (
+                <AvailabilityBadge
+                  key={String(
+                    label
+                  )}
+                  label={String(
+                    label
+                  )}
+                  available={
+                    available ===
+                    true
+                  }
+                />
+              )
+            )}
           </div>
         </div>
 
@@ -505,26 +581,36 @@ function PredictionCard({
             <Row
               label="Model"
               value={
-                item.model?.version || "—"
-              }
-            />
-            <Row
-              label="Data version"
-              value={
-                item.model?.dataVersion ||
+                item.model
+                  ?.version ||
                 "—"
               }
             />
+
+            <Row
+              label="Data version"
+              value={
+                item.model
+                  ?.dataVersion ||
+                "—"
+              }
+            />
+
             <Row
               label="Final result"
-              value={item.result || "—"}
+              value={
+                item.result ||
+                "—"
+              }
             />
+
             <Row
               label="Updated"
               value={
                 formatDate(
                   item.updatedAt
-                ) || "—"
+                ) ||
+                "—"
               }
             />
           </dl>
@@ -532,7 +618,9 @@ function PredictionCard({
           {item.rejectionReason && (
             <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm leading-6 text-red-200">
               Rejection reason:{" "}
-              {item.rejectionReason}
+              {
+                item.rejectionReason
+              }
             </div>
           )}
         </div>
@@ -540,9 +628,16 @@ function PredictionCard({
 
       <div className="border-t border-white/10 p-6 md:p-8">
         <PredictionActions
-          predictionId={item.id}
-          status={item.status || "draft"}
-          onChanged={onChanged}
+          predictionId={
+            item.id
+          }
+          status={
+            item.status ||
+            "draft"
+          }
+          onChanged={
+            onChanged
+          }
         />
       </div>
     </article>
@@ -561,6 +656,7 @@ function SummaryCard({
       <p className="text-xs font-black uppercase tracking-[0.2em] text-white/35">
         {label}
       </p>
+
       <p className="mt-3 text-4xl font-black text-[#D4AF37]">
         {value}
       </p>
@@ -580,6 +676,7 @@ function Metric({
       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">
         {label}
       </p>
+
       <p className="mt-2 text-lg font-black text-[#D4AF37]">
         {value}
       </p>
@@ -596,13 +693,16 @@ function StatusBadge({
     status.toLowerCase();
 
   const className =
-    normalized === "published"
+    normalized ===
+    "published"
       ? "border-violet-400/30 bg-violet-400/10 text-violet-200"
-      : normalized === "approved"
-      ? "border-green-400/30 bg-green-400/10 text-green-200"
-      : normalized === "rejected"
-      ? "border-red-400/30 bg-red-400/10 text-red-200"
-      : "border-amber-400/30 bg-amber-400/10 text-amber-200";
+      : normalized ===
+          "approved"
+        ? "border-green-400/30 bg-green-400/10 text-green-200"
+        : normalized ===
+            "rejected"
+          ? "border-red-400/30 bg-red-400/10 text-red-200"
+          : "border-amber-400/30 bg-amber-400/10 text-amber-200";
 
   return (
     <span
@@ -648,16 +748,22 @@ function PreviewPanel({
         {description}
       </p>
 
-      {items.length > 0 && (
+      {items.length >
+        0 && (
         <ul className="mt-4 space-y-2 text-sm leading-6 text-white/65">
-          {items.map((item, index) => (
-            <li
-              key={`${item}-${index}`}
-              className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3"
-            >
-              {item}
-            </li>
-          ))}
+          {items.map(
+            (
+              item,
+              index
+            ) => (
+              <li
+                key={`${item}-${index}`}
+                className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3"
+              >
+                {item}
+              </li>
+            )
+          )}
         </ul>
       )}
 
@@ -702,6 +808,7 @@ function Row({
       <dt className="text-white/35">
         {label}
       </dt>
+
       <dd className="break-all text-right font-bold text-white/75">
         {value}
       </dd>
@@ -716,10 +823,15 @@ function formatDate(
     return null;
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(
+      value
+    );
 
   if (
-    Number.isNaN(date.getTime())
+    Number.isNaN(
+      date.getTime()
+    )
   ) {
     return value;
   }
