@@ -25,6 +25,10 @@ import {
   evaluatePredictionAutoPublishPolicy,
 } from "@/lib/ai-ceo/prediction/autoPublishPolicy";
 
+import {
+  evaluatePredictionLearningPolicy,
+} from "@/lib/ai-ceo/prediction/learningPolicy";
+
 const COLLECTION_NAME =
   "predictionHistory";
 
@@ -201,7 +205,8 @@ export type PredictionGenerationSummary = {
 };
 
 function isPlainObject(
-  value: unknown
+  value:
+    unknown
 ): value is Record<
   string,
   unknown
@@ -423,6 +428,63 @@ function normalizeFixtureId(
   )
     ? fixtureId
     : "";
+}
+
+function normalizeOptionalText(
+  value:
+    unknown
+): string | null {
+  return (
+    typeof value ===
+      "string" &&
+    value.trim()
+  )
+    ? value.trim()
+    : null;
+}
+
+/*
+ * Read the canonical market category
+ * without depending on one exact
+ * TypeScript primary-prediction shape.
+ *
+ * This keeps the learning integration
+ * backward-compatible with older
+ * prediction-engine document shapes.
+ */
+function getPrimaryMarketCategory(
+  value:
+    unknown
+): string | null {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return null;
+  }
+
+  const source =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  return (
+    normalizeOptionalText(
+      source.marketCategory
+    ) ??
+    normalizeOptionalText(
+      source.primaryMarketCategory
+    ) ??
+    normalizeOptionalText(
+      source.category
+    ) ??
+    null
+  );
 }
 
 function getFixtureStatus(
@@ -1394,20 +1456,39 @@ export async function generatePredictionsForDate(
       /*
        * AI CEO Publication Policy
        *
-       * The policy is evaluated for every
-       * generated prediction for auditability.
+       * The prediction itself is evaluated
+       * first. Historical ZAOS calibration
+       * is then converted into a learning
+       * policy context.
        *
-       * Automatic publication is activated
-       * only when the generation was initiated
-       * by AI CEO.
+       * The learning policy may:
        *
-       * Manual Admin generation continues to
-       * use the existing manual review workflow.
+       * - preserve normal auto-publishing
+       * - raise the confidence threshold
+       * - restrict autonomous publishing
+       *
+       * It cannot automatically modify or
+       * deploy the production model.
        */
       const primaryPrediction =
         prediction
           .vipPrediction
           ?.primaryPrediction;
+
+      const primaryMarketCategory =
+        getPrimaryMarketCategory(
+          primaryPrediction
+        );
+
+      const learningPolicy =
+        await evaluatePredictionLearningPolicy({
+          marketCategory:
+            primaryMarketCategory,
+
+          modelVersion:
+            modelVersion ??
+            null,
+        });
 
       const publicationPolicy =
         evaluatePredictionAutoPublishPolicy({
@@ -1445,6 +1526,8 @@ export async function generatePredictionsForDate(
               .vipPrediction
               ?.finalPrediction ??
             null,
+
+          learningPolicy,
         });
 
       if (
@@ -1503,6 +1586,10 @@ export async function generatePredictionsForDate(
           metadata: {
             aiCEOAutonomous:
               true,
+
+            primaryMarketCategory,
+
+            learningPolicy,
 
             publicationPolicy,
           },
@@ -1570,6 +1657,10 @@ export async function generatePredictionsForDate(
 
         policy:
           publicationPolicy,
+
+        learningPolicy,
+
+        primaryMarketCategory,
 
         evaluatedAt:
           now,
@@ -1764,6 +1855,15 @@ export async function generatePredictionsForDate(
 
           initiatedByAICEO:
             aiCEOAutonomous,
+
+          learningPolicyApplied:
+            true,
+
+          learningPolicyDecision:
+            learningPolicy
+              .decision,
+
+          primaryMarketCategory,
         },
       };
 
@@ -1848,6 +1948,10 @@ export async function generatePredictionsForDate(
 
           aiCEOAutonomous,
 
+          primaryMarketCategory,
+
+          learningPolicy,
+
           publicationDecision,
 
           finalStatus,
@@ -1892,6 +1996,10 @@ export async function generatePredictionsForDate(
               : performedBy,
 
           aiCEOAutonomous,
+
+          primaryMarketCategory,
+
+          learningPolicy,
 
           publicationPolicy,
 
