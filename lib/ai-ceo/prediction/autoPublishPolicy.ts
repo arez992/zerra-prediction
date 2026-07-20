@@ -1,3 +1,7 @@
+import type {
+  PredictionLearningPolicyContext,
+} from "./learningPolicy";
+
 export type PredictionAutoPublishDecision =
   | "auto-publish"
   | "review"
@@ -24,6 +28,20 @@ export type PredictionAutoPublishPolicyInput = {
 
   finalPrediction:
     string | null;
+
+  /*
+   * Optional ZAOS learning context.
+   *
+   * The base prediction policy remains
+   * deterministic and synchronous.
+   *
+   * The caller may load historical
+   * calibration separately and pass the
+   * resulting decision context here.
+   */
+  learningPolicy?:
+    PredictionLearningPolicyContext |
+    null;
 };
 
 export type PredictionAutoPublishPolicyResult = {
@@ -60,6 +78,47 @@ export type PredictionAutoPublishPolicyResult = {
 
     predictionAvailable:
       boolean;
+
+    learningAllowsAutoPublish:
+      boolean;
+  };
+
+  thresholds: {
+    baseAutoPublishConfidence:
+      number;
+
+    effectiveAutoPublishConfidence:
+      number;
+
+    reviewMinimumConfidence:
+      number;
+
+    learningConfidenceIncrease:
+      number;
+  };
+
+  learning: {
+    applied:
+      boolean;
+
+    decision:
+      PredictionLearningPolicyContext["decision"] |
+      null;
+
+    reason:
+      string | null;
+
+    sampleSize:
+      number | null;
+
+    autoPublishAllowed:
+      boolean;
+
+    confidencePenalty:
+      number;
+
+    minimumConfidenceIncrease:
+      number;
   };
 };
 
@@ -115,6 +174,112 @@ function hasUsablePrediction(
   );
 }
 
+function getLearningConfiguration(
+  learningPolicy:
+    PredictionLearningPolicyContext |
+    null |
+    undefined
+) {
+  /*
+   * No learning context:
+   * preserve the original policy.
+   */
+  if (!learningPolicy) {
+    return {
+      applied:
+        false,
+
+      decision:
+        null,
+
+      reason:
+        null,
+
+      sampleSize:
+        null,
+
+      autoPublishAllowed:
+        true,
+
+      confidencePenalty:
+        0,
+
+      minimumConfidenceIncrease:
+        0,
+    };
+  }
+
+  /*
+   * Insufficient historical data must
+   * never tighten production behavior.
+   *
+   * Learning is visible for auditability,
+   * but the original thresholds remain.
+   */
+  if (
+    learningPolicy.decision ===
+    "insufficient-data"
+  ) {
+    return {
+      applied:
+        true,
+
+      decision:
+        learningPolicy
+          .decision,
+
+      reason:
+        learningPolicy
+          .reason,
+
+      sampleSize:
+        learningPolicy
+          .sampleSize,
+
+      autoPublishAllowed:
+        true,
+
+      confidencePenalty:
+        0,
+
+      minimumConfidenceIncrease:
+        0,
+    };
+  }
+
+  return {
+    applied:
+      true,
+
+    decision:
+      learningPolicy
+        .decision,
+
+    reason:
+      learningPolicy
+        .reason,
+
+    sampleSize:
+      learningPolicy
+        .sampleSize,
+
+    autoPublishAllowed:
+      learningPolicy
+        .restrictions
+        .autoPublishAllowed,
+
+    confidencePenalty:
+      learningPolicy
+        .restrictions
+        .confidencePenalty,
+
+    minimumConfidenceIncrease:
+      learningPolicy
+        .restrictions
+        .minimumConfidenceIncrease,
+  };
+}
+
 export function evaluatePredictionAutoPublishPolicy(
   input:
     PredictionAutoPublishPolicyInput
@@ -124,11 +289,40 @@ export function evaluatePredictionAutoPublishPolicy(
       input.confidence
     );
 
+  const learning =
+    getLearningConfiguration(
+      input.learningPolicy
+    );
+
+  /*
+   * Historical calibration may raise
+   * the auto-publish threshold.
+   *
+   * Example:
+   *
+   * normal:
+   * 75%
+   *
+   * caution:
+   * 80%
+   *
+   * restriction:
+   * auto-publish disabled completely.
+   */
+  const effectiveAutoPublishConfidence =
+    Math.min(
+      100,
+
+      AUTO_PUBLISH_CONFIDENCE +
+        learning
+          .minimumConfidenceIncrease
+    );
+
   const confidencePassed =
     confidence !==
       null &&
     confidence >=
-      AUTO_PUBLISH_CONFIDENCE;
+      effectiveAutoPublishConfidence;
 
   const qualificationPassed =
     input.primaryQualified ===
@@ -155,14 +349,66 @@ export function evaluatePredictionAutoPublishPolicy(
       input.finalPrediction
     );
 
+  const learningAllowsAutoPublish =
+    learning
+      .autoPublishAllowed;
+
   const checks = {
     confidencePassed,
+
     qualificationPassed,
+
     consistencyPassed,
+
     generationPassed,
+
     qualityGatePassed,
+
     preMatchPassed,
+
     predictionAvailable,
+
+    learningAllowsAutoPublish,
+  };
+
+  const thresholds = {
+    baseAutoPublishConfidence:
+      AUTO_PUBLISH_CONFIDENCE,
+
+    effectiveAutoPublishConfidence,
+
+    reviewMinimumConfidence:
+      REVIEW_MIN_CONFIDENCE,
+
+    learningConfidenceIncrease:
+      learning
+        .minimumConfidenceIncrease,
+  };
+
+  const learningResult = {
+    applied:
+      learning.applied,
+
+    decision:
+      learning.decision,
+
+    reason:
+      learning.reason,
+
+    sampleSize:
+      learning.sampleSize,
+
+    autoPublishAllowed:
+      learning
+        .autoPublishAllowed,
+
+    confidencePenalty:
+      learning
+        .confidencePenalty,
+
+    minimumConfidenceIncrease:
+      learning
+        .minimumConfidenceIncrease,
   };
 
   const hardSafetyPassed =
@@ -176,15 +422,26 @@ export function evaluatePredictionAutoPublishPolicy(
   /*
    * AUTO-PUBLISH
    *
-   * AI CEO may approve and publish
-   * automatically only when all core
-   * safeguards pass and confidence is
-   * at or above the configured threshold.
+   * Every core safeguard must pass.
+   *
+   * Historical calibration must also
+   * explicitly allow autonomous
+   * publication.
+   *
+   * A caution policy may increase the
+   * required confidence threshold.
    */
   if (
     hardSafetyPassed &&
-    confidencePassed
+    confidencePassed &&
+    learningAllowsAutoPublish
   ) {
+    const learningReason =
+      learning.applied &&
+      learning.reason
+        ? ` Learning context: ${learning.reason}`
+        : "";
+
     return {
       decision:
         "auto-publish",
@@ -196,21 +453,31 @@ export function evaluatePredictionAutoPublishPolicy(
         true,
 
       reason:
-        `AI CEO auto-publish approved because all safeguards passed and confidence was ${confidence}%, which meets the ${AUTO_PUBLISH_CONFIDENCE}% threshold.`,
+        `AI CEO auto-publish approved because all safeguards passed and confidence was ${confidence}%, meeting the effective ${effectiveAutoPublishConfidence}% threshold.${learningReason}`,
 
       checks,
+
+      thresholds,
+
+      learning:
+        learningResult,
     };
   }
 
   /*
-   * REVIEW
+   * LEARNING RESTRICTION
    *
-   * Medium-confidence predictions remain
-   * available for manual/admin review only
-   * when all hard safety rules pass.
+   * The prediction itself may be strong,
+   * but sufficiently large historical
+   * calibration evidence has disabled
+   * autonomous publication.
+   *
+   * Keep the prediction available for
+   * review instead of withholding it.
    */
   if (
     hardSafetyPassed &&
+    !learningAllowsAutoPublish &&
     confidence !==
       null &&
     confidence >=
@@ -227,18 +494,69 @@ export function evaluatePredictionAutoPublishPolicy(
         false,
 
       reason:
-        `Prediction passed safety checks but confidence was ${confidence}%, below the ${AUTO_PUBLISH_CONFIDENCE}% auto-publish threshold. Manual review is required.`,
+        `Prediction passed core safety checks with ${confidence}% confidence, but AI CEO learning policy restricted automatic publishing. ${learning.reason || "Historical calibration requires manual review."}`,
 
       checks,
+
+      thresholds,
+
+      learning:
+        learningResult,
+    };
+  }
+
+  /*
+   * REVIEW
+   *
+   * Safety passed, but confidence is
+   * below the effective autonomous
+   * publication threshold.
+   *
+   * This includes learning-policy caution
+   * where the normal 75% threshold may
+   * have been increased.
+   */
+  if (
+    hardSafetyPassed &&
+    confidence !==
+      null &&
+    confidence >=
+      REVIEW_MIN_CONFIDENCE
+  ) {
+    const learningReason =
+      learning.applied &&
+      learning.reason
+        ? ` Learning context: ${learning.reason}`
+        : "";
+
+    return {
+      decision:
+        "review",
+
+      approvedAutomatically:
+        false,
+
+      publishAutomatically:
+        false,
+
+      reason:
+        `Prediction passed safety checks but confidence was ${confidence}%, below the effective ${effectiveAutoPublishConfidence}% auto-publish threshold.${learningReason}`,
+
+      checks,
+
+      thresholds,
+
+      learning:
+        learningResult,
     };
   }
 
   /*
    * WITHHOLD
    *
-   * Any prediction that fails a core
-   * safety rule must never be published
-   * automatically.
+   * A core prediction-safety condition
+   * failed or confidence did not reach
+   * the minimum review threshold.
    */
   return {
     decision:
@@ -282,6 +600,19 @@ export function evaluatePredictionAutoPublishPolicy(
         predictionAvailable
           ? null
           : "No usable canonical prediction was available.",
+
+        hardSafetyPassed &&
+        confidence !==
+          null &&
+        confidence <
+          REVIEW_MIN_CONFIDENCE
+          ? `Confidence was below the ${REVIEW_MIN_CONFIDENCE}% minimum review threshold.`
+          : null,
+
+        learning.applied &&
+        learning.reason
+          ? `Learning context: ${learning.reason}`
+          : null,
       ]
         .filter(
           Boolean
@@ -291,5 +622,10 @@ export function evaluatePredictionAutoPublishPolicy(
         ),
 
     checks,
+
+    thresholds,
+
+    learning:
+      learningResult,
   };
 }
