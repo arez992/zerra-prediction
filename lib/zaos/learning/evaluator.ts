@@ -33,58 +33,411 @@ export type LearningEvaluationResult = {
   record: LearningRecord;
 };
 
-function clampScore(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(100, Math.max(0, Math.round(value)));
+function clampScore(
+  value: number
+): number {
+  if (
+    !Number.isFinite(
+      value
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        value
+      )
+    )
+  );
 }
 
 function normalizeDate(
   value: string | null | undefined,
   fallback: string
 ): string {
-  if (!value) return fallback;
+  if (!value) {
+    return fallback;
+  }
 
-  const parsed = Date.parse(value);
+  const parsed =
+    Date.parse(
+      value
+    );
 
-  return Number.isFinite(parsed)
-    ? new Date(parsed).toISOString()
+  return Number.isFinite(
+    parsed
+  )
+    ? new Date(
+        parsed
+      ).toISOString()
     : fallback;
 }
 
-function getNumber(value: unknown): number | null {
+function getNumber(
+  value: unknown
+): number | null {
   const parsed =
-    typeof value === "number"
+    typeof value ===
+      "number"
       ? value
-      : Number(value);
+      : Number(
+          value
+        );
 
-  return Number.isFinite(parsed)
+  return Number.isFinite(
+    parsed
+  )
     ? parsed
     : null;
 }
 
-function evaluatePaymentAudit(
-  input: LearningEvaluationInput
+function getString(
+  value: unknown
+): string | null {
+  return (
+    typeof value ===
+      "string" &&
+    value.trim()
+  )
+    ? value.trim()
+    : null;
+}
+
+function getBoolean(
+  value: unknown
+): boolean | null {
+  return typeof value ===
+    "boolean"
+    ? value
+    : null;
+}
+
+function evaluatePredictionSettlement(
+  input:
+    LearningEvaluationInput
 ): {
-  outcome: LearningOutcome;
-  score: number;
-  notes: string[];
+  outcome:
+    LearningOutcome;
+
+  score:
+    number;
+
+  notes:
+    string[];
 } {
-  const data = input.executionData ?? {};
+  const data =
+    input.executionData ??
+    {};
 
-  const total = getNumber(data.total) ?? 0;
-  const completed = getNumber(data.completed) ?? 0;
-  const pending = getNumber(data.pending) ?? 0;
-  const failed = getNumber(data.failed) ?? 0;
-  const unknown = getNumber(data.unknown) ?? 0;
-  const successRate = getNumber(data.successRate);
+  const correct =
+    getBoolean(
+      data.correct
+    ) ??
+    input.executionSuccess;
 
-  const notes: string[] = [
-    `Payment audit inspected ${total} payment record(s).`,
-    `Completed payments: ${completed}.`,
-    `Pending payments: ${pending}.`,
-    `Failed payments: ${failed}.`,
-    `Unknown payment statuses: ${unknown}.`,
-  ];
+  const primaryPick =
+    getString(
+      data.primaryPick
+    ) ??
+    getString(
+      data.canonicalPick
+    ) ??
+    getString(
+      data.finalPrediction
+    ) ??
+    getString(
+      data.valueBet
+    ) ??
+    "unknown";
+
+  const primaryMarketCategory =
+    getString(
+      data.primaryMarketCategory
+    ) ??
+    "legacy-or-unknown";
+
+  const primaryQualified =
+    getBoolean(
+      data.primaryQualified
+    );
+
+  const confidence =
+    getNumber(
+      data.primaryConfidence
+    ) ??
+    getNumber(
+      data.canonicalConfidence
+    ) ??
+    getNumber(
+      data.confidence
+    );
+
+  const modelVersion =
+    getString(
+      data.modelVersion
+    ) ??
+    "unknown";
+
+  const result =
+    getString(
+      data.result
+    ) ??
+    "unknown";
+
+  const normalizedConfidence =
+    confidence !==
+      null
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            confidence
+          )
+        )
+      : null;
+
+  const notes:
+    string[] = [
+      `Prediction result: ${
+        correct
+          ? "correct"
+          : "incorrect"
+      }.`,
+
+      `Primary prediction: ${primaryPick}.`,
+
+      `Market category: ${primaryMarketCategory}.`,
+
+      `Model version: ${modelVersion}.`,
+
+      `Final match result: ${result}.`,
+    ];
+
+  if (
+    normalizedConfidence !==
+    null
+  ) {
+    notes.push(
+      `Prediction confidence was ${normalizedConfidence}%.`
+    );
+
+    const observedOutcome =
+      correct
+        ? 100
+        : 0;
+
+    const calibrationError =
+      Math.abs(
+        normalizedConfidence -
+        observedOutcome
+      );
+
+    notes.push(
+      `Single-prediction calibration error was ${Math.round(
+        calibrationError
+      )} percentage points.`
+    );
+
+    if (
+      correct &&
+      normalizedConfidence >=
+        75
+    ) {
+      notes.push(
+        "A high-confidence prediction was confirmed by the real match outcome."
+      );
+    }
+
+    if (
+      !correct &&
+      normalizedConfidence >=
+        75
+    ) {
+      notes.push(
+        "A high-confidence prediction failed. This should receive additional weight in future calibration analysis."
+      );
+    }
+
+    if (
+      correct &&
+      normalizedConfidence <
+        60
+    ) {
+      notes.push(
+        "The prediction was correct despite relatively low confidence, which may indicate conservative calibration."
+      );
+    }
+  } else {
+    notes.push(
+      "Confidence data was unavailable, so confidence calibration could not be evaluated."
+    );
+  }
+
+  if (
+    primaryQualified ===
+      true
+  ) {
+    notes.push(
+      "The prediction was a qualified canonical ZERRA market selection."
+    );
+  } else if (
+    primaryQualified ===
+      false
+  ) {
+    notes.push(
+      "The prediction was not marked as a qualified canonical market selection."
+    );
+  } else {
+    notes.push(
+      "Qualification metadata was unavailable, likely because this was a legacy prediction."
+    );
+  }
+
+  if (
+    !input.executionCompleted
+  ) {
+    return {
+      outcome:
+        "neutral",
+
+      score:
+        40,
+
+      notes: [
+        ...notes,
+
+        "Prediction settlement was not fully completed.",
+      ],
+    };
+  }
+
+  /*
+   * Calibration-aware learning score.
+   *
+   * Correct high-confidence predictions
+   * receive stronger positive learning.
+   *
+   * Incorrect high-confidence predictions
+   * receive a lower score because they
+   * represent a larger calibration error.
+   *
+   * This score is for learning analytics
+   * only. It must not automatically deploy
+   * or modify the production model.
+   */
+  if (
+    correct
+  ) {
+    const score =
+      normalizedConfidence !==
+        null
+        ? 70 +
+          normalizedConfidence *
+            0.3
+        : 80;
+
+    return {
+      outcome:
+        "success",
+
+      score:
+        clampScore(
+          score
+        ),
+
+      notes,
+    };
+  }
+
+  const score =
+    normalizedConfidence !==
+      null
+      ? 30 -
+        normalizedConfidence *
+          0.3
+      : 10;
+
+  return {
+    outcome:
+      "failure",
+
+    score:
+      clampScore(
+        score
+      ),
+
+    notes,
+  };
+}
+
+function evaluatePaymentAudit(
+  input:
+    LearningEvaluationInput
+): {
+  outcome:
+    LearningOutcome;
+
+  score:
+    number;
+
+  notes:
+    string[];
+} {
+  const data =
+    input.executionData ??
+    {};
+
+  const total =
+    getNumber(
+      data.total
+    ) ??
+    0;
+
+  const completed =
+    getNumber(
+      data.completed
+    ) ??
+    0;
+
+  const pending =
+    getNumber(
+      data.pending
+    ) ??
+    0;
+
+  const failed =
+    getNumber(
+      data.failed
+    ) ??
+    0;
+
+  const unknown =
+    getNumber(
+      data.unknown
+    ) ??
+    0;
+
+  const successRate =
+    getNumber(
+      data.successRate
+    );
+
+  const notes:
+    string[] = [
+      `Payment audit inspected ${total} payment record(s).`,
+
+      `Completed payments: ${completed}.`,
+
+      `Pending payments: ${pending}.`,
+
+      `Failed payments: ${failed}.`,
+
+      `Unknown payment statuses: ${unknown}.`,
+    ];
 
   if (
     !input.executionSuccess ||
@@ -96,8 +449,12 @@ function evaluatePaymentAudit(
     );
 
     return {
-      outcome: "failure",
-      score: 0,
+      outcome:
+        "failure",
+
+      score:
+        0,
+
       notes,
     };
   }
@@ -106,70 +463,112 @@ function evaluatePaymentAudit(
     "Payment audit execution completed successfully."
   );
 
-  if (successRate !== null) {
+  if (
+    successRate !==
+      null
+  ) {
     notes.push(
       `Observed payment success rate: ${successRate}%.`
     );
   }
 
-  if (total === 0) {
+  if (
+    total ===
+    0
+  ) {
     notes.push(
       "The audit completed, but there were no payment records to evaluate."
     );
 
     return {
-      outcome: "neutral",
-      score: 60,
+      outcome:
+        "neutral",
+
+      score:
+        60,
+
       notes,
     };
   }
 
   if (
-    failed === 0 &&
-    unknown === 0 &&
-    pending === 0
+    failed ===
+      0 &&
+    unknown ===
+      0 &&
+    pending ===
+      0
   ) {
     notes.push(
       "Payment health is strong in the inspected data."
     );
 
     return {
-      outcome: "success",
+      outcome:
+        "success",
+
       score:
-        successRate !== null
-          ? clampScore(Math.max(85, successRate))
+        successRate !==
+          null
+          ? clampScore(
+              Math.max(
+                85,
+                successRate
+              )
+            )
           : 90,
+
       notes,
     };
   }
 
   if (
-    successRate !== null &&
-    successRate >= 80 &&
-    unknown === 0
+    successRate !==
+      null &&
+    successRate >=
+      80 &&
+    unknown ===
+      0
   ) {
     notes.push(
       "The audit completed and payment health is acceptable, although some records still need attention."
     );
 
     return {
-      outcome: "success",
-      score: clampScore(successRate),
+      outcome:
+        "success",
+
+      score:
+        clampScore(
+          successRate
+        ),
+
       notes,
     };
   }
 
   if (
-    successRate !== null &&
-    successRate >= 50
+    successRate !==
+      null &&
+    successRate >=
+      50
   ) {
     notes.push(
       "The audit completed successfully, but payment health needs improvement."
     );
 
     return {
-      outcome: "neutral",
-      score: clampScore(Math.max(50, successRate)),
+      outcome:
+        "neutral",
+
+      score:
+        clampScore(
+          Math.max(
+            50,
+            successRate
+          )
+        ),
+
       notes,
     };
   }
@@ -179,37 +578,69 @@ function evaluatePaymentAudit(
   );
 
   return {
-    outcome: "neutral",
+    outcome:
+      "neutral",
+
     score:
-      successRate !== null
-        ? clampScore(Math.max(35, successRate))
+      successRate !==
+        null
+        ? clampScore(
+            Math.max(
+              35,
+              successRate
+            )
+          )
         : 40,
+
     notes,
   };
 }
 
 function evaluateExecutionPlan(
-  input: LearningEvaluationInput
+  input:
+    LearningEvaluationInput
 ): {
-  outcome: LearningOutcome;
-  score: number;
-  notes: string[];
+  outcome:
+    LearningOutcome;
+
+  score:
+    number;
+
+  notes:
+    string[];
 } {
-  const data = input.executionData ?? {};
-  const planCreated = data.planCreated === true;
+  const data =
+    input.executionData ??
+    {};
+
+  const planCreated =
+    data.planCreated ===
+    true;
+
   const requiresSpecializedExecutor =
-    data.requiresSpecializedExecutor === true;
+    data.requiresSpecializedExecutor ===
+    true;
 
-  const notes = input.executionMessage
-    ? [input.executionMessage]
-    : [];
+  const notes =
+    input.executionMessage
+      ? [
+          input.executionMessage,
+        ]
+      : [];
 
-  if (!input.executionSuccess) {
+  if (
+    !input.executionSuccess
+  ) {
     return {
-      outcome: "failure",
-      score: 0,
+      outcome:
+        "failure",
+
+      score:
+        0,
+
       notes: [
         ...notes,
+
         "Execution plan creation failed.",
       ],
     };
@@ -221,10 +652,15 @@ function evaluateExecutionPlan(
     requiresSpecializedExecutor
   ) {
     return {
-      outcome: "neutral",
-      score: 60,
+      outcome:
+        "neutral",
+
+      score:
+        60,
+
       notes: [
         ...notes,
+
         "A valid execution plan was created, but final business impact has not been measured yet.",
       ],
     };
@@ -235,78 +671,131 @@ function evaluateExecutionPlan(
     planCreated
   ) {
     return {
-      outcome: "success",
-      score: 75,
+      outcome:
+        "success",
+
+      score:
+        75,
+
       notes: [
         ...notes,
+
         "Execution plan was created successfully.",
       ],
     };
   }
 
   return {
-    outcome: "neutral",
-    score: 40,
+    outcome:
+      "neutral",
+
+    score:
+      40,
+
     notes: [
       ...notes,
+
       "The execution plan exists, but completion evidence is incomplete.",
     ],
   };
 }
 
 function evaluateGenericExecution(
-  input: LearningEvaluationInput
+  input:
+    LearningEvaluationInput
 ): {
-  outcome: LearningOutcome;
-  score: number;
-  notes: string[];
-} {
-  const notes = input.executionMessage
-    ? [input.executionMessage]
-    : [];
+  outcome:
+    LearningOutcome;
 
-  if (!input.executionSuccess) {
+  score:
+    number;
+
+  notes:
+    string[];
+} {
+  const notes =
+    input.executionMessage
+      ? [
+          input.executionMessage,
+        ]
+      : [];
+
+  if (
+    !input.executionSuccess
+  ) {
     return {
-      outcome: "failure",
-      score: 0,
+      outcome:
+        "failure",
+
+      score:
+        0,
+
       notes: [
         ...notes,
+
         "Execution failed.",
       ],
     };
   }
 
-  if (input.executionCompleted) {
+  if (
+    input.executionCompleted
+  ) {
     return {
-      outcome: "success",
-      score: 80,
+      outcome:
+        "success",
+
+      score:
+        80,
+
       notes: [
         ...notes,
+
         "Execution completed successfully.",
       ],
     };
   }
 
   return {
-    outcome: "neutral",
-    score: 50,
+    outcome:
+      "neutral",
+
+    score:
+      50,
+
     notes: [
       ...notes,
+
       "Execution succeeded but is not yet complete.",
     ],
   };
 }
 
 function evaluateByType(
-  input: LearningEvaluationInput
+  input:
+    LearningEvaluationInput
 ): {
-  outcome: LearningOutcome;
-  score: number;
-  notes: string[];
+  outcome:
+    LearningOutcome;
+
+  score:
+    number;
+
+  notes:
+    string[];
 } {
-  switch (input.recommendationType) {
+  switch (
+    input.recommendationType
+  ) {
+    case "prediction-settlement":
+      return evaluatePredictionSettlement(
+        input
+      );
+
     case "payment-audit":
-      return evaluatePaymentAudit(input);
+      return evaluatePaymentAudit(
+        input
+      );
 
     case "vip-conversion-review":
     case "registration-funnel-review":
@@ -315,70 +804,131 @@ function evaluateByType(
     case "create-seo-content-cluster":
     case "growth-foundation-plan":
     case "controlled-user-acquisition":
-      return evaluateExecutionPlan(input);
+      return evaluateExecutionPlan(
+        input
+      );
 
     default:
-      return evaluateGenericExecution(input);
+      return evaluateGenericExecution(
+        input
+      );
   }
 }
 
 export function evaluateLearningOutcome(
-  input: LearningEvaluationInput
+  input:
+    LearningEvaluationInput
 ): LearningEvaluationResult {
-  const now = new Date().toISOString();
-  const evaluation = evaluateByType(input);
+  const now =
+    new Date()
+      .toISOString();
 
-  const createdAt = normalizeDate(
-    input.createdAt,
-    now
-  );
+  const evaluation =
+    evaluateByType(
+      input
+    );
 
-  const completedAt = normalizeDate(
-    input.completedAt,
-    now
-  );
+  const createdAt =
+    normalizeDate(
+      input.createdAt,
+      now
+    );
+
+  const completedAt =
+    normalizeDate(
+      input.completedAt,
+      now
+    );
 
   const recommendationType =
-    input.recommendationType.trim() ||
+    input.recommendationType
+      .trim() ||
     "unknown";
 
-  const record: LearningRecord = {
+  const record:
+    LearningRecord = {
     id:
       `learning-${input.agent}-${input.recommendationId}-${randomUUID()}`,
-    version: ZAOS_LEARNING_VERSION,
-    agent: input.agent,
-    recommendationId: input.recommendationId,
+
+    version:
+      ZAOS_LEARNING_VERSION,
+
+    agent:
+      input.agent,
+
+    recommendationId:
+      input.recommendationId,
+
     recommendationType,
+
     createdAt,
+
     completedAt,
-    outcome: evaluation.outcome,
-    score: clampScore(evaluation.score),
-    metricsBefore: input.metricsBefore ?? {},
-    metricsAfter: input.metricsAfter ?? {},
-    notes: evaluation.notes,
+
+    outcome:
+      evaluation.outcome,
+
+    score:
+      clampScore(
+        evaluation.score
+      ),
+
+    metricsBefore:
+      input.metricsBefore ??
+      {},
+
+    metricsAfter:
+      input.metricsAfter ??
+      {},
+
+    notes:
+      evaluation.notes,
+
     tags: [
       input.agent,
+
       recommendationType,
+
       evaluation.outcome,
-      ...(input.tags ?? []),
+
+      ...(
+        input.tags ??
+        []
+      ),
     ],
+
     metadata: {
       executionSuccess:
         input.executionSuccess,
+
       executionCompleted:
         input.executionCompleted,
+
       executionMessage:
-        input.executionMessage ?? null,
+        input.executionMessage ??
+        null,
+
       executionData:
-        input.executionData ?? {},
-      ...(input.metadata ?? {}),
+        input.executionData ??
+        {},
+
+      ...(
+        input.metadata ??
+        {}
+      ),
     },
   };
 
   return {
-    outcome: evaluation.outcome,
-    score: record.score,
-    notes: evaluation.notes,
+    outcome:
+      evaluation.outcome,
+
+    score:
+      record.score,
+
+    notes:
+      evaluation.notes,
+
     record,
   };
 }
