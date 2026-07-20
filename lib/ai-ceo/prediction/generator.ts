@@ -12,6 +12,10 @@ import {
   runPredictionEngine,
 } from "@/lib/ai/engine";
 
+import type {
+  PredictionResult,
+} from "@/lib/ai/prediction";
+
 import {
   getCompleteFixtureData,
   getFixturesByDate,
@@ -112,6 +116,44 @@ export type PredictionGenerationMode =
   | "basic"
   | "enriched";
 
+export type PredictionDataDiagnostics = {
+  completenessScore:
+    number;
+
+  completenessLevel:
+    string;
+
+  vipReady:
+    boolean;
+
+  vipThreshold:
+    number;
+
+  vipThresholdPassed:
+    boolean;
+
+  missingCritical:
+    string[];
+
+  missingOptional:
+    string[];
+
+  warnings:
+    string[];
+
+  weightedReliability:
+    number;
+
+  weightedFreshness:
+    number;
+
+  availableFactors:
+    number;
+
+  totalFactors:
+    number;
+};
+
 export type PredictionGenerationItem = {
   fixtureId:
     string;
@@ -149,6 +191,9 @@ export type PredictionGenerationItem = {
 
   finalStatus?:
     string | null;
+
+  dataDiagnostics?:
+    PredictionDataDiagnostics | null;
 };
 
 export type PredictionGenerationSummary = {
@@ -443,15 +488,6 @@ function normalizeOptionalText(
     : null;
 }
 
-/*
- * Read the canonical market category
- * without depending on one exact
- * TypeScript primary-prediction shape.
- *
- * This keeps the learning integration
- * backward-compatible with older
- * prediction-engine document shapes.
- */
 function getPrimaryMarketCategory(
   value:
     unknown
@@ -485,6 +521,74 @@ function getPrimaryMarketCategory(
     ) ??
     null
   );
+}
+
+function buildDataDiagnostics(
+  prediction:
+    PredictionResult
+): PredictionDataDiagnostics | null {
+  const completeness =
+    prediction
+      .dataCompleteness;
+
+  if (
+    !completeness
+  ) {
+    return null;
+  }
+
+  return {
+    completenessScore:
+      completeness.score,
+
+    completenessLevel:
+      completeness.level,
+
+    vipReady:
+      completeness.vipReady,
+
+    vipThreshold:
+      completeness
+        .threshold
+        .vipMinimum,
+
+    vipThresholdPassed:
+      completeness
+        .threshold
+        .passed,
+
+    missingCritical:
+      completeness
+        .missingCritical,
+
+    missingOptional:
+      completeness
+        .missingOptional,
+
+    warnings:
+      completeness
+        .warnings,
+
+    weightedReliability:
+      completeness
+        .summary
+        .weightedReliability,
+
+    weightedFreshness:
+      completeness
+        .summary
+        .weightedFreshness,
+
+    availableFactors:
+      completeness
+        .summary
+        .availableFactors,
+
+    totalFactors:
+      completeness
+        .summary
+        .totalFactors,
+  };
 }
 
 function getFixtureStatus(
@@ -1126,6 +1230,9 @@ export async function generatePredictionsForDate(
 
         finalStatus:
           null,
+
+        dataDiagnostics:
+          null,
       });
 
       withheldPredictions +=
@@ -1191,6 +1298,9 @@ export async function generatePredictionsForDate(
               ?.status ||
             ""
           ) ||
+          null,
+
+        dataDiagnostics:
           null,
       });
 
@@ -1313,6 +1423,9 @@ export async function generatePredictionsForDate(
 
           finalStatus:
             null,
+
+          dataDiagnostics:
+            null,
         });
 
         continue;
@@ -1350,6 +1463,11 @@ export async function generatePredictionsForDate(
         engineResult
           .data
           .prediction;
+
+      const dataDiagnostics =
+        buildDataDiagnostics(
+          prediction
+        );
 
       const modelVersion =
         prediction
@@ -1414,6 +1532,10 @@ export async function generatePredictionsForDate(
           reason:
             generationDecision
               .reason,
+
+          metadata: {
+            dataDiagnostics,
+          },
         });
 
         items.push({
@@ -1448,28 +1570,13 @@ export async function generatePredictionsForDate(
 
           finalStatus:
             null,
+
+          dataDiagnostics,
         });
 
         continue;
       }
 
-      /*
-       * AI CEO Publication Policy
-       *
-       * The prediction itself is evaluated
-       * first. Historical ZAOS calibration
-       * is then converted into a learning
-       * policy context.
-       *
-       * The learning policy may:
-       *
-       * - preserve normal auto-publishing
-       * - raise the confidence threshold
-       * - restrict autonomous publishing
-       *
-       * It cannot automatically modify or
-       * deploy the production model.
-       */
       const primaryPrediction =
         prediction
           .vipPrediction
@@ -1592,6 +1699,8 @@ export async function generatePredictionsForDate(
             learningPolicy,
 
             publicationPolicy,
+
+            dataDiagnostics,
           },
         });
 
@@ -1625,6 +1734,8 @@ export async function generatePredictionsForDate(
 
           finalStatus:
             null,
+
+          dataDiagnostics,
         });
 
         continue;
@@ -1661,6 +1772,8 @@ export async function generatePredictionsForDate(
         learningPolicy,
 
         primaryMarketCategory,
+
+        dataDiagnostics,
 
         evaluatedAt:
           now,
@@ -1864,6 +1977,8 @@ export async function generatePredictionsForDate(
               .decision,
 
           primaryMarketCategory,
+
+          dataDiagnostics,
         },
       };
 
@@ -1956,6 +2071,8 @@ export async function generatePredictionsForDate(
 
           finalStatus,
 
+          dataDiagnostics,
+
           createdAt:
             FieldValue
               .serverTimestamp(),
@@ -2021,6 +2138,8 @@ export async function generatePredictionsForDate(
               .consistency ??
             null,
 
+          dataDiagnostics,
+
           reason:
             publicationPolicy
               .reason,
@@ -2066,6 +2185,8 @@ export async function generatePredictionsForDate(
         publicationDecision,
 
         finalStatus,
+
+        dataDiagnostics,
       });
     } catch (
       error
@@ -2154,6 +2275,9 @@ export async function generatePredictionsForDate(
           "failed",
 
         finalStatus:
+          null,
+
+        dataDiagnostics:
           null,
       });
     }

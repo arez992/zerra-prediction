@@ -823,13 +823,6 @@ function buildMarketCandidates(
       );
     };
 
-  /*
-   * Total Goals
-   *
-   * 1.5 requires stronger raw probability
-   * because it can otherwise become a
-   * trivial market too frequently.
-   */
   add(
     "Total Goals",
     "Over 1.5 Goals",
@@ -878,9 +871,6 @@ function buildMarketCandidates(
     68
   );
 
-  /*
-   * BTTS
-   */
   add(
     "BTTS",
     "BTTS Yes",
@@ -902,13 +892,6 @@ function buildMarketCandidates(
     65
   );
 
-  /*
-   * Team Total Goals
-   *
-   * Over/Under 0.5 requires a higher
-   * threshold because it is naturally
-   * easier to reach a high probability.
-   */
   add(
     "Team Total Goals",
     "Home Team Over 0.5 Goals",
@@ -973,14 +956,6 @@ function buildMarketCandidates(
     68
   );
 
-  /*
-   * Double Chance
-   *
-   * Higher thresholds prevent Double
-   * Chance from automatically winning
-   * simply because two 1X2 outcomes are
-   * combined.
-   */
   add(
     "Double Chance",
     "Double Chance 1X",
@@ -1012,14 +987,6 @@ function candidateRankingScore(
   candidate:
     MarketCandidate
 ): number {
-  /*
-   * Qualification confidence is the
-   * main ranking signal.
-   *
-   * Probability remains important but
-   * does not dominate data quality and
-   * reliability adjustments.
-   */
   return (
     candidate.confidence *
       0.65 +
@@ -1688,14 +1655,6 @@ export function calculateAIScore(
       factorSummary
     );
 
-  /*
-   * 1X2 is retained as supporting
-   * analysis only.
-   *
-   * The canonical prediction is selected
-   * later from ZERRA's approved market
-   * families.
-   */
   const markets =
     buildExtendedMarkets(
       adjustedProbabilities,
@@ -1924,5 +1883,7 @@ export function calculateAIScore(
           .qualified
         ? "review"
         : "draft",
+
+    dataCompleteness,
   };
 }

@@ -7,6 +7,10 @@ import {
   type PredictionConsistencyIssue,
 } from "./consistency";
 
+import type {
+  DataCompletenessResult,
+} from "./data-completeness";
+
 export type PredictionRisk =
   | "Low"
   | "Medium"
@@ -31,13 +35,17 @@ export type PredictionPrimarySelection = {
   category:
     PredictionMarketCategory;
 
-  pick: string;
+  pick:
+    string;
 
-  confidence: number;
+  confidence:
+    number;
 
-  qualified: boolean;
+  qualified:
+    boolean;
 
-  reason: string;
+  reason:
+    string;
 };
 
 export type PredictionMarketProbabilities = {
@@ -49,16 +57,26 @@ export type PredictionMarketProbabilities = {
    * are no longer the canonical ZERRA
    * prediction output.
    */
-  homeWin: number;
-  draw: number;
-  awayWin: number;
+  homeWin:
+    number;
+
+  draw:
+    number;
+
+  awayWin:
+    number;
 
   /*
    * Existing goal markets.
    */
-  over25: number;
-  under25: number;
-  btts: number;
+  over25:
+    number;
+
+  under25:
+    number;
+
+  btts:
+    number;
 
   /*
    * ZERRA Market Architecture.
@@ -66,40 +84,72 @@ export type PredictionMarketProbabilities = {
    * Optional during migration so older
    * stored predictions remain compatible.
    */
-  over15?: number;
-  under15?: number;
+  over15?:
+    number;
 
-  over35?: number;
-  under35?: number;
+  under15?:
+    number;
 
-  bttsYes?: number;
-  bttsNo?: number;
+  over35?:
+    number;
 
-  homeOver05?: number;
-  homeUnder05?: number;
+  under35?:
+    number;
 
-  homeOver15?: number;
-  homeUnder15?: number;
+  bttsYes?:
+    number;
 
-  awayOver05?: number;
-  awayUnder05?: number;
+  bttsNo?:
+    number;
 
-  awayOver15?: number;
-  awayUnder15?: number;
+  homeOver05?:
+    number;
 
-  doubleChance1X?: number;
-  doubleChanceX2?: number;
-  doubleChance12?: number;
+  homeUnder05?:
+    number;
+
+  homeOver15?:
+    number;
+
+  homeUnder15?:
+    number;
+
+  awayOver05?:
+    number;
+
+  awayUnder05?:
+    number;
+
+  awayOver15?:
+    number;
+
+  awayUnder15?:
+    number;
+
+  doubleChance1X?:
+    number;
+
+  doubleChanceX2?:
+    number;
+
+  doubleChance12?:
+    number;
 };
 
 export type ExpectedGoalsResult = {
-  home: number;
-  away: number;
-  total: number;
+  home:
+    number;
+
+  away:
+    number;
+
+  total:
+    number;
 };
 
 export type PublicPrediction = {
-  overview: string;
+  overview:
+    string;
 
   risk:
     PredictionRisk;
@@ -254,6 +304,27 @@ export type PredictionResult = {
   status:
     PredictionStatus;
 
+  /*
+   * Canonical scoring-layer data
+   * completeness diagnostics.
+   *
+   * This exposes the exact same
+   * completeness result used when
+   * calculating:
+   *
+   * - vipReady
+   * - primary prediction qualification
+   * - market confidence
+   * - risk
+   *
+   * Downstream AI CEO systems can now
+   * explain why a prediction was
+   * withheld without recalculating data
+   * quality separately.
+   */
+  dataCompleteness:
+    DataCompletenessResult;
+
   consistency?: {
     valid:
       boolean;
@@ -264,7 +335,8 @@ export type PredictionResult = {
 };
 
 export function calculatePrediction(
-  match: unknown
+  match:
+    unknown
 ): PredictionResult {
   const rawPrediction =
     calculateAIScore(
@@ -286,12 +358,18 @@ export function calculatePrediction(
    * - Firestore persistence
    * - admin dashboard
    * - VIP presentation
+   * - AI CEO data diagnostics
    *
    * From this market architecture,
    * vipPrediction.primaryPrediction is
    * the canonical prediction decision.
    *
    * 1X2 remains supporting analysis only.
+   *
+   * dataCompleteness remains attached
+   * to the canonical prediction so the
+   * AI CEO can explain exactly why a
+   * prediction did or did not qualify.
    */
   return {
     ...consistency.prediction,
