@@ -17,6 +17,10 @@ import {
 } from "./executors/paymentAuditExecutor";
 
 import {
+  predictionExecutor,
+} from "./executors/predictionExecutor";
+
+import {
   seoExecutor,
 } from "./executors/seoExecutor";
 
@@ -44,6 +48,26 @@ const registrations:
 
     requiresApproval:
       true,
+
+    producesFinalAction:
+      true,
+  },
+
+  {
+    executionType:
+      "generate-predictions",
+
+    handler:
+      predictionExecutor,
+
+    department:
+      "prediction",
+
+    description:
+      "Allow AI CEO to generate canonical ZERRA football predictions using the existing prediction engine, enrichment pipeline, quality gates, duplicate protection, and audit logging.",
+
+    requiresApproval:
+      false,
 
     producesFinalAction:
       true,

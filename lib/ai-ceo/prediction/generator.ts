@@ -21,20 +21,16 @@ import {
   toPredictionPipelineInput,
 } from "@/lib/api-football/mapper";
 
+import {
+  evaluatePredictionAutoPublishPolicy,
+} from "@/lib/ai-ceo/prediction/autoPublishPolicy";
+
 const COLLECTION_NAME =
   "predictionHistory";
 
 const AUDIT_COLLECTION =
   "predictionAuditLogs";
 
-/*
- * Predictions may only be generated
- * while a fixture is still pre-match.
- *
- * Live, interrupted, postponed,
- * cancelled, and finished fixtures
- * must never create a new prediction.
- */
 const UPCOMING_STATUSES =
   new Set([
     "NS",
@@ -140,6 +136,15 @@ export type PredictionGenerationItem = {
     | "insufficient-data"
     | "failed"
     | "existing";
+
+  publicationDecision?:
+    | "auto-publish"
+    | "review"
+    | "withhold"
+    | "manual-review-flow";
+
+  finalStatus?:
+    string | null;
 };
 
 export type PredictionGenerationSummary = {
@@ -174,6 +179,15 @@ export type PredictionGenerationSummary = {
     number;
 
   failedPredictions:
+    number;
+
+  autoPublishedPredictions:
+    number;
+
+  reviewPredictions:
+    number;
+
+  policyWithheldPredictions:
     number;
 
   apiDateRequests:
@@ -426,15 +440,6 @@ function getFixtureStatus(
     .toUpperCase();
 }
 
-/*
- * Handles both the standard API-Football
- * fixture shape and possible nested
- * pipeline/enrichment shapes.
- *
- * This is used by the second pre-match
- * guard immediately before the engine
- * is allowed to run.
- */
 function getFixtureStatusFromUnknown(
   value:
     unknown
@@ -537,6 +542,18 @@ function isEligibleFixture(
       )
     )
   );
+}
+
+function isAICEOPerformer(
+  value:
+    string
+): boolean {
+  return value
+    .trim()
+    .toLowerCase()
+    .startsWith(
+      "ai-ceo"
+    );
 }
 
 async function buildPipelineInput(
@@ -826,6 +843,12 @@ async function writeGenerationAudit(
 
     reason:
       string | null;
+
+    metadata?:
+      Record<
+        string,
+        unknown
+      >;
   }
 ): Promise<void> {
   await adminDb
@@ -885,6 +908,11 @@ async function writeGenerationAudit(
         reason:
           input.reason,
 
+        ...(
+          input.metadata ||
+          {}
+        ),
+
         createdAt:
           FieldValue
             .serverTimestamp(),
@@ -931,17 +959,16 @@ export async function generatePredictionsForDate(
     options.performedBy ||
     "prediction-generation-scheduler";
 
+  const aiCEOAutonomous =
+    isAICEOPerformer(
+      performedBy
+    );
+
   const fixtures =
     await getFixturesByDate(
       date
     );
 
-  /*
-   * First pre-match guard.
-   *
-   * Only NS/TBD fixtures enter the
-   * generation loop.
-   */
   const eligibleFixtures =
     (
       fixtures as
@@ -974,6 +1001,15 @@ export async function generatePredictionsForDate(
   let enrichedFixtureRequests =
     0;
 
+  let autoPublishedPredictions =
+    0;
+
+  let reviewPredictions =
+    0;
+
+  let policyWithheldPredictions =
+    0;
+
   for (
     const fixture
     of eligibleFixtures
@@ -990,11 +1026,6 @@ export async function generatePredictionsForDate(
         fixture
       );
 
-    /*
-     * Reconfirm the status immediately
-     * before any database or enrichment
-     * work.
-     */
     const initialStatus =
       getFixtureStatus(
         fixture
@@ -1027,6 +1058,12 @@ export async function generatePredictionsForDate(
 
         generationStatus:
           "withheld",
+
+        publicationDecision:
+          "withhold",
+
+        finalStatus:
+          null,
       });
 
       withheldPredictions +=
@@ -1084,6 +1121,15 @@ export async function generatePredictionsForDate(
 
         generationStatus:
           "existing",
+
+        finalStatus:
+          String(
+            existing
+              .data()
+              ?.status ||
+            ""
+          ) ||
+          null,
       });
 
       continue;
@@ -1103,20 +1149,6 @@ export async function generatePredictionsForDate(
           1;
       }
 
-      /*
-       * Second pre-match guard.
-       *
-       * Enriched mode performs another
-       * API-Football fetch. The fixture
-       * may have changed from NS/TBD to
-       * live or finished between the
-       * original date request and this
-       * enriched request.
-       *
-       * The engine is never called if
-       * the latest known fixture status
-       * is not pre-match.
-       */
       const latestStatus =
         pipeline
           .latestFixtureStatus ||
@@ -1213,16 +1245,17 @@ export async function generatePredictionsForDate(
 
           generationStatus:
             "withheld",
+
+          publicationDecision:
+            "withhold",
+
+          finalStatus:
+            null,
         });
 
         continue;
       }
 
-      /*
-       * Only a confirmed pre-match
-       * fixture may reach the prediction
-       * engine.
-       */
       const engineResult =
         await runPredictionEngine(
           pipeline.input
@@ -1251,20 +1284,16 @@ export async function generatePredictionsForDate(
           .data
           .openAIEligibility;
 
-      const modelVersion =
+      const prediction =
         engineResult
           .data
-          .prediction
+          .prediction;
+
+      const modelVersion =
+        prediction
           .model
           .version;
 
-      /*
-       * Hard quality gate.
-       *
-       * Predictions with insufficient
-       * data or a withheld decision are
-       * not persisted.
-       */
       if (
         !generationDecision
           .allowed
@@ -1351,6 +1380,164 @@ export async function generatePredictionsForDate(
           generationStatus:
             generationDecision
               .status,
+
+          publicationDecision:
+            "withhold",
+
+          finalStatus:
+            null,
+        });
+
+        continue;
+      }
+
+      /*
+       * AI CEO Publication Policy
+       *
+       * The policy is evaluated for every
+       * generated prediction for auditability.
+       *
+       * Automatic publication is activated
+       * only when the generation was initiated
+       * by AI CEO.
+       *
+       * Manual Admin generation continues to
+       * use the existing manual review workflow.
+       */
+      const primaryPrediction =
+        prediction
+          .vipPrediction
+          ?.primaryPrediction;
+
+      const publicationPolicy =
+        evaluatePredictionAutoPublishPolicy({
+          confidence:
+            primaryPrediction
+              ?.confidence ??
+            prediction
+              .confidence ??
+            null,
+
+          primaryQualified:
+            primaryPrediction
+              ?.qualified ??
+            null,
+
+          consistencyValid:
+            prediction
+              .consistency
+              ?.valid ??
+            null,
+
+          generationAllowed:
+            generationDecision
+              .allowed ===
+            true,
+
+          qualityGatePassed:
+            true,
+
+          preMatchStatusVerified:
+            true,
+
+          finalPrediction:
+            prediction
+              .vipPrediction
+              ?.finalPrediction ??
+            null,
+        });
+
+      if (
+        aiCEOAutonomous &&
+        publicationPolicy
+          .decision ===
+          "withhold"
+      ) {
+        policyWithheldPredictions +=
+          1;
+
+        withheldPredictions +=
+          1;
+
+        await writeGenerationAudit({
+          action:
+            "ai-ceo-publication-withheld",
+
+          predictionId:
+            null,
+
+          fixtureId,
+
+          source:
+            pipeline
+              .input
+              .source,
+
+          generationMode:
+            mode,
+
+          fetchedFromApiFootball:
+            pipeline
+              .sourceData
+              .fetchedFromApiFootball,
+
+          dataAvailability:
+            pipeline
+              .sourceData
+              .availability,
+
+          performedBy,
+
+          modelVersion,
+
+          dataQuality,
+
+          generationDecision,
+
+          openAIEligibility,
+
+          reason:
+            publicationPolicy
+              .reason,
+
+          metadata: {
+            aiCEOAutonomous:
+              true,
+
+            publicationPolicy,
+          },
+        });
+
+        items.push({
+          fixtureId,
+
+          fixtureDate,
+
+          generated:
+            false,
+
+          skipped:
+            true,
+
+          reason:
+            publicationPolicy
+              .reason,
+
+          predictionId:
+            null,
+
+          enriched:
+            pipeline
+              .enriched,
+
+          generationStatus:
+            "withheld",
+
+          publicationDecision:
+            "withhold",
+
+          finalStatus:
+            null,
         });
 
         continue;
@@ -1360,15 +1547,125 @@ export async function generatePredictionsForDate(
         new Date()
           .toISOString();
 
+      let finalStatus =
+        engineResult
+          .data
+          .document
+          .status ||
+        prediction.status ||
+        "draft";
+
+      let publicationDecision:
+        PredictionGenerationItem[
+          "publicationDecision"
+        ] =
+        "manual-review-flow";
+
+      const publicationMetadata:
+        Record<
+          string,
+          unknown
+        > = {
+        aiCEOAutonomous,
+
+        policy:
+          publicationPolicy,
+
+        evaluatedAt:
+          now,
+      };
+
+      const approvalFields:
+        Record<
+          string,
+          unknown
+        > = {};
+
+      if (
+        aiCEOAutonomous
+      ) {
+        publicationDecision =
+          publicationPolicy
+            .decision;
+
+        if (
+          publicationPolicy
+            .decision ===
+          "auto-publish"
+        ) {
+          finalStatus =
+            "published";
+
+          autoPublishedPredictions +=
+            1;
+
+          approvalFields.approvedAt =
+            FieldValue
+              .serverTimestamp();
+
+          approvalFields.approvedBy =
+            "ai-ceo";
+
+          approvalFields.publishedAt =
+            FieldValue
+              .serverTimestamp();
+
+          approvalFields.publishedBy =
+            "ai-ceo";
+
+          approvalFields.reviewedAt =
+            FieldValue
+              .serverTimestamp();
+
+          approvalFields.reviewedBy =
+            "ai-ceo";
+
+          publicationMetadata
+            .automaticallyApproved =
+            true;
+
+          publicationMetadata
+            .automaticallyPublished =
+            true;
+        } else if (
+          publicationPolicy
+            .decision ===
+          "review"
+        ) {
+          finalStatus =
+            "review";
+
+          reviewPredictions +=
+            1;
+
+          publicationMetadata
+            .automaticallyApproved =
+            false;
+
+          publicationMetadata
+            .automaticallyPublished =
+            false;
+
+          publicationMetadata
+            .requiresHumanReview =
+            true;
+        }
+      }
+
       const rawDocumentData = {
         ...engineResult
           .data
           .document,
 
-        prediction:
-          engineResult
-            .data
-            .prediction,
+        status:
+          finalStatus,
+
+        prediction: {
+          ...prediction,
+
+          status:
+            finalStatus,
+        },
 
         dataQuality,
 
@@ -1379,6 +1676,11 @@ export async function generatePredictionsForDate(
         sourceData:
           pipeline
             .sourceData,
+
+        publicationAutomation:
+          publicationMetadata,
+
+        ...approvalFields,
 
         correct:
           engineResult
@@ -1459,6 +1761,9 @@ export async function generatePredictionsForDate(
           dataReliability:
             dataQuality
               .reliability,
+
+          initiatedByAICEO:
+            aiCEOAutonomous,
         },
       };
 
@@ -1467,7 +1772,14 @@ export async function generatePredictionsForDate(
           rawDocumentData
         ) as FirebaseFirestore.DocumentData;
 
-      const auditRef =
+      const generationAuditRef =
+        adminDb
+          .collection(
+            AUDIT_COLLECTION
+          )
+          .doc();
+
+      const policyAuditRef =
         adminDb
           .collection(
             AUDIT_COLLECTION
@@ -1488,7 +1800,7 @@ export async function generatePredictionsForDate(
       );
 
       batch.set(
-        auditRef,
+        generationAuditRef,
         sanitizeForFirestore({
           action:
             existing.exists
@@ -1534,6 +1846,77 @@ export async function generatePredictionsForDate(
           verifiedFixtureStatus:
             latestStatus,
 
+          aiCEOAutonomous,
+
+          publicationDecision,
+
+          finalStatus,
+
+          createdAt:
+            FieldValue
+              .serverTimestamp(),
+        }) as FirebaseFirestore.DocumentData
+      );
+
+      batch.set(
+        policyAuditRef,
+        sanitizeForFirestore({
+          action:
+            aiCEOAutonomous
+              ? publicationPolicy
+                  .decision ===
+                "auto-publish"
+                ? "ai-ceo-auto-publish"
+                : "ai-ceo-review-required"
+              : "publication-policy-evaluated",
+
+          predictionId:
+            predictionRef.id,
+
+          fixtureId,
+
+          previousStatus:
+            engineResult
+              .data
+              .document
+              .status ||
+            prediction.status ||
+            "draft",
+
+          newStatus:
+            finalStatus,
+
+          performedBy:
+            aiCEOAutonomous
+              ? "ai-ceo"
+              : performedBy,
+
+          aiCEOAutonomous,
+
+          publicationPolicy,
+
+          modelVersion,
+
+          confidence:
+            primaryPrediction
+              ?.confidence ??
+            prediction
+              .confidence ??
+            null,
+
+          primaryPrediction:
+            primaryPrediction ??
+            null,
+
+          consistency:
+            prediction
+              .consistency ??
+            null,
+
+          reason:
+            publicationPolicy
+              .reason,
+
           createdAt:
             FieldValue
               .serverTimestamp(),
@@ -1554,7 +1937,13 @@ export async function generatePredictionsForDate(
           false,
 
         reason:
-          "Prediction generated successfully.",
+          aiCEOAutonomous
+            ? publicationPolicy
+                .decision ===
+              "auto-publish"
+              ? "Prediction generated and published automatically by AI CEO."
+              : "Prediction generated successfully and sent to the review queue."
+            : "Prediction generated successfully.",
 
         predictionId:
           predictionRef.id,
@@ -1565,6 +1954,10 @@ export async function generatePredictionsForDate(
 
         generationStatus:
           "allowed",
+
+        publicationDecision,
+
+        finalStatus,
       });
     } catch (
       error
@@ -1616,6 +2009,10 @@ export async function generatePredictionsForDate(
             null,
 
           reason,
+
+          metadata: {
+            aiCEOAutonomous,
+          },
         });
       } catch {
         /*
@@ -1647,6 +2044,9 @@ export async function generatePredictionsForDate(
 
         generationStatus:
           "failed",
+
+        finalStatus:
+          null,
       });
     }
   }
@@ -1690,6 +2090,12 @@ export async function generatePredictionsForDate(
     insufficientDataPredictions,
 
     failedPredictions,
+
+    autoPublishedPredictions,
+
+    reviewPredictions,
+
+    policyWithheldPredictions,
 
     apiDateRequests:
       1,
