@@ -112,6 +112,11 @@ type MatchLike = {
 };
 
 const VIP_MINIMUM_SCORE = 72;
+const VIP_MINIMUM_WEIGHTED_RELIABILITY = 60;
+const VIP_MINIMUM_FRESHNESS = 60;
+
+const CRITICAL_MATCH_RELIABILITY = 45;
+
 const GOOD_RECENT_SAMPLE = 7;
 const EXCELLENT_RECENT_SAMPLE = 10;
 
@@ -136,9 +141,12 @@ function round(
   const multiplier =
     10 ** decimals;
 
-  return Math.round(
-    value * multiplier
-  ) / multiplier;
+  return (
+    Math.round(
+      value * multiplier
+    ) /
+    multiplier
+  );
 }
 
 function isRecord(
@@ -155,7 +163,7 @@ function asMatchLike(
   match: unknown
 ): MatchLike {
   return isRecord(match)
-    ? match as MatchLike
+    ? (match as MatchLike)
     : {};
 }
 
@@ -181,7 +189,7 @@ function completedFixture(
       fixture.fixture
         ?.status
         ?.short ??
-      ""
+        ""
     )
       .trim()
       .toUpperCase();
@@ -282,12 +290,12 @@ function calculateFreshnessScore(
         generatedAt.getTime() -
         latestTime
       ) /
-      (
-        1000 *
-        60 *
-        60 *
-        24
-      )
+        (
+          1000 *
+          60 *
+          60 *
+          24
+        )
     );
 
   if (ageDays <= 7) {
@@ -436,7 +444,7 @@ function weightedAverage(
         factor.weight,
       0
     ) /
-    totalWeight
+      totalWeight
   );
 }
 
@@ -529,9 +537,9 @@ export function calculateDataCompleteness(
         identityAvailable
           ? 100
           : homeIdentity ||
-            awayIdentity
-          ? 50
-          : 0,
+              awayIdentity
+            ? 50
+            : 0,
 
       weight:
         1.15,
@@ -932,12 +940,26 @@ export function calculateDataCompleteness(
     }
   );
 
-  if (matchReliability < 45) {
+  /*
+   * Match reliability below 45% is a
+   * hard safety failure.
+   *
+   * Reliability between 45% and 59%
+   * remains a warning and contributes
+   * negatively to weighted reliability,
+   * but does not independently override
+   * an otherwise strong complete dataset.
+   */
+  if (
+    matchReliability <
+    CRITICAL_MATCH_RELIABILITY
+  ) {
     missingCritical.push(
-      "Combined match evidence reliability is below 45%."
+      `Combined match evidence reliability is below ${CRITICAL_MATCH_RELIABILITY}%.`
     );
   } else if (
-    matchReliability < 60
+    matchReliability <
+    VIP_MINIMUM_WEIGHTED_RELIABILITY
   ) {
     warnings.push(
       "Combined evidence reliability is limited."
@@ -988,9 +1010,11 @@ export function calculateDataCompleteness(
 
   const goalEvidenceScore =
     round(
-      validGoalValues.length /
-      goalEvidenceValues.length *
-      100
+      (
+        validGoalValues.length /
+        goalEvidenceValues.length
+      ) *
+        100
     );
 
   addFactor(
@@ -1109,7 +1133,8 @@ export function calculateDataCompleteness(
       "Recent fixture data is stale or undated."
     );
   } else if (
-    freshness < 60
+    freshness <
+    VIP_MINIMUM_FRESHNESS
   ) {
     warnings.push(
       "Recent fixture data may be stale."
@@ -1162,16 +1187,66 @@ export function calculateDataCompleteness(
     score >=
     VIP_MINIMUM_SCORE;
 
+  /*
+   * VIP readiness uses the complete
+   * weighted evidence picture.
+   *
+   * A single non-critical reliability
+   * warning must not force confidence
+   * to zero when:
+   *
+   * - completeness passes
+   * - no critical evidence is missing
+   * - aggregate reliability is strong
+   * - source data is sufficiently fresh
+   *
+   * Critical match reliability below 45%
+   * is still blocked through
+   * missingCritical.
+   */
   const vipReady =
     passedThreshold &&
     uniqueCritical.length === 0 &&
-    matchReliability >= 60 &&
-    freshness >= 60;
+    weightedReliability >=
+      VIP_MINIMUM_WEIGHTED_RELIABILITY &&
+    weightedFreshness >=
+      VIP_MINIMUM_FRESHNESS &&
+    freshness >=
+      VIP_MINIMUM_FRESHNESS;
 
   if (
     passedThreshold &&
     !vipReady
   ) {
+    if (
+      weightedReliability <
+      VIP_MINIMUM_WEIGHTED_RELIABILITY
+    ) {
+      uniqueWarnings.push(
+        `Weighted evidence reliability is below the ${VIP_MINIMUM_WEIGHTED_RELIABILITY}% VIP requirement.`
+      );
+    }
+
+    if (
+      weightedFreshness <
+      VIP_MINIMUM_FRESHNESS ||
+      freshness <
+        VIP_MINIMUM_FRESHNESS
+    ) {
+      uniqueWarnings.push(
+        `Evidence freshness is below the ${VIP_MINIMUM_FRESHNESS}% VIP requirement.`
+      );
+    }
+
+    if (
+      uniqueCritical.length >
+      0
+    ) {
+      uniqueWarnings.push(
+        "One or more critical evidence requirements failed."
+      );
+    }
+
     uniqueWarnings.push(
       "The numeric completeness threshold passed, but one or more VIP safety requirements failed."
     );
@@ -1179,6 +1254,7 @@ export function calculateDataCompleteness(
 
   return {
     score,
+
     level:
       determineLevel(
         score
@@ -1201,7 +1277,11 @@ export function calculateDataCompleteness(
       uniqueOptional,
 
     warnings:
-      uniqueWarnings,
+      Array.from(
+        new Set(
+          uniqueWarnings
+        )
+      ),
 
     factors,
 
@@ -1216,6 +1296,7 @@ export function calculateDataCompleteness(
         factors.length,
 
       weightedReliability,
+
       weightedFreshness,
     },
   };
