@@ -1,10 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import SettingsForm from "@/components/admin/SettingsForm";
 
 async function getSettings() {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL || "https://zerraprediction.com";
 
     const res = await fetch(`${siteUrl}/api/admin/settings`, {
       cache: "no-store",
@@ -27,7 +27,7 @@ export default async function AdminSettingsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Settings</h1>
@@ -37,7 +37,7 @@ export default async function AdminSettingsPage() {
       </p>
 
       <section className="mt-10 grid gap-6 lg:grid-cols-3">
-        <SettingsCard title="Site Name" value={settings?.siteName || "—"} />
+        <SettingsCard title="Site Name" value={settings?.siteName || "â€”"} />
         <SettingsCard title="Currency" value={currency} />
 
         <SettingsCard

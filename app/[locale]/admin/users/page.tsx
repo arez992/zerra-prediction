@@ -1,10 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import UserActions from "@/components/admin/UserActions";
 
 async function getUsers() {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL || "https://zerraprediction.com";
 
     const res = await fetch(`${siteUrl}/api/admin/users`, {
       cache: "no-store",
@@ -26,7 +26,7 @@ export default async function AdminUsersPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Users</h1>
@@ -51,7 +51,7 @@ export default async function AdminUsersPage() {
                 <Info title="Role" value={user.role || "user"} />
                 <Info title="VIP" value={user.isVip ? "Active" : "Free"} />
                 <Info title="Plan" value={user.plan || "Free"} />
-                <Info title="Expires" value={user.vipExpireAt || "—"} />
+                <Info title="Expires" value={user.vipExpireAt || "â€”"} />
                 <Info title="User ID" value={user.id} />
               </div>
 

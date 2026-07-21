@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
 
@@ -254,7 +254,7 @@ async function getFixtures(): Promise<
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const response =
       await fetch(
@@ -295,7 +295,7 @@ async function getFreePredictions(): Promise<
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const response =
       await fetch(
@@ -340,7 +340,7 @@ async function getYesterdayGoalResults(): Promise<
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const response =
       await fetch(
@@ -696,7 +696,7 @@ export default async function HomePage({
                   )}
                   className="inline-flex rounded-full border border-[#cfdcd2] bg-white px-7 py-3 text-sm font-black text-[#102117] transition hover:border-[#139653] hover:text-[#0d6f3d]"
                 >
-                  View All Yesterday Results →
+                  View All Yesterday Results â†’
                 </Link>
               </div>
             </>
@@ -850,7 +850,7 @@ function FeaturedMatch({
                 fixture
               )
                 ? `${fixture.goals?.home ?? "-"} : ${fixture.goals?.away ?? "-"}`
-                : "—"}
+                : "â€”"}
             </p>
           </div>
 
@@ -970,7 +970,7 @@ function MatchCard({
         </span>
 
         <span className="text-sm font-black text-[#139653] transition group-hover:translate-x-1">
-          View →
+          View â†’
         </span>
       </div>
     </Link>
@@ -1252,8 +1252,8 @@ function YesterdayResultRow({
         >
           {item.result
             .correct
-            ? "✓ Correct"
-            : "✕ Incorrect"}
+            ? "âœ“ Correct"
+            : "âœ• Incorrect"}
         </span>
       </div>
 
@@ -1370,7 +1370,7 @@ function SectionHeader({
         }
         className="shrink-0 text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
       >
-        {actionLabel} →
+        {actionLabel} â†’
       </Link>
     </div>
   );

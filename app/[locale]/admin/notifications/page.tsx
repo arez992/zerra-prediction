@@ -1,9 +1,9 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 async function getNotifications() {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL || "https://zerraprediction.com";
 
     const res = await fetch(`${siteUrl}/api/admin/notifications`, {
       cache: "no-store",
@@ -26,7 +26,7 @@ export default async function AdminNotificationsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Notification Center</h1>

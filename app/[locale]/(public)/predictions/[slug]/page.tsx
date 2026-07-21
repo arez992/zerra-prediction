@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import type {
   Metadata,
@@ -143,7 +143,7 @@ function getSiteUrl(): string {
   return (
     process.env
       .NEXT_PUBLIC_SITE_URL ||
-    "https://zerra-prediction.vercel.app"
+    "https://zerraprediction.com"
   ).replace(
     /\/+$/,
     ""
@@ -938,7 +938,7 @@ export default async function PredictionDetailPage(
               getLocalizedText(
                 cleanLocale,
                 "Home",
-                "سەرەکی"
+                "ط³غ•ط±غ•ع©غŒ"
               ),
 
             item:
@@ -956,7 +956,7 @@ export default async function PredictionDetailPage(
               getLocalizedText(
                 cleanLocale,
                 "Predictions",
-                "پێشبینییەکان"
+                "ظ¾غژط´ط¨غŒظ†غŒغŒغ•ع©ط§ظ†"
               ),
 
             item:
@@ -1013,7 +1013,7 @@ export default async function PredictionDetailPage(
             {getLocalizedText(
               cleanLocale,
               "Home",
-              "سەرەکی"
+              "ط³غ•ط±غ•ع©غŒ"
             )}
           </Link>
 
@@ -1026,7 +1026,7 @@ export default async function PredictionDetailPage(
             {getLocalizedText(
               cleanLocale,
               "Predictions",
-              "پێشبینییەکان"
+              "ظ¾غژط´ط¨غŒظ†غŒغŒغ•ع©ط§ظ†"
             )}
           </Link>
 
@@ -1044,7 +1044,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Published Analysis",
-                  "شیکاری بڵاوکراوە"
+                  "ط´غŒع©ط§ط±غŒ ط¨عµط§ظˆع©ط±ط§ظˆغ•"
                 )}
               </Badge>
 
@@ -1070,12 +1070,12 @@ export default async function PredictionDetailPage(
               label={getLocalizedText(
                 cleanLocale,
                 "Public Analysis",
-                "شیکاری گشتی"
+                "ط´غŒع©ط§ط±غŒ ع¯ط´طھغŒ"
               )}
               title={getLocalizedText(
                 cleanLocale,
                 "Match Overview",
-                "کورتەی یاری"
+                "ع©ظˆط±طھغ•غŒ غŒط§ط±غŒ"
               )}
               content={
                 page
@@ -1111,7 +1111,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Key Insights",
-                  "تێبینییە سەرەکییەکان"
+                  "طھغژط¨غŒظ†غŒغŒغ• ط³غ•ط±غ•ع©غŒغŒغ•ع©ط§ظ†"
                 )}
               </p>
 
@@ -1129,7 +1129,7 @@ export default async function PredictionDetailPage(
                         className="flex gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
                       >
                         <span className="font-black text-[#D4AF37]">
-                          ✓
+                          âœ“
                         </span>
 
                         <p className="leading-7 text-white/65">
@@ -1149,7 +1149,7 @@ export default async function PredictionDetailPage(
               title={getLocalizedText(
                 cleanLocale,
                 "AI Public Insight",
-                "تێڕوانینی گشتی AI"
+                "طھغژع•ظˆط§ظ†غŒظ†غŒ ع¯ط´طھغŒ AI"
               )}
               content={
                 page
@@ -1170,7 +1170,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Frequently Asked Questions",
-                  "پرسیارە باوەکان"
+                  "ظ¾ط±ط³غŒط§ط±غ• ط¨ط§ظˆغ•ع©ط§ظ†"
                 )}
               </h2>
 
@@ -1200,14 +1200,14 @@ export default async function PredictionDetailPage(
 
           <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D4AF37]/35 bg-gradient-to-br from-[#1B2230] via-[#111B2B] to-[#0B1422] p-7 shadow-2xl md:p-9">
             <p className="text-xs font-black uppercase tracking-[0.32em] text-[#D4AF37]">
-              🔒 ZERRA VIP
+              ًں”’ ZERRA VIP
             </p>
 
             <h2 className="mt-4 text-3xl font-black">
               {getLocalizedText(
                 cleanLocale,
                 "Unlock the Final AI Prediction",
-                "پێشبینی کۆتایی AI بکەرەوە"
+                "ظ¾غژط´ط¨غŒظ†غŒ ع©غ†طھط§غŒغŒ AI ط¨ع©غ•ط±غ•ظˆغ•"
               )}
             </h2>
 
@@ -1215,7 +1215,7 @@ export default async function PredictionDetailPage(
               {getLocalizedText(
                 cleanLocale,
                 "The final prediction, exact confidence, exact-score estimate, best market, and full AI reasoning are protected and reserved for VIP members.",
-                "پێشبینی کۆتایی، ڕێژەی متمانە، ئەنجامی تەخمینکراو، باشترین بازاڕ و شیکاری تەواوی AI بۆ ئەندامانی VIP پارێزراون."
+                "ظ¾غژط´ط¨غŒظ†غŒ ع©غ†طھط§غŒغŒطŒ ع•غژعکغ•غŒ ظ…طھظ…ط§ظ†غ•طŒ ط¦غ•ظ†ط¬ط§ظ…غŒ طھغ•ط®ظ…غŒظ†ع©ط±ط§ظˆطŒ ط¨ط§ط´طھط±غŒظ† ط¨ط§ط²ط§ع• ظˆ ط´غŒع©ط§ط±غŒ طھغ•ظˆط§ظˆغŒ AI ط¨غ† ط¦غ•ظ†ط¯ط§ظ…ط§ظ†غŒ VIP ظ¾ط§ط±غژط²ط±ط§ظˆظ†."
               )}
             </p>
 
@@ -1226,7 +1226,7 @@ export default async function PredictionDetailPage(
               {getLocalizedText(
                 cleanLocale,
                 "Explore VIP",
-                "VIP ببینە"
+                "VIP ط¨ط¨غŒظ†غ•"
               )}
             </Link>
           </section>
@@ -1239,7 +1239,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Explore ZERRA",
-                  "بەشەکانی ZERRA"
+                  "ط¨غ•ط´غ•ع©ط§ظ†غŒ ZERRA"
                 )}
               </h2>
 

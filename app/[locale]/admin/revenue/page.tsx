@@ -1,9 +1,9 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 async function getRevenue() {
   try {
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://zerra-prediction.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL || "https://zerraprediction.com";
 
     const res = await fetch(`${siteUrl}/api/admin/revenue`, {
       cache: "no-store",
@@ -25,7 +25,7 @@ export default async function AdminRevenuePage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Revenue Dashboard</h1>

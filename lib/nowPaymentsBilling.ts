@@ -1,4 +1,4 @@
-import crypto from "crypto";
+﻿import crypto from "crypto";
 import { cookies } from "next/headers";
 
 import {
@@ -174,7 +174,7 @@ export async function createNowPaymentsInvoice(input: {
 
   const siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://zerra-prediction.vercel.app"
+    "https://zerraprediction.com"
   ).replace(/\/+$/, "");
 
   const response = await fetch(

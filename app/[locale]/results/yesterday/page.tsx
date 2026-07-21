@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 type YesterdayGoalResultItem = {
   id: string;
@@ -94,7 +94,7 @@ async function getYesterdayGoalResults(): Promise<
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const response =
       await fetch(
@@ -201,7 +201,7 @@ export default async function YesterdayResultsPage({
                 href={homeHref}
                 className="text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
               >
-                ← Back to Home
+                â†گ Back to Home
               </Link>
 
               <p className="mt-8 text-xs font-black uppercase tracking-[0.2em] text-[#139653]">
@@ -510,8 +510,8 @@ function ResultRow({
           }`}
         >
           {item.result.correct
-            ? "✓ Correct"
-            : "✕ Incorrect"}
+            ? "âœ“ Correct"
+            : "âœ• Incorrect"}
         </span>
       </div>
 

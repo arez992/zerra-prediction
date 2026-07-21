@@ -1,4 +1,4 @@
-import type { MetadataRoute } from "next";
+﻿import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 
 import { adminDb } from "@/lib/firebaseAdmin";
@@ -19,7 +19,7 @@ function getBaseUrl(): string {
     process.env.SITE_URL ||
     process.env.VERCEL_PROJECT_PRODUCTION_URL ||
     process.env.VERCEL_URL ||
-    "https://zerra-prediction.vercel.app";
+    "https://zerraprediction.com";
 
   const normalizedUrl = configuredUrl.startsWith("http")
     ? configuredUrl

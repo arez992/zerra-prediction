@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://zerra-prediction.vercel.app";
+  "https://zerraprediction.com";
 
 async function getCookieHeader() {
   const cookieStore = await cookies();
@@ -88,7 +88,7 @@ export default async function AdminAnalyticsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -505,7 +505,7 @@ function Plan({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

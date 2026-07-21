@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
 
@@ -104,7 +104,7 @@ async function getPublishedPredictions(): Promise<{
     const siteUrl =
       process.env
         .NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const response =
       await fetch(
@@ -435,7 +435,7 @@ function FeaturedPrediction({
             }
 
             {item.competition.round
-              ? ` · ${item.competition.round}`
+              ? ` آ· ${item.competition.round}`
               : ""}
           </p>
 
@@ -470,7 +470,7 @@ function FeaturedPrediction({
                       className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] px-4 py-3"
                     >
                       <span className="font-black text-[#139653]">
-                        ✓
+                        âœ“
                       </span>
 
                       <p className="text-sm leading-6 text-[#536158]">
@@ -667,7 +667,7 @@ function PredictionCard({
               .publicPrediction
               .riskScore !==
             null
-              ? `${item.publicPrediction.risk} · ${item.publicPrediction.riskScore}/100`
+              ? `${item.publicPrediction.risk} آ· ${item.publicPrediction.riskScore}/100`
               : item.publicPrediction.risk
           }
         />
@@ -728,7 +728,7 @@ function HeaderBadge({
 }) {
   return (
     <span className="rounded-full border border-[#dce8df] bg-[#fbfdfb] px-4 py-2 text-xs font-bold text-[#536158]">
-      ✓ {label}
+      âœ“ {label}
     </span>
   );
 }

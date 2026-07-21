@@ -1,10 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 async function getMarketInsights() {
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const res = await fetch(`${siteUrl}/api/admin/market-insights`, {
       cache: "no-store",
@@ -27,7 +27,7 @@ export default async function MarketInsightsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -239,7 +239,7 @@ export default async function MarketInsightsPage() {
       </section>
 
       <p className="mt-6 text-sm text-white/40">
-        Countries scanned: {insights?.scannedCountries ?? 0} · Last checked:{" "}
+        Countries scanned: {insights?.scannedCountries ?? 0} آ· Last checked:{" "}
         {formatDate(insights?.checkedAt)}
       </p>
     </main>
@@ -279,7 +279,7 @@ function InsightBox({
       {items?.length ? (
         <ul className="mt-4 space-y-3 text-sm leading-6 text-white/70">
           {items.map((item) => (
-            <li key={item}>✓ {item}</li>
+            <li key={item}>âœ“ {item}</li>
           ))}
         </ul>
       ) : (
@@ -336,7 +336,7 @@ function SourceCard({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

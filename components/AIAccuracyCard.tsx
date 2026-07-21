@@ -1,8 +1,8 @@
-async function getAccuracy() {
+﻿async function getAccuracy() {
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const res = await fetch(
       `${siteUrl}/api/ai/accuracy`,

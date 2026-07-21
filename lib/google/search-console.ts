@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+﻿import { google } from "googleapis";
 
 const serviceAccountEmail =
   process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -11,7 +11,7 @@ const serviceAccountPrivateKey =
 
 const defaultSiteUrl =
   process.env.SEARCH_CONSOLE_SITE_URL ||
-  "https://zerra-prediction.vercel.app/";
+  "https://zerraprediction.com/";
 
 function validateGoogleCredentials() {
   if (!serviceAccountEmail) {

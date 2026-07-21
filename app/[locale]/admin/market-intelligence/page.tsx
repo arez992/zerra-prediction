@@ -1,10 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 async function getMarketIntelligence() {
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const res = await fetch(`${siteUrl}/api/admin/market-intelligence`, {
       cache: "no-store",
@@ -27,7 +27,7 @@ export default async function MarketIntelligencePage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -226,7 +226,7 @@ function RecommendationBadge({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

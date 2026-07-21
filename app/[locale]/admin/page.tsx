@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 type AdminPageProps = {
   params: Promise<{
@@ -51,7 +51,7 @@ async function getAdminStats(): Promise<
   try {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://zerra-prediction.vercel.app";
+      "https://zerraprediction.com";
 
     const response =
       await fetch(
@@ -139,7 +139,7 @@ export default async function AdminPage({
           0,
 
         note:
-          "Today · UTC",
+          "Today آ· UTC",
 
         href:
           `${base}/predictions`,
@@ -155,7 +155,7 @@ export default async function AdminPage({
           0,
 
         note:
-          "Today · UTC",
+          "Today آ· UTC",
 
         href:
           `${base}/seo`,
@@ -178,7 +178,7 @@ export default async function AdminPage({
 
         value:
           stats?.todayViews ??
-          "—",
+          "â€”",
 
         note:
           stats?.todayViews ===
@@ -201,7 +201,7 @@ export default async function AdminPage({
 
         note:
           bestMarket
-            ? `${bestMarket.action} · Score ${bestMarket.score}`
+            ? `${bestMarket.action} آ· Score ${bestMarket.score}`
             : "Market intelligence",
 
         href:
@@ -525,7 +525,7 @@ function KPICard({
       {content}
 
       <p className="mt-4 text-[11px] font-black text-[#D4AF37] opacity-50 transition group-hover:opacity-100">
-        View →
+        View â†’
       </p>
     </Link>
   );
@@ -575,7 +575,7 @@ function ToolCard({
         </span>
 
         <span className="text-[#D4AF37] transition group-hover:translate-x-1">
-          →
+          â†’
         </span>
       </div>
     </Link>

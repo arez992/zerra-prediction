@@ -1,8 +1,8 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://zerra-prediction.vercel.app";
+  "https://zerraprediction.com";
 
 const exportsList = [
   {
@@ -26,7 +26,7 @@ export default function AdminExportPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        ← Back to Admin
+        â†گ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Export Center</h1>
