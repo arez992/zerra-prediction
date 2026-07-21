@@ -57,7 +57,8 @@ async function getAdminStats(): Promise<
       await fetch(
         `${siteUrl}/api/admin/stats`,
         {
-          cache: "no-store",
+          cache:
+            "no-store",
         }
       );
 
@@ -157,7 +158,7 @@ export default async function AdminPage({
           "Today · UTC",
 
         href:
-          `${base}/ai-ceo/seo-dashboard`,
+          `${base}/seo`,
       },
 
       {
@@ -260,13 +261,10 @@ export default async function AdminPage({
           "Learning & Calibration",
 
         description:
-          "Review ZAOS learning, settled prediction accuracy, calibration, confidence quality, and model performance.",
+          "Review prediction accuracy, ZAOS learning records, model calibration, and learning performance.",
 
         href:
-          `${base}/learning`,
-
-        badge:
-          "AI Learning",
+          `${base}/predictions`,
       },
 
       {
@@ -277,7 +275,7 @@ export default async function AdminPage({
           "Manage SEO recommendations, AI-generated drafts, human review, publishing, audits, and learning.",
 
         href:
-          `${base}/ai-ceo/seo-dashboard`,
+          `${base}/seo`,
       },
 
       {
