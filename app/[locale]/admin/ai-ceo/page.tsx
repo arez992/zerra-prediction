@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
 import CEODecisionCenter from "@/components/admin/ceo/CEODecisionCenter";
 import CEOHeader from "@/components/admin/ceo/CEOHeader";
@@ -10,11 +11,18 @@ import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
 import CEOShadowHistoryCard from "@/components/admin/ceo/CEOShadowHistoryCard";
 
-import {
-  useCEO,
-} from "@/hooks/useCEO";
+import { useCEO } from "@/hooks/useCEO";
 
 export default function AICEODashboardPage() {
+  const params = useParams<{
+    locale: string;
+  }>();
+
+  const locale =
+    params?.locale === "ku"
+      ? "ku"
+      : "en";
+
   const {
     recommendations,
     memory,
@@ -39,7 +47,7 @@ export default function AICEODashboardPage() {
         <header className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <div>
             <Link
-              href="/en/admin"
+              href={`/${locale}/admin`}
               className="text-sm font-black text-[#D4AF37]"
             >
               ← Back to Admin
@@ -179,44 +187,6 @@ export default function AICEODashboardPage() {
 
         <section className="mt-10">
           <CEOShadowHistoryCard />
-        </section>
-
-        <section className="mt-10 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-white/30">
-            Related Tools
-          </p>
-
-          <h2 className="mt-3 text-2xl font-black">
-            AI Operations
-          </h2>
-
-          <p className="mt-3 text-sm leading-6 text-white/40">
-            SEO, learning, calibration, and operational tools are managed in
-            dedicated workspaces from the Admin Dashboard.
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/en/admin/ai-ceo/seo-dashboard"
-              className="rounded-full border border-white/10 px-5 py-3 text-xs font-black text-white/60 transition hover:border-[#D4AF37]/35 hover:text-[#D4AF37]"
-            >
-              SEO Command
-            </Link>
-
-            <Link
-              href="/en/admin/predictions"
-              className="rounded-full border border-white/10 px-5 py-3 text-xs font-black text-white/60 transition hover:border-[#D4AF37]/35 hover:text-[#D4AF37]"
-            >
-              Prediction Learning
-            </Link>
-
-            <Link
-              href="/en/admin/health"
-              className="rounded-full border border-white/10 px-5 py-3 text-xs font-black text-white/60 transition hover:border-[#D4AF37]/35 hover:text-[#D4AF37]"
-            >
-              System Health
-            </Link>
-          </div>
         </section>
       </div>
     </main>
