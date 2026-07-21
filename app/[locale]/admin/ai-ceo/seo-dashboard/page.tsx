@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type DashboardStatus =
@@ -215,6 +216,18 @@ function SummaryCard({
 }
 
 export default function SEOQualityDashboardPage() {
+  const params = useParams<{
+    locale?: string;
+  }>();
+
+  const locale =
+    params?.locale === "ku"
+      ? "ku"
+      : "en";
+
+  const seoBase =
+    `/${locale}/admin/seo`;
+
   const [rows, setRows] = useState<DashboardRow[]>(
     []
   );
@@ -472,7 +485,7 @@ export default function SEOQualityDashboardPage() {
 
             <div className="flex flex-wrap gap-3">
               <Link
-                href="../seo-pages"
+                href={seoBase}
                 className="rounded-full border border-white/15 px-5 py-3 text-sm font-black text-white/75 transition hover:border-[#D4AF37]/45 hover:text-white"
               >
                 SEO Drafts
@@ -815,7 +828,7 @@ export default function SEOQualityDashboardPage() {
                         <td className="px-5 py-5">
                           <div className="flex min-w-[270px] flex-wrap gap-2">
                             <Link
-                              href={`../seo-pages/${encodeURIComponent(
+                              href={`${seoBase}/pages/${encodeURIComponent(
                                 row.id
                               )}/preview`}
                               className="rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white/75 transition hover:border-[#D4AF37]/45 hover:text-white"
@@ -824,7 +837,7 @@ export default function SEOQualityDashboardPage() {
                             </Link>
 
                             <Link
-                              href={`../seo-pages/${encodeURIComponent(
+                              href={`${seoBase}/pages/${encodeURIComponent(
                                 row.id
                               )}/edit`}
                               className="rounded-full border border-sky-400/30 px-3 py-2 text-xs font-black text-sky-300 transition hover:bg-sky-400/10"
@@ -1027,7 +1040,7 @@ export default function SEOQualityDashboardPage() {
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Link
-                          href={`../seo-pages/${encodeURIComponent(
+                          href={`${seoBase}/pages/${encodeURIComponent(
                             row.id
                           )}/preview`}
                           className="rounded-full border border-white/15 px-4 py-2 text-xs font-black text-white/75"
@@ -1036,7 +1049,7 @@ export default function SEOQualityDashboardPage() {
                         </Link>
 
                         <Link
-                          href={`../seo-pages/${encodeURIComponent(
+                          href={`${seoBase}/pages/${encodeURIComponent(
                             row.id
                           )}/edit`}
                           className="rounded-full border border-sky-400/30 px-4 py-2 text-xs font-black text-sky-300"
