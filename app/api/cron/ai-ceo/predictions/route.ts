@@ -15,6 +15,15 @@ import {
   getFixturesByDate,
 } from "@/lib/api-football/service";
 
+import {
+  claimPredictionQueueItem,
+  completePredictionQueueItem,
+  enqueuePredictionCandidates,
+  failPredictionQueueItem,
+  getPendingPredictionQueue,
+  getPredictionQueueStats,
+} from "@/lib/ai-ceo/prediction/queue";
+
 export const runtime =
   "nodejs";
 
@@ -24,24 +33,21 @@ export const dynamic =
 export const revalidate =
   0;
 
-/*
- * ZERRA AI CEO daily cheap-scan policy.
- *
- * Every pre-match fixture is scanned
- * using the same lightweight prediction
- * logic used by the Match Page.
- *
- * Only strong candidates continue into
- * persistence/publication.
- */
 const MIN_CONFIDENCE =
   65;
+
+const PROCESS_BATCH_SIZE =
+  25;
 
 const UPCOMING_STATUSES =
   new Set([
     "NS",
     "TBD",
   ]);
+
+type CronMode =
+  | "scan"
+  | "process";
 
 type FixtureLike = {
   fixture?: {
@@ -68,58 +74,6 @@ type FixtureLike = {
         string;
     };
   };
-};
-
-type CheapScanCandidate = {
-  fixture:
-    FixtureLike;
-
-  fixtureId:
-    string;
-
-  fixtureDate:
-    string | null;
-
-  homeTeam:
-    string;
-
-  awayTeam:
-    string;
-
-  confidence:
-    number;
-
-  risk:
-    string;
-
-  pick:
-    string;
-
-  qualified:
-    boolean;
-
-  consistencyValid:
-    boolean;
-};
-
-type CheapScanRejectedItem = {
-  fixtureId:
-    string;
-
-  homeTeam:
-    string;
-
-  awayTeam:
-    string;
-
-  confidence:
-    number | null;
-
-  risk:
-    string | null;
-
-  reason:
-    string;
 };
 
 function getTodayUTC(): string {
@@ -156,6 +110,16 @@ function normalizeDate(
   }
 
   return date;
+}
+
+function normalizeMode(
+  value:
+    string | null
+): CronMode {
+  return value ===
+    "process"
+    ? "process"
+    : "scan";
 }
 
 function normalizeFixtureId(
@@ -219,29 +183,6 @@ function isPreMatchFixture(
   );
 }
 
-function isAuthorized(
-  request:
-    NextRequest
-): boolean {
-  const cronSecret =
-    process.env
-      .CRON_SECRET;
-
-  if (
-    !cronSecret
-  ) {
-    return false;
-  }
-
-  const authorization =
-    request.headers.get(
-      "authorization"
-    );
-
-  return authorization ===
-    `Bearer ${cronSecret}`;
-}
-
 function getFixtureDate(
   fixture:
     FixtureLike
@@ -258,6 +199,696 @@ function getFixtureDate(
   )
     ? value.trim()
     : null;
+}
+
+function isAuthorized(
+  request:
+    NextRequest
+): boolean {
+  const secret =
+    process.env
+      .CRON_SECRET;
+
+  if (!secret) {
+    return false;
+  }
+
+  const authorization =
+    request.headers.get(
+      "authorization"
+    );
+
+  return authorization ===
+    `Bearer ${secret}`;
+}
+
+async function runScan(
+  date:
+    string
+) {
+  const fixtures =
+    await getFixturesByDate(
+      date
+    );
+
+  const preMatchFixtures =
+    (
+      fixtures as
+        FixtureLike[]
+    )
+      .filter(
+        (
+          fixture
+        ) => {
+          const fixtureId =
+            normalizeFixtureId(
+              fixture
+                .fixture
+                ?.id
+            );
+
+          const homeTeam =
+            normalizeText(
+              fixture
+                .teams
+                ?.home
+                ?.name
+            );
+
+          const awayTeam =
+            normalizeText(
+              fixture
+                .teams
+                ?.away
+                ?.name
+            );
+
+          return Boolean(
+            fixtureId &&
+            homeTeam &&
+            awayTeam &&
+            isPreMatchFixture(
+              fixture
+            )
+          );
+        }
+      );
+
+  const candidates:
+    Array<{
+      fixtureId:
+        string;
+
+      date:
+        string;
+
+      fixtureDate:
+        string | null;
+
+      homeTeam:
+        string;
+
+      awayTeam:
+        string;
+
+      confidence:
+        number;
+
+      risk:
+        string;
+
+      pick:
+        string;
+
+      qualified:
+        boolean;
+
+      consistencyValid:
+        boolean;
+    }> =
+    [];
+
+  const rejected:
+    Array<{
+      fixtureId:
+        string;
+
+      match:
+        string;
+
+      confidence:
+        number | null;
+
+      risk:
+        string | null;
+
+      reason:
+        string;
+    }> =
+    [];
+
+  let scanFailures =
+    0;
+
+  for (
+    const fixture
+    of preMatchFixtures
+  ) {
+    const fixtureId =
+      normalizeFixtureId(
+        fixture
+          .fixture
+          ?.id
+      );
+
+    const homeTeam =
+      normalizeText(
+        fixture
+          .teams
+          ?.home
+          ?.name
+      );
+
+    const awayTeam =
+      normalizeText(
+        fixture
+          .teams
+          ?.away
+          ?.name
+      );
+
+    try {
+      const prediction =
+        calculatePrediction(
+          fixture
+        );
+
+      const primary =
+        prediction
+          .vipPrediction
+          ?.primaryPrediction;
+
+      const confidence =
+        primary
+          ?.confidence ??
+        prediction
+          .confidence ??
+        0;
+
+      const risk =
+        prediction
+          .risk ??
+        prediction
+          .publicPrediction
+          ?.risk ??
+        "High";
+
+      const qualified =
+        primary
+          ?.qualified ===
+        true;
+
+      const consistencyValid =
+        prediction
+          .consistency
+          ?.valid ===
+        true;
+
+      const pick =
+        primary
+          ?.pick ??
+        prediction
+          .vipPrediction
+          ?.finalPrediction ??
+        "";
+
+      const confidencePassed =
+        confidence >=
+        MIN_CONFIDENCE;
+
+      const riskPassed =
+        risk === "Low" ||
+        risk === "Medium";
+
+      const predictionAvailable =
+        Boolean(
+          pick &&
+          pick
+            .trim()
+            .toLowerCase() !==
+            "no strong prediction" &&
+          pick
+            .trim()
+            .toLowerCase() !==
+            "insufficient data"
+        );
+
+      if (
+        confidencePassed &&
+        riskPassed &&
+        qualified &&
+        consistencyValid &&
+        predictionAvailable
+      ) {
+        candidates.push({
+          fixtureId,
+
+          date,
+
+          fixtureDate:
+            getFixtureDate(
+              fixture
+            ),
+
+          homeTeam,
+
+          awayTeam,
+
+          confidence,
+
+          risk,
+
+          pick,
+
+          qualified,
+
+          consistencyValid,
+        });
+
+        continue;
+      }
+
+      const reasons:
+        string[] =
+        [];
+
+      if (
+        !confidencePassed
+      ) {
+        reasons.push(
+          `confidence below ${MIN_CONFIDENCE}%`
+        );
+      }
+
+      if (
+        !riskPassed
+      ) {
+        reasons.push(
+          `risk is ${risk}`
+        );
+      }
+
+      if (
+        !qualified
+      ) {
+        reasons.push(
+          "primary prediction not qualified"
+        );
+      }
+
+      if (
+        !consistencyValid
+      ) {
+        reasons.push(
+          "consistency validation failed"
+        );
+      }
+
+      if (
+        !predictionAvailable
+      ) {
+        reasons.push(
+          "no usable canonical prediction"
+        );
+      }
+
+      rejected.push({
+        fixtureId,
+
+        match:
+          `${homeTeam} vs ${awayTeam}`,
+
+        confidence,
+
+        risk,
+
+        reason:
+          reasons.join(
+            "; "
+          ) ||
+          "Cheap scan rejected prediction.",
+      });
+    } catch (
+      error
+    ) {
+      scanFailures +=
+        1;
+
+      rejected.push({
+        fixtureId,
+
+        match:
+          `${homeTeam} vs ${awayTeam}`,
+
+        confidence:
+          null,
+
+        risk:
+          null,
+
+        reason:
+          error instanceof
+            Error
+            ? error.message
+            : "Cheap scan failed.",
+      });
+    }
+  }
+
+  candidates.sort(
+    (
+      first,
+      second
+    ) =>
+      second.confidence -
+      first.confidence
+  );
+
+  const queueResult =
+    await enqueuePredictionCandidates(
+      candidates
+    );
+
+  const queueStats =
+    await getPredictionQueueStats(
+      date
+    );
+
+  return {
+    mode:
+      "scan" as const,
+
+    fixturesFound:
+      fixtures.length,
+
+    preMatchFixtures:
+      preMatchFixtures.length,
+
+    strongCandidates:
+      candidates.length,
+
+    rejected:
+      rejected.length,
+
+    scanFailures,
+
+    queueResult,
+
+    queueStats,
+
+    candidates,
+
+    rejectedItems:
+      rejected,
+  };
+}
+
+async function runProcess(
+  date:
+    string
+) {
+  const pendingItems =
+    await getPendingPredictionQueue({
+      date,
+
+      limit:
+        PROCESS_BATCH_SIZE,
+    });
+
+  const results:
+    Array<{
+      queueId:
+        string;
+
+      fixtureId:
+        string;
+
+      match:
+        string;
+
+      status:
+        "completed" |
+        "failed" |
+        "skipped";
+
+      predictionId:
+        string | null;
+
+      finalStatus:
+        string | null;
+
+      publicationDecision:
+        string | null;
+
+      reason:
+        string;
+    }> =
+    [];
+
+  let completed =
+    0;
+
+  let failed =
+    0;
+
+  let skipped =
+    0;
+
+  for (
+    const queueItem
+    of pendingItems
+  ) {
+    const claimed =
+      await claimPredictionQueueItem(
+        queueItem.id
+      );
+
+    if (
+      !claimed
+    ) {
+      skipped +=
+        1;
+
+      results.push({
+        queueId:
+          queueItem.id,
+
+        fixtureId:
+          queueItem.fixtureId,
+
+        match:
+          `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
+
+        status:
+          "skipped",
+
+        predictionId:
+          null,
+
+        finalStatus:
+          null,
+
+        publicationDecision:
+          null,
+
+        reason:
+          "Queue item was already claimed or processed.",
+      });
+
+      continue;
+    }
+
+    try {
+      const summary =
+        await generatePredictionsForDate({
+          date,
+
+          fixtureId:
+            queueItem.fixtureId,
+
+          mode:
+            "basic",
+
+          limit:
+            1,
+
+          overwrite:
+            false,
+
+          performedBy:
+            "ai-ceo-autonomous-prediction-cron",
+        });
+
+      const item =
+        summary.items[0];
+
+      const predictionId =
+        item
+          ?.predictionId ??
+        null;
+
+      const finalStatus =
+        item
+          ?.finalStatus ??
+        null;
+
+      const publicationDecision =
+        item
+          ?.publicationDecision ??
+        null;
+
+      /*
+       * Existing predictions are valid
+       * completed queue work.
+       */
+      const completedSuccessfully =
+        Boolean(
+          summary.generatedPredictions >
+            0 ||
+          summary.existingPredictions >
+            0
+        );
+
+      if (
+        !completedSuccessfully
+      ) {
+        const failureReason =
+          item
+            ?.reason ||
+          "Prediction generator did not complete this queue item.";
+
+        await failPredictionQueueItem(
+          queueItem.id,
+          failureReason
+        );
+
+        failed +=
+          1;
+
+        results.push({
+          queueId:
+            queueItem.id,
+
+          fixtureId:
+            queueItem.fixtureId,
+
+          match:
+            `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
+
+          status:
+            "failed",
+
+          predictionId,
+
+          finalStatus,
+
+          publicationDecision,
+
+          reason:
+            failureReason,
+        });
+
+        continue;
+      }
+
+      await completePredictionQueueItem(
+        queueItem.id,
+        {
+          predictionId,
+
+          finalStatus,
+
+          publicationDecision,
+        }
+      );
+
+      completed +=
+        1;
+
+      results.push({
+        queueId:
+          queueItem.id,
+
+        fixtureId:
+          queueItem.fixtureId,
+
+        match:
+          `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
+
+        status:
+          "completed",
+
+        predictionId,
+
+        finalStatus,
+
+        publicationDecision,
+
+        reason:
+          item
+            ?.reason ||
+          "Prediction queue item completed.",
+      });
+    } catch (
+      error
+    ) {
+      const message =
+        error instanceof
+          Error
+          ? error.message
+          : "Prediction queue processing failed.";
+
+      await failPredictionQueueItem(
+        queueItem.id,
+        message
+      );
+
+      failed +=
+        1;
+
+      results.push({
+        queueId:
+          queueItem.id,
+
+        fixtureId:
+          queueItem.fixtureId,
+
+        match:
+          `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
+
+        status:
+          "failed",
+
+        predictionId:
+          null,
+
+        finalStatus:
+          null,
+
+        publicationDecision:
+          null,
+
+        reason:
+          message,
+      });
+    }
+  }
+
+  const queueStats =
+    await getPredictionQueueStats(
+      date
+    );
+
+  return {
+    mode:
+      "process" as const,
+
+    batchSize:
+      PROCESS_BATCH_SIZE,
+
+    pendingSelected:
+      pendingItems.length,
+
+    completed,
+
+    failed,
+
+    skipped,
+
+    queueStats,
+
+    results,
+  };
 }
 
 export async function GET(
@@ -300,596 +931,33 @@ export async function GET(
           )
       );
 
-    /*
-     * ------------------------------------------------
-     * STEP 1
-     * Fetch today's fixtures once.
-     * ------------------------------------------------
-     */
-    const fixtures =
-      await getFixturesByDate(
-        date
+    const mode =
+      normalizeMode(
+        request
+          .nextUrl
+          .searchParams
+          .get(
+            "mode"
+          )
       );
 
-    const preMatchFixtures =
-      (
-        fixtures as
-          FixtureLike[]
-      )
-        .filter(
-          (
-            fixture
-          ) => {
-            const fixtureId =
-              normalizeFixtureId(
-                fixture
-                  .fixture
-                  ?.id
-              );
-
-            const homeTeam =
-              normalizeText(
-                fixture
-                  .teams
-                  ?.home
-                  ?.name
-              );
-
-            const awayTeam =
-              normalizeText(
-                fixture
-                  .teams
-                  ?.away
-                  ?.name
-              );
-
-            return Boolean(
-              fixtureId &&
-              homeTeam &&
-              awayTeam &&
-              isPreMatchFixture(
-                fixture
-              )
-            );
-          }
-        );
-
-    /*
-     * ------------------------------------------------
-     * STEP 2
-     * Cheap-scan ALL pre-match fixtures.
-     *
-     * No expensive per-fixture enrichment is
-     * requested here.
-     * ------------------------------------------------
-     */
-    const candidates:
-      CheapScanCandidate[] =
-      [];
-
-    const rejected:
-      CheapScanRejectedItem[] =
-      [];
-
-    let scanFailures =
-      0;
-
-    for (
-      const fixture
-      of preMatchFixtures
-    ) {
-      const fixtureId =
-        normalizeFixtureId(
-          fixture
-            .fixture
-            ?.id
-        );
-
-      const homeTeam =
-        normalizeText(
-          fixture
-            .teams
-            ?.home
-            ?.name
-        );
-
-      const awayTeam =
-        normalizeText(
-          fixture
-            .teams
-            ?.away
-            ?.name
-        );
-
-      try {
-        /*
-         * Same lightweight canonical
-         * prediction logic used by the
-         * Match Page.
-         */
-        const prediction =
-          calculatePrediction(
-            fixture
+    const result =
+      mode ===
+        "process"
+        ? await runProcess(
+            date
+          )
+        : await runScan(
+            date
           );
 
-        const primary =
-          prediction
-            .vipPrediction
-            ?.primaryPrediction;
-
-        const confidence =
-          primary
-            ?.confidence ??
-          prediction
-            .confidence ??
-          0;
-
-        const risk =
-          prediction
-            .risk ??
-          prediction
-            .publicPrediction
-            ?.risk ??
-          "High";
-
-        const qualified =
-          primary
-            ?.qualified ===
-          true;
-
-        const consistencyValid =
-          prediction
-            .consistency
-            ?.valid ===
-          true;
-
-        const pick =
-          primary
-            ?.pick ??
-          prediction
-            .vipPrediction
-            ?.finalPrediction ??
-          "";
-
-        /*
-         * ZERRA cheap-scan candidate rules:
-         *
-         * - confidence >= 65
-         * - Low or Medium risk
-         * - canonical primary pick qualified
-         * - prediction consistency valid
-         * - usable prediction exists
-         */
-        const confidencePassed =
-          confidence >=
-          MIN_CONFIDENCE;
-
-        const riskPassed =
-          risk === "Low" ||
-          risk === "Medium";
-
-        const predictionAvailable =
-          Boolean(
-            pick &&
-            pick
-              .trim()
-              .toLowerCase() !==
-              "no strong prediction" &&
-            pick
-              .trim()
-              .toLowerCase() !==
-              "insufficient data"
-          );
-
-        if (
-          confidencePassed &&
-          riskPassed &&
-          qualified &&
-          consistencyValid &&
-          predictionAvailable
-        ) {
-          candidates.push({
-            fixture,
-
-            fixtureId,
-
-            fixtureDate:
-              getFixtureDate(
-                fixture
-              ),
-
-            homeTeam,
-
-            awayTeam,
-
-            confidence,
-
-            risk,
-
-            pick,
-
-            qualified,
-
-            consistencyValid,
-          });
-
-          continue;
-        }
-
-        const reasons:
-          string[] =
-          [];
-
-        if (
-          !confidencePassed
-        ) {
-          reasons.push(
-            `confidence below ${MIN_CONFIDENCE}%`
-          );
-        }
-
-        if (
-          !riskPassed
-        ) {
-          reasons.push(
-            `risk is ${risk}`
-          );
-        }
-
-        if (
-          !qualified
-        ) {
-          reasons.push(
-            "primary prediction not qualified"
-          );
-        }
-
-        if (
-          !consistencyValid
-        ) {
-          reasons.push(
-            "consistency validation failed"
-          );
-        }
-
-        if (
-          !predictionAvailable
-        ) {
-          reasons.push(
-            "no usable canonical prediction"
-          );
-        }
-
-        rejected.push({
-          fixtureId,
-
-          homeTeam,
-
-          awayTeam,
-
-          confidence,
-
-          risk,
-
-          reason:
-            reasons.join(
-              "; "
-            ) ||
-            "Cheap scan policy rejected prediction.",
-        });
-      } catch (
-        error
-      ) {
-        scanFailures +=
-          1;
-
-        rejected.push({
-          fixtureId,
-
-          homeTeam,
-
-          awayTeam,
-
-          confidence:
-            null,
-
-          risk:
-            null,
-
-          reason:
-            error instanceof
-              Error
-              ? error.message
-              : "Cheap prediction scan failed.",
-        });
-      }
-    }
-
-    /*
-     * Highest-confidence candidates first.
-     */
-    candidates.sort(
-      (
-        first,
-        second
-      ) =>
-        second.confidence -
-        first.confidence
-    );
-
-    /*
-     * ------------------------------------------------
-     * STEP 3
-     * Persist/evaluate every strong candidate.
-     *
-     * We intentionally use BASIC mode here.
-     *
-     * This avoids expensive per-match team
-     * enrichment for every selected fixture.
-     *
-     * The generator still applies:
-     *
-     * - publication policy
-     * - learning policy
-     * - consistency
-     * - Firestore persistence
-     * - audit logs
-     * - duplicate protection
-     *
-     * The newly approved insufficient-data
-     * policy allows strong Low/Medium-risk
-     * predictions with >=65% confidence to
-     * continue even with partial data.
-     * ------------------------------------------------
-     */
-    const generationResults:
-      Array<{
-        fixtureId:
-          string;
-
-        homeTeam:
-          string;
-
-        awayTeam:
-          string;
-
-        cheapScanConfidence:
-          number;
-
-        cheapScanRisk:
-          string;
-
-        cheapScanPick:
-          string;
-
-        generated:
-          number;
-
-        autoPublished:
-          number;
-
-        review:
-          number;
-
-        withheld:
-          number;
-
-        existing:
-          number;
-
-        failed:
-          number;
-
-        finalStatus:
-          string | null;
-
-        publicationDecision:
-          string | null;
-      }> =
-      [];
-
-    let generatedPredictions =
-      0;
-
-    let autoPublishedPredictions =
-      0;
-
-    let reviewPredictions =
-      0;
-
-    let withheldPredictions =
-      0;
-
-    let existingPredictions =
-      0;
-
-    let failedPredictions =
-      0;
-
-    for (
-      const candidate
-      of candidates
-    ) {
-      try {
-        const summary =
-          await generatePredictionsForDate({
-            date,
-
-            fixtureId:
-              candidate.fixtureId,
-
-            mode:
-              "basic",
-
-            limit:
-              1,
-
-            overwrite:
-              false,
-
-            performedBy:
-              "ai-ceo-autonomous-prediction-cron",
-          });
-
-        generatedPredictions +=
-          summary
-            .generatedPredictions;
-
-        autoPublishedPredictions +=
-          summary
-            .autoPublishedPredictions;
-
-        reviewPredictions +=
-          summary
-            .reviewPredictions;
-
-        withheldPredictions +=
-          summary
-            .withheldPredictions;
-
-        existingPredictions +=
-          summary
-            .existingPredictions;
-
-        failedPredictions +=
-          summary
-            .failedPredictions;
-
-        const item =
-          summary.items[0];
-
-        generationResults.push({
-          fixtureId:
-            candidate.fixtureId,
-
-          homeTeam:
-            candidate.homeTeam,
-
-          awayTeam:
-            candidate.awayTeam,
-
-          cheapScanConfidence:
-            candidate.confidence,
-
-          cheapScanRisk:
-            candidate.risk,
-
-          cheapScanPick:
-            candidate.pick,
-
-          generated:
-            summary
-              .generatedPredictions,
-
-          autoPublished:
-            summary
-              .autoPublishedPredictions,
-
-          review:
-            summary
-              .reviewPredictions,
-
-          withheld:
-            summary
-              .withheldPredictions,
-
-          existing:
-            summary
-              .existingPredictions,
-
-          failed:
-            summary
-              .failedPredictions,
-
-          finalStatus:
-            item
-              ?.finalStatus ??
-            null,
-
-          publicationDecision:
-            item
-              ?.publicationDecision ??
-            null,
-        });
-      } catch (
-        error
-      ) {
-        failedPredictions +=
-          1;
-
-        generationResults.push({
-          fixtureId:
-            candidate.fixtureId,
-
-          homeTeam:
-            candidate.homeTeam,
-
-          awayTeam:
-            candidate.awayTeam,
-
-          cheapScanConfidence:
-            candidate.confidence,
-
-          cheapScanRisk:
-            candidate.risk,
-
-          cheapScanPick:
-            candidate.pick,
-
-          generated:
-            0,
-
-          autoPublished:
-            0,
-
-          review:
-            0,
-
-          withheld:
-            0,
-
-          existing:
-            0,
-
-          failed:
-            1,
-
-          finalStatus:
-            null,
-
-          publicationDecision:
-            null,
-        });
-
-        console.error(
-          "[AI_CEO_CHEAP_SCAN_CANDIDATE_ERROR]",
-          {
-            fixtureId:
-              candidate.fixtureId,
-
-            error:
-              error instanceof
-                Error
-                ? error.message
-                : error,
-          }
-        );
-      }
-    }
-
-    /*
-     * ------------------------------------------------
-     * STEP 4
-     * Return a transparent operational summary.
-     * ------------------------------------------------
-     */
     return NextResponse.json(
       {
         success:
           true,
 
         source:
-          "ai-ceo-autonomous-cheap-scan-cron",
+          "ai-ceo-prediction-queue-cron",
 
         autonomous:
           true,
@@ -901,9 +969,6 @@ export async function GET(
         date,
 
         policy: {
-          scan:
-            "all-pre-match-fixtures",
-
           minimumConfidence:
             MIN_CONFIDENCE,
 
@@ -918,85 +983,17 @@ export async function GET(
           consistencyRequired:
             true,
 
-          generationMode:
-            "basic",
-
-          expensiveEnrichmentForAllMatches:
-            false,
+          processBatchSize:
+            PROCESS_BATCH_SIZE,
 
           insufficientDataAloneHardReject:
             false,
 
           overwriteExistingPredictions:
             false,
-
-          autoPublish:
-            true,
         },
 
-        summary: {
-          fixturesFound:
-            fixtures.length,
-
-          preMatchFixtures:
-            preMatchFixtures.length,
-
-          fixturesScanned:
-            preMatchFixtures.length,
-
-          strongCandidates:
-            candidates.length,
-
-          cheapScanRejected:
-            rejected.length,
-
-          scanFailures,
-
-          generatedPredictions,
-
-          autoPublishedPredictions,
-
-          reviewPredictions,
-
-          withheldPredictions,
-
-          existingPredictions,
-
-          failedPredictions,
-        },
-
-        candidates:
-          candidates.map(
-            (
-              candidate
-            ) => ({
-              fixtureId:
-                candidate.fixtureId,
-
-              match:
-                `${candidate.homeTeam} vs ${candidate.awayTeam}`,
-
-              confidence:
-                candidate.confidence,
-
-              risk:
-                candidate.risk,
-
-              pick:
-                candidate.pick,
-
-              qualified:
-                candidate.qualified,
-
-              consistencyValid:
-                candidate
-                  .consistencyValid,
-            })
-          ),
-
-        generationResults,
-
-        rejected,
+        result,
       },
       {
         status:
@@ -1012,7 +1009,7 @@ export async function GET(
     error
   ) {
     console.error(
-      "[AI_CEO_AUTONOMOUS_PREDICTION_CRON_ERROR]",
+      "[AI_CEO_PREDICTION_QUEUE_CRON_ERROR]",
       error
     );
 
@@ -1020,7 +1017,7 @@ export async function GET(
       error instanceof
         Error
         ? error.message
-        : "AI CEO autonomous prediction generation failed.";
+        : "AI CEO prediction queue cron failed.";
 
     return NextResponse.json(
       {
@@ -1028,7 +1025,7 @@ export async function GET(
           false,
 
         source:
-          "ai-ceo-autonomous-cheap-scan-cron",
+          "ai-ceo-prediction-queue-cron",
 
         error:
           message,
