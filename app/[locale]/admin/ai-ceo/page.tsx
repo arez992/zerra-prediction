@@ -9,188 +9,234 @@ import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList"
 import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
 import CEOShadowHistoryCard from "@/components/admin/ceo/CEOShadowHistoryCard";
-import SEODirectorCard from "@/components/admin/ceo/SEODirectorCard";
-import SEOPageDraftsCard from "@/components/admin/ceo/SEOPageDraftsCard";
-import SEOAuditLogCard from "@/components/admin/ceo/SEOAuditLogCard";
-import LearningDashboard from "@/components/admin/learning/LearningDashboard";
-import LearningHistory from "@/components/admin/learning/LearningHistory";
-import SEOQualityDashboardEntry from "@/components/admin/seo/SEOQualityDashboardEntry";
 
-import { useCEO } from "@/hooks/useCEO";
+import {
+  useCEO,
+} from "@/hooks/useCEO";
 
 export default function AICEODashboardPage() {
   const {
     recommendations,
     memory,
     tasks,
-    seoReport,
-    seoDrafts,
     stats,
     loading,
     generating,
-    seoLoading,
-    seoGenerating,
-    draftsLoading,
-    draftCreating,
     activeActionId,
     error,
     message,
     checkedAt,
     loadCEOData,
-    loadSEOData,
-    loadSEODrafts,
     generateRecommendations,
-    generateSEO,
-    createDraft,
     approve,
     reject,
     execute,
   } = useCEO();
 
   return (
-    <main className="mx-auto max-w-7xl px-5 py-12 text-white">
-      <Link
-        href="/en/admin"
-        className="text-sm font-bold text-[#D4AF37]"
-      >
-        ← Back to Admin
-      </Link>
-
-      <section className="mt-8">
-        <CEODecisionCenter />
-      </section>
-
-      <section className="mt-12">
-        <CEOShadowHistoryCard />
-      </section>
-
-      <section className="mt-12">
-        <LearningDashboard />
-      </section>
-
-      <section className="mt-12">
-        <LearningHistory />
-      </section>
-
-      <section className="mt-12">
-        <SEOQualityDashboardEntry />
-      </section>
-
-      <div className="mt-12">
-        <CEOHeader
-          loading={loading}
-          generating={generating}
-          onRefresh={() => void loadCEOData()}
-          onGenerate={() =>
-            void generateRecommendations()
-          }
-        />
-      </div>
-
-      {error && (
-        <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      {message && (
-        <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-300">
-          {message}
-        </div>
-      )}
-
-      <div className="mt-8">
-        <CEOStats stats={stats} />
-      </div>
-
-      <section className="mt-12">
-        <SEODirectorCard
-          report={seoReport}
-          loading={seoLoading}
-          generating={seoGenerating}
-          onRefresh={() => void loadSEOData()}
-          onGenerate={() => void generateSEO()}
-        />
-      </section>
-
-      <section className="mt-12">
-        <SEOPageDraftsCard
-          drafts={seoDrafts}
-          loading={draftsLoading}
-          creating={draftCreating}
-          onRefresh={() =>
-            void loadSEODrafts()
-          }
-          onCreate={(input) =>
-            createDraft(input)
-          }
-        />
-      </section>
-
-      <section className="mt-12">
-        <SEOAuditLogCard
-          pageSize={10}
-          showActivityLink
-        />
-      </section>
-
-      <section className="mt-12">
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <main className="px-5 py-8 text-white md:px-8 md:py-10">
+      <div className="mx-auto max-w-[1500px]">
+        <header className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-              Executive Inbox
+            <Link
+              href="/en/admin"
+              className="text-sm font-black text-[#D4AF37]"
+            >
+              ← Back to Admin
+            </Link>
+
+            <p className="mt-8 text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+              Executive Intelligence
             </p>
 
-            <h2 className="mt-3 text-3xl font-black">
-              CEO Recommendations
-            </h2>
+            <h1 className="mt-3 text-3xl font-black md:text-5xl">
+              AI CEO Command Center
+            </h1>
+
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-white/50 md:text-base">
+              Central executive workspace for ZERRA AI CEO decisions,
+              recommendations, memory, tasks, performance, and strategic
+              activity.
+            </p>
           </div>
 
-          <p className="text-sm text-white/40">
-            Last checked:{" "}
-            {formatDate(checkedAt)}
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-xs font-black text-emerald-300">
+            ● AI CEO Active
+          </div>
+        </header>
+
+        {error && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-300">
+            {message}
+          </div>
+        )}
+
+        <section className="mt-8">
+          <CEOHeader
+            loading={loading}
+            generating={generating}
+            onRefresh={() =>
+              void loadCEOData()
+            }
+            onGenerate={() =>
+              void generateRecommendations()
+            }
+          />
+        </section>
+
+        <section className="mt-8">
+          <CEOStats
+            stats={stats}
+          />
+        </section>
+
+        <section className="mt-10">
+          <CEODecisionCenter />
+        </section>
+
+        <section className="mt-10">
+          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
+                Executive Inbox
+              </p>
+
+              <h2 className="mt-3 text-3xl font-black">
+                CEO Recommendations
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/40">
+                Review strategic recommendations generated by the AI CEO and
+                approve, reject, or execute them.
+              </p>
+            </div>
+
+            <p className="text-sm text-white/40">
+              Last checked:{" "}
+              {formatDate(
+                checkedAt
+              )}
+            </p>
+          </div>
+
+          <CEORecommendationList
+            recommendations={
+              recommendations
+            }
+            loading={
+              loading
+            }
+            activeActionId={
+              activeActionId
+            }
+            onApprove={(id) =>
+              void approve(
+                id
+              )
+            }
+            onReject={(
+              id,
+              reason
+            ) =>
+              void reject(
+                id,
+                reason
+              )
+            }
+            onExecute={(id) =>
+              void execute(
+                id
+              )
+            }
+          />
+        </section>
+
+        <section className="mt-10 grid gap-6 xl:grid-cols-2">
+          <CEOMemoryCard
+            memories={
+              memory
+            }
+            loading={
+              loading
+            }
+          />
+
+          <CEOTaskCard
+            tasks={
+              tasks
+            }
+            loading={
+              loading
+            }
+          />
+        </section>
+
+        <section className="mt-10">
+          <CEOShadowHistoryCard />
+        </section>
+
+        <section className="mt-10 rounded-[2rem] border border-white/10 bg-[#101827] p-6 md:p-8">
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-white/30">
+            Related Tools
           </p>
-        </div>
 
-        <CEORecommendationList
-          recommendations={recommendations}
-          loading={loading}
-          activeActionId={activeActionId}
-          onApprove={(id) =>
-            void approve(id)
-          }
-          onReject={(id, reason) =>
-            void reject(id, reason)
-          }
-          onExecute={(id) =>
-            void execute(id)
-          }
-        />
-      </section>
+          <h2 className="mt-3 text-2xl font-black">
+            AI Operations
+          </h2>
 
-      <section className="mt-12 grid gap-6 xl:grid-cols-2">
-        <CEOMemoryCard
-          memories={memory}
-          loading={loading}
-        />
+          <p className="mt-3 text-sm leading-6 text-white/40">
+            SEO, learning, calibration, and operational tools are managed in
+            dedicated workspaces from the Admin Dashboard.
+          </p>
 
-        <CEOTaskCard
-          tasks={tasks}
-          loading={loading}
-        />
-      </section>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/en/admin/ai-ceo/seo-dashboard"
+              className="rounded-full border border-white/10 px-5 py-3 text-xs font-black text-white/60 transition hover:border-[#D4AF37]/35 hover:text-[#D4AF37]"
+            >
+              SEO Command
+            </Link>
+
+            <Link
+              href="/en/admin/predictions"
+              className="rounded-full border border-white/10 px-5 py-3 text-xs font-black text-white/60 transition hover:border-[#D4AF37]/35 hover:text-[#D4AF37]"
+            >
+              Prediction Learning
+            </Link>
+
+            <Link
+              href="/en/admin/health"
+              className="rounded-full border border-white/10 px-5 py-3 text-xs font-black text-white/60 transition hover:border-[#D4AF37]/35 hover:text-[#D4AF37]"
+            >
+              System Health
+            </Link>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
 
 function formatDate(
-  value?: string | null
+  value?:
+    string | null
 ) {
-  if (!value) {
+  if (
+    !value
+  ) {
     return "—";
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(
+      value
+    );
 
   if (
     Number.isNaN(
@@ -203,8 +249,11 @@ function formatDate(
   return date.toLocaleString(
     "en",
     {
-      dateStyle: "medium",
-      timeStyle: "short",
+      dateStyle:
+        "medium",
+
+      timeStyle:
+        "short",
     }
   );
 }
