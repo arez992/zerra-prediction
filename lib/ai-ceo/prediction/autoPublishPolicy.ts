@@ -8,136 +8,101 @@ export type PredictionAutoPublishDecision =
   | "withhold";
 
 export type PredictionAutoPublishPolicyInput = {
-  confidence:
-    number | null;
+  confidence: number | null;
 
-  primaryQualified:
-    boolean | null;
+  risk:
+    | "Low"
+    | "Medium"
+    | "High"
+    | null;
 
-  consistencyValid:
-    boolean | null;
+  primaryQualified: boolean | null;
 
-  generationAllowed:
-    boolean;
+  consistencyValid: boolean | null;
 
-  qualityGatePassed:
-    boolean;
+  generationAllowed: boolean;
 
-  preMatchStatusVerified:
-    boolean;
+  qualityGatePassed: boolean;
 
-  finalPrediction:
-    string | null;
+  preMatchStatusVerified: boolean;
 
-  /*
-   * Optional ZAOS learning context.
-   *
-   * The base prediction policy remains
-   * deterministic and synchronous.
-   *
-   * The caller may load historical
-   * calibration separately and pass the
-   * resulting decision context here.
-   */
+  finalPrediction: string | null;
+
   learningPolicy?:
-    PredictionLearningPolicyContext |
-    null;
+    | PredictionLearningPolicyContext
+    | null;
 };
 
 export type PredictionAutoPublishPolicyResult = {
-  decision:
-    PredictionAutoPublishDecision;
+  decision: PredictionAutoPublishDecision;
 
-  approvedAutomatically:
-    boolean;
+  approvedAutomatically: boolean;
 
-  publishAutomatically:
-    boolean;
+  publishAutomatically: boolean;
 
-  reason:
-    string;
+  reason: string;
 
   checks: {
-    confidencePassed:
-      boolean;
+    confidencePassed: boolean;
 
-    qualificationPassed:
-      boolean;
+    riskPassed: boolean;
 
-    consistencyPassed:
-      boolean;
+    qualificationPassed: boolean;
 
-    generationPassed:
-      boolean;
+    consistencyPassed: boolean;
 
-    qualityGatePassed:
-      boolean;
+    generationPassed: boolean;
 
-    preMatchPassed:
-      boolean;
+    qualityGatePassed: boolean;
 
-    predictionAvailable:
-      boolean;
+    preMatchPassed: boolean;
 
-    learningAllowsAutoPublish:
-      boolean;
+    predictionAvailable: boolean;
+
+    learningAllowsAutoPublish: boolean;
   };
 
   thresholds: {
-    baseAutoPublishConfidence:
-      number;
+    baseAutoPublishConfidence: number;
 
-    effectiveAutoPublishConfidence:
-      number;
+    effectiveAutoPublishConfidence: number;
 
-    reviewMinimumConfidence:
-      number;
+    reviewMinimumConfidence: number;
 
-    learningConfidenceIncrease:
-      number;
+    learningConfidenceIncrease: number;
   };
 
   learning: {
-    applied:
-      boolean;
+    applied: boolean;
 
     decision:
-      PredictionLearningPolicyContext["decision"] |
-      null;
+      | PredictionLearningPolicyContext["decision"]
+      | null;
 
-    reason:
-      string | null;
+    reason: string | null;
 
-    sampleSize:
-      number | null;
+    sampleSize: number | null;
 
-    autoPublishAllowed:
-      boolean;
+    autoPublishAllowed: boolean;
 
-    confidencePenalty:
-      number;
+    confidencePenalty: number;
 
-    minimumConfidenceIncrease:
-      number;
+    minimumConfidenceIncrease: number;
   };
 };
 
 const AUTO_PUBLISH_CONFIDENCE =
-  75;
+  65;
 
 const REVIEW_MIN_CONFIDENCE =
   65;
 
 function normalizeConfidence(
-  value:
-    unknown
+  value: unknown
 ): number | null {
   if (
-    typeof value !==
-      "number" ||
-    !Number.isFinite(
-      value
-    )
+    typeof value !== "number" ||
+    !Number.isFinite(value)
   ) {
     return null;
   }
@@ -152,8 +117,7 @@ function normalizeConfidence(
 }
 
 function hasUsablePrediction(
-  value:
-    string | null
+  value: string | null
 ): boolean {
   if (!value) {
     return false;
@@ -169,99 +133,68 @@ function hasUsablePrediction(
     "insufficient data",
     "no strong prediction",
     "no value",
-  ].includes(
-    normalized
-  );
+  ].includes(normalized);
 }
 
 function getLearningConfiguration(
   learningPolicy:
-    PredictionLearningPolicyContext |
-    null |
-    undefined
+    | PredictionLearningPolicyContext
+    | null
+    | undefined
 ) {
-  /*
-   * No learning context:
-   * preserve the original policy.
-   */
   if (!learningPolicy) {
     return {
-      applied:
-        false,
+      applied: false,
 
-      decision:
-        null,
+      decision: null,
 
-      reason:
-        null,
+      reason: null,
 
-      sampleSize:
-        null,
+      sampleSize: null,
 
-      autoPublishAllowed:
-        true,
+      autoPublishAllowed: true,
 
-      confidencePenalty:
-        0,
+      confidencePenalty: 0,
 
-      minimumConfidenceIncrease:
-        0,
+      minimumConfidenceIncrease: 0,
     };
   }
 
-  /*
-   * Insufficient historical data must
-   * never tighten production behavior.
-   *
-   * Learning is visible for auditability,
-   * but the original thresholds remain.
-   */
   if (
     learningPolicy.decision ===
     "insufficient-data"
   ) {
     return {
-      applied:
-        true,
+      applied: true,
 
       decision:
-        learningPolicy
-          .decision,
+        learningPolicy.decision,
 
       reason:
-        learningPolicy
-          .reason,
+        learningPolicy.reason,
 
       sampleSize:
-        learningPolicy
-          .sampleSize,
+        learningPolicy.sampleSize,
 
-      autoPublishAllowed:
-        true,
+      autoPublishAllowed: true,
 
-      confidencePenalty:
-        0,
+      confidencePenalty: 0,
 
-      minimumConfidenceIncrease:
-        0,
+      minimumConfidenceIncrease: 0,
     };
   }
 
   return {
-    applied:
-      true,
+    applied: true,
 
     decision:
-      learningPolicy
-        .decision,
+      learningPolicy.decision,
 
     reason:
-      learningPolicy
-        .reason,
+      learningPolicy.reason,
 
     sampleSize:
-      learningPolicy
-        .sampleSize,
+      learningPolicy.sampleSize,
 
     autoPublishAllowed:
       learningPolicy
@@ -281,8 +214,7 @@ function getLearningConfiguration(
 }
 
 export function evaluatePredictionAutoPublishPolicy(
-  input:
-    PredictionAutoPublishPolicyInput
+  input: PredictionAutoPublishPolicyInput
 ): PredictionAutoPublishPolicyResult {
   const confidence =
     normalizeConfidence(
@@ -294,35 +226,22 @@ export function evaluatePredictionAutoPublishPolicy(
       input.learningPolicy
     );
 
-  /*
-   * Historical calibration may raise
-   * the auto-publish threshold.
-   *
-   * Example:
-   *
-   * normal:
-   * 75%
-   *
-   * caution:
-   * 80%
-   *
-   * restriction:
-   * auto-publish disabled completely.
-   */
   const effectiveAutoPublishConfidence =
     Math.min(
       100,
-
       AUTO_PUBLISH_CONFIDENCE +
         learning
           .minimumConfidenceIncrease
     );
 
   const confidencePassed =
-    confidence !==
-      null &&
+    confidence !== null &&
     confidence >=
       effectiveAutoPublishConfidence;
+
+  const riskPassed =
+    input.risk === "Low" ||
+    input.risk === "Medium";
 
   const qualificationPassed =
     input.primaryQualified ===
@@ -332,6 +251,15 @@ export function evaluatePredictionAutoPublishPolicy(
     input.consistencyValid ===
     true;
 
+  /*
+   * These remain recorded for diagnostics
+   * and auditability.
+   *
+   * They are no longer hard publication
+   * blockers by themselves because
+   * insufficient data alone should not
+   * reject an otherwise strong prediction.
+   */
   const generationPassed =
     input.generationAllowed ===
     true;
@@ -355,6 +283,8 @@ export function evaluatePredictionAutoPublishPolicy(
 
   const checks = {
     confidencePassed,
+
+    riskPassed,
 
     qualificationPassed,
 
@@ -399,37 +329,42 @@ export function evaluatePredictionAutoPublishPolicy(
       learning.sampleSize,
 
     autoPublishAllowed:
-      learning
-        .autoPublishAllowed,
+      learning.autoPublishAllowed,
 
     confidencePenalty:
-      learning
-        .confidencePenalty,
+      learning.confidencePenalty,
 
     minimumConfidenceIncrease:
-      learning
-        .minimumConfidenceIncrease,
+      learning.minimumConfidenceIncrease,
   };
 
+  /*
+   * ZERRA hard safety policy.
+   *
+   * Auto-publish requires:
+   *
+   * - confidence >= effective threshold
+   * - Low or Medium risk
+   * - qualified canonical prediction
+   * - valid consistency
+   * - verified pre-match fixture
+   * - usable canonical prediction
+   *
+   * generationAllowed and
+   * qualityGatePassed remain visible
+   * for audit/diagnostics but are
+   * advisory when the only problem is
+   * insufficient supporting data.
+   */
   const hardSafetyPassed =
+    riskPassed &&
     qualificationPassed &&
     consistencyPassed &&
-    generationPassed &&
-    qualityGatePassed &&
     preMatchPassed &&
     predictionAvailable;
 
   /*
    * AUTO-PUBLISH
-   *
-   * Every core safeguard must pass.
-   *
-   * Historical calibration must also
-   * explicitly allow autonomous
-   * publication.
-   *
-   * A caution policy may increase the
-   * required confidence threshold.
    */
   if (
     hardSafetyPassed &&
@@ -440,6 +375,12 @@ export function evaluatePredictionAutoPublishPolicy(
       learning.applied &&
       learning.reason
         ? ` Learning context: ${learning.reason}`
+        : "";
+
+    const dataNote =
+      !generationPassed ||
+      !qualityGatePassed
+        ? " Supporting data was incomplete, but insufficient data alone is advisory under the current ZERRA publication policy."
         : "";
 
     return {
@@ -453,7 +394,7 @@ export function evaluatePredictionAutoPublishPolicy(
         true,
 
       reason:
-        `AI CEO auto-publish approved because all safeguards passed and confidence was ${confidence}%, meeting the effective ${effectiveAutoPublishConfidence}% threshold.${learningReason}`,
+        `AI CEO auto-publish approved: confidence ${confidence}%, risk ${input.risk}, qualified canonical prediction, valid consistency, and verified pre-match status.${dataNote}${learningReason}`,
 
       checks,
 
@@ -466,20 +407,11 @@ export function evaluatePredictionAutoPublishPolicy(
 
   /*
    * LEARNING RESTRICTION
-   *
-   * The prediction itself may be strong,
-   * but sufficiently large historical
-   * calibration evidence has disabled
-   * autonomous publication.
-   *
-   * Keep the prediction available for
-   * review instead of withholding it.
    */
   if (
     hardSafetyPassed &&
     !learningAllowsAutoPublish &&
-    confidence !==
-      null &&
+    confidence !== null &&
     confidence >=
       REVIEW_MIN_CONFIDENCE
   ) {
@@ -494,7 +426,10 @@ export function evaluatePredictionAutoPublishPolicy(
         false,
 
       reason:
-        `Prediction passed core safety checks with ${confidence}% confidence, but AI CEO learning policy restricted automatic publishing. ${learning.reason || "Historical calibration requires manual review."}`,
+        `Prediction passed core safety checks with ${confidence}% confidence and ${input.risk} risk, but AI CEO learning policy restricted automatic publishing. ${
+          learning.reason ||
+          "Historical calibration requires manual review."
+        }`,
 
       checks,
 
@@ -508,18 +443,13 @@ export function evaluatePredictionAutoPublishPolicy(
   /*
    * REVIEW
    *
-   * Safety passed, but confidence is
-   * below the effective autonomous
-   * publication threshold.
-   *
-   * This includes learning-policy caution
-   * where the normal 75% threshold may
-   * have been increased.
+   * This normally matters when learning
+   * increases the effective threshold
+   * above the 65% base threshold.
    */
   if (
     hardSafetyPassed &&
-    confidence !==
-      null &&
+    confidence !== null &&
     confidence >=
       REVIEW_MIN_CONFIDENCE
   ) {
@@ -540,7 +470,7 @@ export function evaluatePredictionAutoPublishPolicy(
         false,
 
       reason:
-        `Prediction passed safety checks but confidence was ${confidence}%, below the effective ${effectiveAutoPublishConfidence}% auto-publish threshold.${learningReason}`,
+        `Prediction passed core safety checks but confidence was ${confidence}%, below the effective ${effectiveAutoPublishConfidence}% auto-publish threshold.${learningReason}`,
 
       checks,
 
@@ -553,10 +483,6 @@ export function evaluatePredictionAutoPublishPolicy(
 
   /*
    * WITHHOLD
-   *
-   * A core prediction-safety condition
-   * failed or confidence did not reach
-   * the minimum review threshold.
    */
   return {
     decision:
@@ -572,10 +498,13 @@ export function evaluatePredictionAutoPublishPolicy(
       [
         "Prediction withheld by AI CEO policy.",
 
-        confidence ===
-        null
+        confidence === null
           ? "Confidence unavailable."
           : `Confidence: ${confidence}%.`,
+
+        riskPassed
+          ? null
+          : "Risk must be Low or Medium.",
 
         qualificationPassed
           ? null
@@ -585,14 +514,6 @@ export function evaluatePredictionAutoPublishPolicy(
           ? null
           : "Prediction consistency validation did not pass.",
 
-        generationPassed
-          ? null
-          : "Generation decision was not allowed.",
-
-        qualityGatePassed
-          ? null
-          : "Data-quality gate did not pass.",
-
         preMatchPassed
           ? null
           : "Fixture was not verified as pre-match.",
@@ -601,12 +522,12 @@ export function evaluatePredictionAutoPublishPolicy(
           ? null
           : "No usable canonical prediction was available.",
 
-        hardSafetyPassed &&
-        confidence !==
-          null &&
-        confidence <
-          REVIEW_MIN_CONFIDENCE
-          ? `Confidence was below the ${REVIEW_MIN_CONFIDENCE}% minimum review threshold.`
+        !generationPassed
+          ? "Generation/data gate reported insufficient data; this is advisory and was not the sole withholding reason."
+          : null,
+
+        !qualityGatePassed
+          ? "Data-quality gate did not pass; this is advisory and was not the sole withholding reason."
           : null,
 
         learning.applied &&
@@ -614,12 +535,8 @@ export function evaluatePredictionAutoPublishPolicy(
           ? `Learning context: ${learning.reason}`
           : null,
       ]
-        .filter(
-          Boolean
-        )
-        .join(
-          " "
-        ),
+        .filter(Boolean)
+        .join(" "),
 
     checks,
 

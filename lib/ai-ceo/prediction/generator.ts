@@ -1523,9 +1523,35 @@ export async function generatePredictionsForDate(
           .model
           .version;
 
+      /*
+       * IMPORTANT:
+       *
+       * Normal hard generation failures remain
+       * blocked.
+       *
+       * But for AI CEO autonomous generation,
+       * "insufficient-data" alone is allowed to
+       * continue into the publication policy.
+       *
+       * The publication policy will then decide
+       * based on:
+       *
+       * - confidence
+       * - risk
+       * - qualification
+       * - consistency
+       * - pre-match status
+       * - learning policy
+       */
       if (
         !generationDecision
-          .allowed
+          .allowed &&
+        !(
+          aiCEOAutonomous &&
+          generationDecision
+            .status ===
+            "insufficient-data"
+        )
       ) {
         if (
           generationDecision
@@ -1655,6 +1681,14 @@ export async function generatePredictionsForDate(
               .confidence ??
             null,
 
+          risk:
+            prediction
+              .risk ??
+            prediction
+              .publicPrediction
+              ?.risk ??
+            null,
+
           primaryQualified:
             primaryPrediction
               ?.qualified ??
@@ -1672,6 +1706,8 @@ export async function generatePredictionsForDate(
             true,
 
           qualityGatePassed:
+            generationDecision
+              .allowed ===
             true,
 
           preMatchStatusVerified:
@@ -1776,7 +1812,11 @@ export async function generatePredictionsForDate(
               .enriched,
 
           generationStatus:
-            "withheld",
+            generationDecision
+              .status ===
+              "insufficient-data"
+              ? "insufficient-data"
+              : "withheld",
 
           publicationDecision:
             "withhold",
@@ -1823,6 +1863,18 @@ export async function generatePredictionsForDate(
         primaryMarketCategory,
 
         dataDiagnostics,
+
+        generationDecisionStatus:
+          generationDecision.status,
+
+        generationAllowed:
+          generationDecision.allowed,
+
+        insufficientDataOverride:
+          aiCEOAutonomous &&
+          generationDecision
+            .status ===
+            "insufficient-data",
 
         evaluatedAt:
           now,
@@ -1994,8 +2046,20 @@ export async function generatePredictionsForDate(
           generatedForDate:
             date,
 
+          /*
+           * Keep the real engine decision
+           * visible for auditability.
+           */
           qualityGatePassed:
+            generationDecision
+              .allowed ===
             true,
+
+          insufficientDataOverride:
+            aiCEOAutonomous &&
+            generationDecision
+              .status ===
+              "insufficient-data",
 
           preMatchStatusVerified:
             true,
@@ -2120,6 +2184,12 @@ export async function generatePredictionsForDate(
 
           finalStatus,
 
+          insufficientDataOverride:
+            aiCEOAutonomous &&
+            generationDecision
+              .status ===
+              "insufficient-data",
+
           dataDiagnostics,
 
           createdAt:
@@ -2178,6 +2248,14 @@ export async function generatePredictionsForDate(
               .confidence ??
             null,
 
+          risk:
+            prediction
+              .risk ??
+            prediction
+              .publicPrediction
+              ?.risk ??
+            null,
+
           primaryPrediction:
             primaryPrediction ??
             null,
@@ -2186,6 +2264,20 @@ export async function generatePredictionsForDate(
             prediction
               .consistency ??
             null,
+
+          generationDecisionStatus:
+            generationDecision
+              .status,
+
+          generationAllowed:
+            generationDecision
+              .allowed,
+
+          insufficientDataOverride:
+            aiCEOAutonomous &&
+            generationDecision
+              .status ===
+              "insufficient-data",
 
           dataDiagnostics,
 
@@ -2217,7 +2309,11 @@ export async function generatePredictionsForDate(
             ? publicationPolicy
                 .decision ===
               "auto-publish"
-              ? "Prediction generated and published automatically by AI CEO."
+              ? generationDecision
+                  .status ===
+                "insufficient-data"
+                ? "Prediction generated and published automatically by AI CEO under the 65% Low/Medium risk insufficient-data override policy."
+                : "Prediction generated and published automatically by AI CEO."
               : "Prediction generated successfully and sent to the review queue."
             : "Prediction generated successfully.",
 
@@ -2229,7 +2325,11 @@ export async function generatePredictionsForDate(
             .enriched,
 
         generationStatus:
-          "allowed",
+          generationDecision
+            .status ===
+            "insufficient-data"
+            ? "insufficient-data"
+            : "allowed",
 
         publicationDecision,
 

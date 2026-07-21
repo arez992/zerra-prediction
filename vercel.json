@@ -9,12 +9,12 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/ai-ceo/seo?limit=2&language=en",
+      "path": "/api/cron/ai-ceo/seo?limit=15&language=en",
       "schedule": "30 6 * * *"
     },
     {
       "path": "/api/cron/ai-ceo/seo-learning?limit=25&measurementWindowDays=14",
-      "schedule": "0 7 * * *"
+      "schedule": "15 7 * * *"
     }
   ]
 }

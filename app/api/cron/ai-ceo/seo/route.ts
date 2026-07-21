@@ -33,11 +33,35 @@ export const dynamic =
 export const revalidate =
   0;
 
+/*
+ * ZERRA SEO Growth Policy
+ *
+ * Default:
+ * 15 new SEO pages per autonomous run.
+ *
+ * Maximum:
+ * 25 pages per run.
+ *
+ * This keeps growth aggressive while
+ * preserving a hard operational ceiling.
+ */
 const DEFAULT_LIMIT =
-  2;
+  15;
 
 const MAX_LIMIT =
-  5;
+  25;
+
+/*
+ * Fetch a substantially larger candidate
+ * pool than the generation limit because
+ * some published predictions may already
+ * have SEO pages.
+ */
+const MIN_CANDIDATE_POOL =
+  100;
+
+const CANDIDATE_MULTIPLIER =
+  8;
 
 type PredictionCandidate = {
   id:
@@ -53,6 +77,12 @@ type PredictionCandidate = {
     string;
 
   country:
+    string | null;
+
+  publishedAt:
+    string | null;
+
+  updatedAt:
     string | null;
 };
 
@@ -110,6 +140,13 @@ function normalizeLimit(
   value:
     string | null
 ): number {
+  if (
+    !value ||
+    !value.trim()
+  ) {
+    return DEFAULT_LIMIT;
+  }
+
   const parsed =
     Number(
       value
@@ -157,6 +194,17 @@ function serializeDate(
   }
 
   if (
+    value instanceof
+    Date
+  ) {
+    return Number.isNaN(
+      value.getTime()
+    )
+      ? null
+      : value.toISOString();
+  }
+
+  if (
     value &&
     typeof value ===
       "object" &&
@@ -169,25 +217,69 @@ function serializeDate(
     ).toDate ===
       "function"
   ) {
-    return (
-      value as {
-        toDate:
-          () => Date;
-      }
-    )
-      .toDate()
-      .toISOString();
+    try {
+      const converted =
+        (
+          value as {
+            toDate:
+              () => Date;
+          }
+        ).toDate();
+
+      return Number.isNaN(
+        converted.getTime()
+      )
+        ? null
+        : converted
+            .toISOString();
+    } catch {
+      return null;
+    }
   }
 
   return null;
 }
 
+function getTimestamp(
+  value:
+    string | null
+): number {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp =
+    new Date(
+      value
+    ).getTime();
+
+  return Number.isNaN(
+    timestamp
+  )
+    ? 0
+    : timestamp;
+}
+
+/*
+ * Get published prediction candidates.
+ *
+ * Newer published predictions receive
+ * priority so today's/latest prediction
+ * inventory becomes SEO content first.
+ */
 async function getPredictionCandidates(
   limit:
     number
 ): Promise<
   PredictionCandidate[]
 > {
+  const candidatePoolSize =
+    Math.max(
+      MIN_CANDIDATE_POOL,
+      limit *
+        CANDIDATE_MULTIPLIER
+    );
+
   const snapshot =
     await adminDb
       .collection(
@@ -199,10 +291,7 @@ async function getPredictionCandidates(
         "published"
       )
       .limit(
-        Math.max(
-          20,
-          limit * 5
-        )
+        candidatePoolSize
       )
       .get();
 
@@ -265,13 +354,62 @@ async function getPredictionCandidates(
             ?.country
         ) ||
         null,
+
+      publishedAt:
+        serializeDate(
+          data.publishedAt
+        ),
+
+      updatedAt:
+        serializeDate(
+          data.updatedAt
+        ),
     });
   }
 
-  return candidates.slice(
-    0,
-    limit * 3
+  /*
+   * Latest published/updated predictions
+   * should receive SEO priority.
+   */
+  candidates.sort(
+    (
+      first,
+      second
+    ) => {
+      const firstTime =
+        Math.max(
+          getTimestamp(
+            first.publishedAt
+          ),
+          getTimestamp(
+            first.updatedAt
+          ),
+          getTimestamp(
+            first.fixtureDate
+          )
+        );
+
+      const secondTime =
+        Math.max(
+          getTimestamp(
+            second.publishedAt
+          ),
+          getTimestamp(
+            second.updatedAt
+          ),
+          getTimestamp(
+            second.fixtureDate
+          )
+        );
+
+      return (
+        secondTime -
+        firstTime
+      );
+    }
   );
+
+  return candidates;
 }
 
 export async function GET(
@@ -326,9 +464,13 @@ export async function GET(
         ? "ku"
         : "en";
 
+    /*
+     * Load existing SEO inventory once
+     * before generation.
+     */
     const existingDraftsRaw =
       await listSEOPageDrafts(
-        200
+        1000
       );
 
     const existingDrafts =
@@ -385,6 +527,13 @@ export async function GET(
     let failedCount =
       0;
 
+    /*
+     * Process candidates until the requested
+     * number of NEW SEO drafts is generated.
+     *
+     * Existing fixtures do not consume the
+     * generation quota.
+     */
     for (
       const candidate
       of candidates
@@ -427,13 +576,17 @@ export async function GET(
             null,
 
           reason:
-            "An SEO draft already exists for this fixture and language.",
+            "An SEO page already exists for this fixture and language.",
         });
 
         continue;
       }
 
       try {
+        /*
+         * Create the SEO draft from the
+         * published prediction.
+         */
         const draft =
           await createSEOPageDraft({
             keyword:
@@ -460,13 +613,22 @@ export async function GET(
         generatedCount +=
           1;
 
+        /*
+         * Immediately protect against another
+         * duplicate during this same cron run.
+         */
         existingFixtureKeys.add(
           fixtureKey
         );
 
+        /*
+         * Keep the current draft inventory
+         * available to the SEO quality and
+         * duplicate policy.
+         */
         const latestDraftsRaw =
           await listSEOPageDrafts(
-            200
+            1000
           );
 
         const latestDrafts =
@@ -477,12 +639,29 @@ export async function GET(
           draft as unknown as
             SEOPageDraftItem;
 
+        /*
+         * Existing ZERRA SEO policy remains
+         * responsible for:
+         *
+         * - content quality
+         * - duplicate validation
+         * - internal links
+         * - schema
+         * - publication eligibility
+         */
         const policy =
           evaluateSEOAutoPublishPolicy(
             currentDraft,
             latestDrafts
           );
 
+        /*
+         * Apply autonomous lifecycle:
+         *
+         * auto-publish
+         * review
+         * withhold
+         */
         const lifecycle =
           await applySEOAutonomousLifecycle({
             draftId:
@@ -542,6 +721,10 @@ export async function GET(
             ? error.message
             : "AI CEO autonomous SEO generation failed.";
 
+        /*
+         * Duplicate creation should not fail
+         * the complete autonomous batch.
+         */
         if (
           message
             .toLowerCase()
@@ -551,6 +734,10 @@ export async function GET(
         ) {
           skippedCount +=
             1;
+
+          existingFixtureKeys.add(
+            fixtureKey
+          );
 
           items.push({
             fixtureId:
@@ -578,6 +765,11 @@ export async function GET(
           continue;
         }
 
+        /*
+         * A failure for one page must never
+         * stop generation for the remaining
+         * published predictions.
+         */
         failedCount +=
           1;
 
@@ -586,6 +778,9 @@ export async function GET(
           {
             fixtureId:
               candidate.fixtureId,
+
+            keyword:
+              candidate.keyword,
 
             error:
               message,
@@ -623,7 +818,7 @@ export async function GET(
           true,
 
         source:
-          "ai-ceo-autonomous-seo-cron",
+          "ai-ceo-autonomous-seo-growth-cron",
 
         autonomous:
           true,
@@ -636,13 +831,25 @@ export async function GET(
           cronAuthenticated:
             true,
 
+          defaultBatchSize:
+            DEFAULT_LIMIT,
+
           maximumBatchSize:
             MAX_LIMIT,
+
+          candidatePoolMinimum:
+            MIN_CANDIDATE_POOL,
 
           source:
             "published-predictions",
 
+          latestPublishedPriority:
+            true,
+
           duplicateValidation:
+            true,
+
+          duplicateDoesNotConsumeQuota:
             true,
 
           contentQualityValidation:
@@ -655,6 +862,9 @@ export async function GET(
             true,
 
           autonomousLifecycle:
+            true,
+
+          isolatedItemFailures:
             true,
         },
 
@@ -684,6 +894,14 @@ export async function GET(
 
           failedPages:
             failedCount,
+
+          remainingCandidateCapacity:
+            Math.max(
+              0,
+              candidates.length -
+              generatedCount -
+              skippedCount
+            ),
 
           items,
         },
@@ -718,7 +936,7 @@ export async function GET(
           false,
 
         source:
-          "ai-ceo-autonomous-seo-cron",
+          "ai-ceo-autonomous-seo-growth-cron",
 
         error:
           message,
