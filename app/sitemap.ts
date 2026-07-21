@@ -21,9 +21,10 @@ function getBaseUrl(): string {
     process.env.VERCEL_URL ||
     "https://zerraprediction.com";
 
-  const normalizedUrl = configuredUrl.startsWith("http")
-    ? configuredUrl
-    : `https://${configuredUrl}`;
+  const normalizedUrl =
+    configuredUrl.startsWith("http")
+      ? configuredUrl
+      : `https://${configuredUrl}`;
 
   return normalizedUrl.replace(/\/+$/, "");
 }
@@ -35,8 +36,7 @@ function normalizeCanonicalPath(
     return null;
   }
 
-  const trimmedValue =
-    value.trim();
+  const trimmedValue = value.trim();
 
   if (!trimmedValue) {
     return null;
@@ -44,17 +44,10 @@ function normalizeCanonicalPath(
 
   try {
     if (
-      trimmedValue.startsWith(
-        "http://"
-      ) ||
-      trimmedValue.startsWith(
-        "https://"
-      )
+      trimmedValue.startsWith("http://") ||
+      trimmedValue.startsWith("https://")
     ) {
-      const parsedUrl =
-        new URL(
-          trimmedValue
-        );
+      const parsedUrl = new URL(trimmedValue);
 
       return `${parsedUrl.pathname}${parsedUrl.search}`;
     }
@@ -62,9 +55,7 @@ function normalizeCanonicalPath(
     return null;
   }
 
-  return trimmedValue.startsWith(
-    "/"
-  )
+  return trimmedValue.startsWith("/")
     ? trimmedValue
     : `/${trimmedValue}`;
 }
@@ -86,12 +77,11 @@ function serializeDate(
       }
     ).toDate === "function"
   ) {
-    const convertedDate =
-      (
-        value as {
-          toDate: () => Date;
-        }
-      ).toDate();
+    const convertedDate = (
+      value as {
+        toDate: () => Date;
+      }
+    ).toDate();
 
     return Number.isNaN(
       convertedDate.getTime()
@@ -100,11 +90,8 @@ function serializeDate(
       : convertedDate;
   }
 
-  if (
-    typeof value === "string"
-  ) {
-    const parsedDate =
-      new Date(value);
+  if (typeof value === "string") {
+    const parsedDate = new Date(value);
 
     return Number.isNaN(
       parsedDate.getTime()
@@ -121,9 +108,7 @@ const getPublishedSeoPages =
     async () => {
       const snapshot =
         await adminDb
-          .collection(
-            "seoPageDrafts"
-          )
+          .collection("seoPageDrafts")
           .where(
             "status",
             "==",
@@ -148,60 +133,34 @@ const getPublishedSeoPages =
   );
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl =
-    getBaseUrl();
+  const baseUrl = getBaseUrl();
 
-  const generatedAt =
-    new Date();
+  const generatedAt = new Date();
 
   const staticEntries: MetadataRoute.Sitemap =
     [
       {
         url: baseUrl,
-        lastModified:
-          generatedAt,
-        changeFrequency:
-          "daily",
+        lastModified: generatedAt,
+        changeFrequency: "daily",
         priority: 1,
       },
       {
         url: `${baseUrl}/en`,
-        lastModified:
-          generatedAt,
-        changeFrequency:
-          "daily",
+        lastModified: generatedAt,
+        changeFrequency: "daily",
         priority: 1,
       },
       {
         url: `${baseUrl}/en/predictions`,
-        lastModified:
-          generatedAt,
-        changeFrequency:
-          "hourly",
+        lastModified: generatedAt,
+        changeFrequency: "hourly",
         priority: 0.9,
       },
       {
-        url: `${baseUrl}/en/football-predictions`,
-        lastModified:
-          generatedAt,
-        changeFrequency:
-          "daily",
-        priority: 0.8,
-      },
-      {
-        url: `${baseUrl}/en/ai-accuracy`,
-        lastModified:
-          generatedAt,
-        changeFrequency:
-          "weekly",
-        priority: 0.7,
-      },
-      {
         url: `${baseUrl}/en/vip`,
-        lastModified:
-          generatedAt,
-        changeFrequency:
-          "weekly",
+        lastModified: generatedAt,
+        changeFrequency: "weekly",
         priority: 0.7,
       },
     ];
@@ -221,9 +180,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
               data.canonicalPath
             );
 
-          if (
-            !canonicalPath
-          ) {
+          if (!canonicalPath) {
             console.warn(
               `[SITEMAP] Skipping published SEO page without a valid canonicalPath: ${id}`
             );
