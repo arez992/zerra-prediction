@@ -57,8 +57,7 @@ async function getAdminStats(): Promise<
       await fetch(
         `${siteUrl}/api/admin/stats`,
         {
-          cache:
-            "no-store",
+          cache: "no-store",
         }
       );
 
@@ -261,10 +260,13 @@ export default async function AdminPage({
           "Learning & Calibration",
 
         description:
-          "Review prediction accuracy, ZAOS learning records, model calibration, and learning performance.",
+          "Review ZAOS learning, settled prediction accuracy, calibration, confidence quality, and model performance.",
 
         href:
-          `${base}/predictions`,
+          `${base}/learning`,
+
+        badge:
+          "AI Learning",
       },
 
       {
