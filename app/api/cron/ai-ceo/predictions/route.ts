@@ -4,16 +4,21 @@ import {
 } from "next/server";
 
 import {
-  calculatePrediction,
-} from "@/lib/ai/prediction";
+  runPredictionEngine,
+} from "@/lib/ai/engine";
 
 import {
   generatePredictionsForDate,
 } from "@/lib/ai-ceo/prediction/generator";
 
 import {
+  enrichExistingFixtureForPrediction,
   getFixturesByDate,
 } from "@/lib/api-football/service";
+
+import {
+  toPredictionPipelineInput,
+} from "@/lib/api-football/mapper";
 
 import {
   claimPredictionQueueItem,
@@ -414,14 +419,46 @@ async function runScan(
 
     try {
       /*
-       * Use the same canonical lightweight
-       * prediction calculation available
-       * to the Match Page.
+       * Cached-enriched bulk scan.
+       *
+       * The fixture itself is already available from
+       * getFixturesByDate(), so it is not refetched.
+       *
+       * Only recent completed team fixtures are added.
+       * ZERRA derives local team profiles from them and
+       * then runs the normal prediction engine.
        */
-      const prediction =
-        calculatePrediction(
-          fixture
+      const enriched =
+        await enrichExistingFixtureForPrediction(
+          fixture as any,
+          {
+            recentFixtureLimit:
+              8,
+          }
         );
+
+      const engineResult =
+        await runPredictionEngine({
+          ...toPredictionPipelineInput(
+            enriched
+          ),
+
+          source:
+            "ai-ceo-cached-enriched-scan",
+        });
+
+      if (
+        !engineResult.success
+      ) {
+        throw new Error(
+          engineResult.error
+        );
+      }
+
+      const prediction =
+        engineResult
+          .data
+          .prediction;
 
       const primary =
         prediction
@@ -1168,6 +1205,18 @@ export async function GET(
             PROCESS_BATCH_SIZE,
 
           insufficientDataAloneHardReject:
+            false,
+
+          scanDataMode:
+            "cached-enriched-recent-form",
+
+          fixtureRefetchPerMatch:
+            false,
+
+          seasonStatisticsInBulkScan:
+            false,
+
+          openAIRequiredForBulkPrediction:
             false,
 
           overwriteExistingPredictions:

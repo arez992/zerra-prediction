@@ -982,6 +982,7 @@ async function fetchTeamEnrichment(
   input: {
     fixture: APIFootballFixture;
     recentFixtureLimit: number;
+    includeSeasonStatistics?: boolean;
   }
 ) {
   const fixture =
@@ -1086,6 +1087,8 @@ async function fetchTeamEnrichment(
     );
 
   const canFetchSeasonStatistics =
+    input.includeSeasonStatistics !==
+      false &&
     Boolean(
       leagueId &&
       season
@@ -1378,6 +1381,9 @@ export async function getCompleteFixtureData(
           recentFixtureLimit:
             normalizedOptions
               .recentFixtureLimit,
+
+          includeSeasonStatistics:
+            true,
         })
       : {
           recentFixtures: {
@@ -1421,6 +1427,127 @@ export async function getCompleteFixtureData(
       expiresAt:
         Date.now() +
         cacheTtl,
+    }
+  );
+
+  return complete;
+}
+
+/*
+ * ZERRA bulk prediction enrichment.
+ *
+ * Uses the fixture already returned by getFixturesByDate(),
+ * so fixtureById() is not called again.
+ *
+ * Cost controls:
+ * - no H2H
+ * - no injuries
+ * - no odds
+ * - no fixture statistics/events/lineups for upcoming matches
+ * - no team-season statistics calls in bulk scan
+ * - recent completed fixtures are converted into local team profiles
+ */
+export async function enrichExistingFixtureForPrediction(
+  fixture:
+    APIFootballFixture,
+  options?: {
+    recentFixtureLimit?: number;
+  }
+): Promise<
+  CompleteFixtureData
+> {
+  const fixtureId =
+    normalizeFixtureId(
+      fixture.fixture?.id ??
+      ""
+    );
+
+  const recentFixtureLimit =
+    normalizePositiveInteger(
+      options?.recentFixtureLimit,
+      8,
+      20
+    );
+
+  const cacheKey =
+    JSON.stringify({
+      fixtureId,
+      mode:
+        "bulk-prediction",
+      recentFixtureLimit,
+    });
+
+  const cached =
+    teamEnrichmentCache.get(
+      cacheKey
+    );
+
+  if (
+    cached &&
+    cached.expiresAt >
+      Date.now()
+  ) {
+    return cached.data;
+  }
+
+  const enrichment =
+    await fetchTeamEnrichment({
+      fixture,
+
+      recentFixtureLimit,
+
+      /*
+       * Keep bulk prediction cheap.
+       * Recent completed fixtures provide the
+       * statistical profile through the local
+       * buildStatisticsFromRecentFixtures() fallback.
+       */
+      includeSeasonStatistics:
+        false,
+    });
+
+  const complete =
+    mapCompleteFixtureData({
+      fixtureId,
+
+      fixture,
+
+      statistics:
+        [],
+
+      events:
+        [],
+
+      lineups:
+        [],
+
+      headToHead:
+        [],
+
+      injuries:
+        [],
+
+      odds:
+        [],
+
+      recentFixtures:
+        enrichment
+          .recentFixtures,
+
+      teamSeasonStatistics:
+        enrichment
+          .teamSeasonStatistics,
+    });
+
+  teamEnrichmentCache.set(
+    cacheKey,
+    {
+      data:
+        complete,
+
+      expiresAt:
+        Date.now() +
+        TEAM_ENRICHMENT_CACHE_TTL_MS,
     }
   );
 
