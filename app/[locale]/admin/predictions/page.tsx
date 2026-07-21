@@ -11,7 +11,6 @@ import {
 
 import PredictionActions from "@/components/admin/PredictionActions";
 import PredictionGenerator from "@/components/admin/PredictionGenerator";
-import PredictionCalibrationDashboard from "@/components/admin/PredictionCalibrationDashboard";
 
 type PredictionItem = {
   id: string;
@@ -235,17 +234,17 @@ export default function AdminPredictionsPage() {
               </Link>
 
               <p className="mt-6 text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-                Phase 4 · Prediction Governance
+                Prediction Operations
               </p>
 
               <h1 className="mt-3 text-4xl font-black md:text-6xl">
-                Prediction Review
+                Prediction Operations
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-7 text-white/55 md:text-base">
-                Review public and VIP prediction layers,
-                verify data quality, approve editorially,
-                publish safely, and track final results.
+                Generate, review, approve, publish, reject,
+                and track prediction results from one
+                operational workspace.
               </p>
             </div>
 
@@ -270,7 +269,6 @@ export default function AdminPredictionsPage() {
           }
         />
 
-        <PredictionCalibrationDashboard />
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard
