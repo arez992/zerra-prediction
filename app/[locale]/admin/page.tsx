@@ -264,7 +264,7 @@ export default async function AdminPage({
           "Review prediction accuracy, ZAOS learning records, model calibration, and learning performance.",
 
         href:
-          `${base}/predictions`,
+          `${base}/learning`,
       },
 
       {
