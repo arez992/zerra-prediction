@@ -411,13 +411,13 @@ export default function SEOPageDraftsCard({
         <div className="mt-8 grid gap-5">
           {drafts.map((draft) => {
             const previewHref =
-              `/${locale}/admin/ai-ceo/seo-pages/` +
+              `/${locale}/admin/seo/pages/` +
               `${encodeURIComponent(
                 draft.id
               )}/preview`;
 
             const editHref =
-              `/${locale}/admin/ai-ceo/seo-pages/` +
+              `/${locale}/admin/seo/pages/` +
               `${encodeURIComponent(
                 draft.id
               )}/edit`;
