@@ -206,6 +206,9 @@ export type PredictionGenerationSummary = {
   mode:
     PredictionGenerationMode;
 
+  requestedFixtureId:
+    string | null;
+
   fixturesFound:
     number;
 
@@ -1091,6 +1094,9 @@ export async function generatePredictionsForDate(
     date:
       string;
 
+    fixtureId?:
+      string | number;
+
     limit?:
       number;
 
@@ -1121,6 +1127,29 @@ export async function generatePredictionsForDate(
       options.mode
     );
 
+  const rawFixtureId =
+    options.fixtureId;
+
+  const requestedFixtureId =
+    normalizeFixtureId(
+      rawFixtureId
+    );
+
+  if (
+    rawFixtureId !==
+      undefined &&
+    rawFixtureId !==
+      null &&
+    String(
+      rawFixtureId
+    ).trim() &&
+    !requestedFixtureId
+  ) {
+    throw new Error(
+      "Fixture ID must contain digits only."
+    );
+  }
+
   const performedBy =
     options.performedBy ||
     "prediction-generation-scheduler";
@@ -1135,18 +1164,38 @@ export async function generatePredictionsForDate(
       date
     );
 
-  const eligibleFixtures =
+  const allEligibleFixtures =
     (
       fixtures as
         FixtureLike[]
     )
       .filter(
         isEligibleFixture
-      )
-      .slice(
-        0,
-        limit
       );
+
+  const eligibleFixtures =
+    requestedFixtureId
+      ? allEligibleFixtures
+          .filter(
+            (
+              fixture
+            ) =>
+              normalizeFixtureId(
+                fixture
+                  .fixture
+                  ?.id
+              ) ===
+              requestedFixtureId
+          )
+          .slice(
+            0,
+            1
+          )
+      : allEligibleFixtures
+          .slice(
+            0,
+            limit
+          );
 
   const items:
     PredictionGenerationItem[] =
@@ -2291,6 +2340,10 @@ export async function generatePredictionsForDate(
     date,
 
     mode,
+
+    requestedFixtureId:
+      requestedFixtureId ||
+      null,
 
     fixturesFound:
       fixtures.length,
