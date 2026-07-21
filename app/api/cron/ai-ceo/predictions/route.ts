@@ -33,6 +33,22 @@ export const dynamic =
 export const revalidate =
   0;
 
+/*
+ * ZERRA autonomous candidate policy.
+ *
+ * A fixture can enter the processing queue when:
+ *
+ * - confidence >= 65%
+ * - risk is Low or Medium
+ * - prediction consistency is valid
+ * - a usable canonical prediction exists
+ *
+ * primaryPrediction.qualified is retained for
+ * diagnostics, but it is NOT a hard Cheap Scan
+ * blocker because incomplete supporting data
+ * must not automatically reject an otherwise
+ * strong prediction.
+ */
 const MIN_CONFIDENCE =
   65;
 
@@ -222,10 +238,35 @@ function isAuthorized(
     `Bearer ${secret}`;
 }
 
+function hasUsablePrediction(
+  value:
+    string
+): boolean {
+  const normalized =
+    value
+      .trim()
+      .toLowerCase();
+
+  return Boolean(
+    normalized &&
+    normalized !==
+      "no strong prediction" &&
+    normalized !==
+      "insufficient data" &&
+    normalized !==
+      "no value"
+  );
+}
+
 async function runScan(
   date:
     string
 ) {
+  /*
+   * STEP 1
+   *
+   * Fetch the daily fixture list once.
+   */
   const fixtures =
     await getFixturesByDate(
       date
@@ -274,6 +315,11 @@ async function runScan(
         }
       );
 
+  /*
+   * STEP 2
+   *
+   * Cheap-scan all valid pre-match fixtures.
+   */
   const candidates:
     Array<{
       fixtureId:
@@ -322,6 +368,15 @@ async function runScan(
       risk:
         string | null;
 
+      qualified:
+        boolean | null;
+
+      consistencyValid:
+        boolean | null;
+
+      pick:
+        string | null;
+
       reason:
         string;
     }> =
@@ -358,6 +413,11 @@ async function runScan(
       );
 
     try {
+      /*
+       * Use the same canonical lightweight
+       * prediction calculation available
+       * to the Match Page.
+       */
       const prediction =
         calculatePrediction(
           fixture
@@ -383,6 +443,13 @@ async function runScan(
           ?.risk ??
         "High";
 
+      /*
+       * Retain qualified as diagnostic
+       * metadata only.
+       *
+       * It is deliberately NOT part of
+       * candidatePassed below.
+       */
       const qualified =
         primary
           ?.qualified ===
@@ -407,28 +474,36 @@ async function runScan(
         MIN_CONFIDENCE;
 
       const riskPassed =
-        risk === "Low" ||
-        risk === "Medium";
+        risk ===
+          "Low" ||
+        risk ===
+          "Medium";
 
       const predictionAvailable =
-        Boolean(
-          pick &&
+        hasUsablePrediction(
           pick
-            .trim()
-            .toLowerCase() !==
-            "no strong prediction" &&
-          pick
-            .trim()
-            .toLowerCase() !==
-            "insufficient data"
         );
 
-      if (
+      /*
+       * ZERRA RELAXED CHEAP-SCAN POLICY
+       *
+       * primary qualified=false is NOT
+       * a hard rejection condition here.
+       *
+       * This is intentional because
+       * insufficient supporting data can
+       * lower qualification while the
+       * canonical model prediction itself
+       * can still be strong.
+       */
+      const candidatePassed =
         confidencePassed &&
         riskPassed &&
-        qualified &&
         consistencyValid &&
-        predictionAvailable
+        predictionAvailable;
+
+      if (
+        candidatePassed
       ) {
         candidates.push({
           fixtureId,
@@ -458,6 +533,13 @@ async function runScan(
         continue;
       }
 
+      /*
+       * Only true Cheap Scan blockers are
+       * included in rejection reasons.
+       *
+       * qualified=false is intentionally
+       * not a rejection reason.
+       */
       const reasons:
         string[] =
         [];
@@ -475,14 +557,6 @@ async function runScan(
       ) {
         reasons.push(
           `risk is ${risk}`
-        );
-      }
-
-      if (
-        !qualified
-      ) {
-        reasons.push(
-          "primary prediction not qualified"
         );
       }
 
@@ -512,6 +586,14 @@ async function runScan(
 
         risk,
 
+        qualified,
+
+        consistencyValid,
+
+        pick:
+          pick ||
+          null,
+
         reason:
           reasons.join(
             "; "
@@ -536,6 +618,15 @@ async function runScan(
         risk:
           null,
 
+        qualified:
+          null,
+
+        consistencyValid:
+          null,
+
+        pick:
+          null,
+
         reason:
           error instanceof
             Error
@@ -545,6 +636,9 @@ async function runScan(
     }
   }
 
+  /*
+   * Highest confidence first.
+   */
   candidates.sort(
     (
       first,
@@ -554,6 +648,12 @@ async function runScan(
       first.confidence
   );
 
+  /*
+   * STEP 3
+   *
+   * Persist strong candidates into the
+   * deterministic Firestore queue.
+   */
   const queueResult =
     await enqueuePredictionCandidates(
       candidates
@@ -572,6 +672,9 @@ async function runScan(
       fixtures.length,
 
     preMatchFixtures:
+      preMatchFixtures.length,
+
+    fixturesScanned:
       preMatchFixtures.length,
 
     strongCandidates:
@@ -597,6 +700,11 @@ async function runProcess(
   date:
     string
 ) {
+  /*
+   * STEP 1
+   *
+   * Select the next controlled queue batch.
+   */
   const pendingItems =
     await getPendingPredictionQueue({
       date,
@@ -615,6 +723,15 @@ async function runProcess(
 
       match:
         string;
+
+      cheapScanConfidence:
+        number;
+
+      cheapScanRisk:
+        string;
+
+      cheapScanQualified:
+        boolean;
 
       status:
         "completed" |
@@ -648,6 +765,11 @@ async function runProcess(
     const queueItem
     of pendingItems
   ) {
+    /*
+     * Claim transactionally so overlapping
+     * cron runs cannot process the same
+     * queue item simultaneously.
+     */
     const claimed =
       await claimPredictionQueueItem(
         queueItem.id
@@ -669,6 +791,15 @@ async function runProcess(
         match:
           `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
 
+        cheapScanConfidence:
+          queueItem.confidence,
+
+        cheapScanRisk:
+          queueItem.risk,
+
+        cheapScanQualified:
+          queueItem.qualified,
+
         status:
           "skipped",
 
@@ -689,6 +820,13 @@ async function runProcess(
     }
 
     try {
+      /*
+       * Run the existing prediction lifecycle
+       * for this exact fixture.
+       *
+       * BASIC mode intentionally avoids the
+       * expensive full enrichment pipeline.
+       */
       const summary =
         await generatePredictionsForDate({
           date,
@@ -728,8 +866,9 @@ async function runProcess(
         null;
 
       /*
-       * Existing predictions are valid
-       * completed queue work.
+       * An already existing prediction also
+       * means the queue work has effectively
+       * completed.
        */
       const completedSuccessfully =
         Boolean(
@@ -764,6 +903,15 @@ async function runProcess(
 
           match:
             `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
+
+          cheapScanConfidence:
+            queueItem.confidence,
+
+          cheapScanRisk:
+            queueItem.risk,
+
+          cheapScanQualified:
+            queueItem.qualified,
 
           status:
             "failed",
@@ -804,6 +952,15 @@ async function runProcess(
 
         match:
           `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
+
+        cheapScanConfidence:
+          queueItem.confidence,
+
+        cheapScanRisk:
+          queueItem.risk,
+
+        cheapScanQualified:
+          queueItem.qualified,
 
         status:
           "completed",
@@ -846,6 +1003,15 @@ async function runProcess(
         match:
           `${queueItem.homeTeam} vs ${queueItem.awayTeam}`,
 
+        cheapScanConfidence:
+          queueItem.confidence,
+
+        cheapScanRisk:
+          queueItem.risk,
+
+        cheapScanQualified:
+          queueItem.qualified,
+
         status:
           "failed",
 
@@ -864,6 +1030,9 @@ async function runProcess(
     }
   }
 
+  /*
+   * Read fresh queue totals after processing.
+   */
   const queueStats =
     await getPredictionQueueStats(
       date
@@ -968,6 +1137,10 @@ export async function GET(
 
         date,
 
+        /*
+         * This object intentionally mirrors
+         * the active Cheap Scan policy.
+         */
         policy: {
           minimumConfidence:
             MIN_CONFIDENCE,
@@ -977,10 +1150,18 @@ export async function GET(
             "Medium",
           ],
 
+          /*
+           * qualified remains diagnostic
+           * information, not a Cheap Scan
+           * requirement.
+           */
           primaryQualifiedRequired:
-            true,
+            false,
 
           consistencyRequired:
+            true,
+
+          usablePredictionRequired:
             true,
 
           processBatchSize:
