@@ -921,6 +921,7 @@ export default function MatchDetailsPage() {
                 </div>
               </section>
 
+              <VipGate hideFallback>
               <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
                   Core Goal Signals
@@ -1002,6 +1003,7 @@ export default function MatchDetailsPage() {
                   </p>
                 )}
               </section>
+              </VipGate>
             </aside>
           </div>
         )}

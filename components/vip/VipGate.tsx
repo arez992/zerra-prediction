@@ -1,25 +1,35 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useVip } from "@/components/providers/VipProvider";
 
 type VipGateProps = {
   children: React.ReactNode;
   fallbackTitle?: string;
   fallbackText?: string;
+  hideFallback?: boolean;
 };
 
 export default function VipGate({
   children,
   fallbackTitle = "Premium VIP Content",
   fallbackText = "Unlock VIP access to view full AI analysis, premium predictions, value bets, and advanced match insights.",
+  hideFallback = false,
 }: VipGateProps) {
+  const params = useParams<{ locale?: string }>();
+  const locale = params?.locale === "ku" ? "ku" : "en";
+
   const {
     hasVipAccess,
     loading,
   } = useVip();
 
   if (loading) {
+    if (hideFallback) {
+      return null;
+    }
+
     return (
       <section className="rounded-[2rem] border border-white/10 bg-[#0B1220] p-8 text-center shadow-xl">
         <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-[#D4AF37]" />
@@ -33,6 +43,10 @@ export default function VipGate({
 
   if (hasVipAccess) {
     return <>{children}</>;
+  }
+
+  if (hideFallback) {
+    return null;
   }
 
   return (
@@ -50,7 +64,7 @@ export default function VipGate({
       </p>
 
       <Link
-        href="/en/vip"
+        href={`/${locale}/vip`}
         className="mt-6 inline-block rounded-full bg-[#D4AF37] px-6 py-3 font-black text-black"
       >
         Unlock VIP
