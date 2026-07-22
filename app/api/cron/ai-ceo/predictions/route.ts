@@ -13,7 +13,6 @@ import {
 
 import {
   enrichExistingFixtureForPrediction,
-  enrichExistingFixtureForPredictionRescue,
   getFixturesByDate,
 } from "@/lib/api-football/service";
 
@@ -44,7 +43,7 @@ export const revalidate =
  *
  * A fixture can enter the processing queue when:
  *
- * - confidence >= 65%
+ * - confidence >= 68%
  * - risk is Low or Medium
  * - prediction consistency is valid
  * - a usable canonical prediction exists
@@ -56,7 +55,7 @@ export const revalidate =
  * strong prediction.
  */
 const MIN_CONFIDENCE =
-  65;
+  68;
 
 const PROCESS_BATCH_SIZE =
   25;
@@ -265,25 +264,25 @@ function hasUsablePrediction(
 }
 
 async function calculateScanPrediction(
-  fixture: FixtureLike,
-  rescue: boolean
+  fixture:
+    FixtureLike
 ) {
+  /*
+   * Single-stage low-cost scan.
+   *
+   * Reuse today's fixture and the existing
+   * cached/recent-form enrichment only.
+   *
+   * No rescue enrichment is performed here.
+   */
   const enriched =
-    rescue
-      ? await enrichExistingFixtureForPredictionRescue(
-          fixture as any,
-          {
-            recentFixtureLimit:
-              8,
-          }
-        )
-      : await enrichExistingFixtureForPrediction(
-          fixture as any,
-          {
-            recentFixtureLimit:
-              8,
-          }
-        );
+    await enrichExistingFixtureForPrediction(
+      fixture as any,
+      {
+        recentFixtureLimit:
+          8,
+      }
+    );
 
   const engineResult =
     await runPredictionEngine({
@@ -292,9 +291,7 @@ async function calculateScanPrediction(
       ),
 
       source:
-        rescue
-          ? "ai-ceo-season-statistics-rescue"
-          : "ai-ceo-cached-enriched-scan",
+        "ai-ceo-cached-enriched-scan",
     });
 
   if (
@@ -510,12 +507,6 @@ async function runScan(
   let scanFailures =
     0;
 
-  let rescueAttempts =
-    0;
-
-  let rescueCandidates =
-    0;
-
   for (
     const fixture
     of preMatchFixtures
@@ -545,49 +536,29 @@ async function runScan(
 
     try {
       /*
-       * STAGE 1 — cheap cached-enriched scan.
+       * SINGLE-STAGE LOW-COST POLICY
+       *
+       * Calculate the prediction once using
+       * cached/recent-form enrichment.
+       *
+       * Candidate requirements:
+       * - confidence >= 68%
+       * - risk Low or Medium
+       * - consistency valid
+       * - usable canonical prediction
+       *
+       * primaryPrediction.qualified remains
+       * diagnostic only and is not a blocker.
        */
-      let prediction =
+      const prediction =
         await calculateScanPrediction(
-          fixture,
-          false
+          fixture
         );
 
-      let decision =
+      const decision =
         readPredictionDecision(
           prediction
         );
-
-      let enrichmentStage:
-        "cheap" |
-        "rescue" =
-        "cheap";
-
-      /*
-       * STAGE 2 — rescue with season statistics.
-       * Only runs when Stage 1 does not qualify.
-       */
-      if (
-        !decision
-          .candidatePassed
-      ) {
-        rescueAttempts +=
-          1;
-
-        prediction =
-          await calculateScanPrediction(
-            fixture,
-            true
-          );
-
-        decision =
-          readPredictionDecision(
-            prediction
-          );
-
-        enrichmentStage =
-          "rescue";
-      }
 
       const {
         confidence,
@@ -605,14 +576,6 @@ async function runScan(
       if (
         candidatePassed
       ) {
-        if (
-          enrichmentStage ===
-            "rescue"
-        ) {
-          rescueCandidates +=
-            1;
-        }
-
         candidates.push({
           fixtureId,
 
@@ -792,10 +755,6 @@ async function runScan(
       rejected.length,
 
     scanFailures,
-
-    rescueAttempts,
-
-    rescueCandidates,
 
     queueResult,
 
@@ -1251,7 +1210,7 @@ export async function GET(
 
         /*
          * This object intentionally mirrors
-         * the active Cheap Scan policy.
+         * the active low-cost scan policy.
          */
         policy: {
           minimumConfidence:
@@ -1283,16 +1242,10 @@ export async function GET(
             false,
 
           scanDataMode:
-            "adaptive-two-stage",
+            "single-stage-low-cost",
 
-          cheapStageSeasonStatistics:
+          rescueEnrichmentEnabled:
             false,
-
-          rescueStageSeasonStatistics:
-            true,
-
-          rescueOnlyAfterCheapFailure:
-            true,
 
           fixtureRefetchPerMatch:
             false,
