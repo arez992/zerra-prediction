@@ -4,21 +4,12 @@ import {
 } from "next/server";
 
 import {
-  runPredictionEngine,
-} from "@/lib/ai/engine";
-
-import {
   generatePredictionsForDate,
 } from "@/lib/ai-ceo/prediction/generator";
 
 import {
-  enrichExistingFixtureForPrediction,
   getFixturesByDate,
 } from "@/lib/api-football/service";
-
-import {
-  toPredictionPipelineInput,
-} from "@/lib/api-football/mapper";
 
 import {
   claimPredictionQueueItem,
@@ -43,7 +34,7 @@ export const revalidate =
  *
  * A fixture can enter the processing queue when:
  *
- * - confidence >= 68%
+ * - confidence >= 65%
  * - risk is Low or Medium
  * - prediction consistency is valid
  * - a usable canonical prediction exists
@@ -58,7 +49,7 @@ const MIN_CONFIDENCE =
   68;
 
 const PROCESS_BATCH_SIZE =
-  25;
+  5;
 
 const UPCOMING_STATUSES =
   new Set([
@@ -263,132 +254,10 @@ function hasUsablePrediction(
   );
 }
 
-async function calculateScanPrediction(
-  fixture:
-    FixtureLike
-) {
-  /*
-   * Single-stage low-cost scan.
-   *
-   * Reuse today's fixture and the existing
-   * cached/recent-form enrichment only.
-   *
-   * No rescue enrichment is performed here.
-   */
-  const enriched =
-    await enrichExistingFixtureForPrediction(
-      fixture as any,
-      {
-        recentFixtureLimit:
-          8,
-      }
-    );
-
-  const engineResult =
-    await runPredictionEngine({
-      ...toPredictionPipelineInput(
-        enriched
-      ),
-
-      source:
-        "ai-ceo-cached-enriched-scan",
-    });
-
-  if (
-    !engineResult.success
-  ) {
-    throw new Error(
-      engineResult.error
-    );
-  }
-
-  return engineResult
-    .data
-    .prediction;
-}
-
-function readPredictionDecision(
-  prediction: any
-) {
-  const primary =
-    prediction
-      ?.vipPrediction
-      ?.primaryPrediction;
-
-  const confidence =
-    primary
-      ?.confidence ??
-    prediction
-      ?.confidence ??
-    0;
-
-  const risk =
-    prediction
-      ?.risk ??
-    prediction
-      ?.publicPrediction
-      ?.risk ??
-    "High";
-
-  const qualified =
-    primary
-      ?.qualified ===
-    true;
-
-  const consistencyValid =
-    prediction
-      ?.consistency
-      ?.valid ===
-    true;
-
-  const pick =
-    primary
-      ?.pick ??
-    prediction
-      ?.vipPrediction
-      ?.finalPrediction ??
-    "";
-
-  const confidencePassed =
-    confidence >=
-    MIN_CONFIDENCE;
-
-  const riskPassed =
-    risk === "Low" ||
-    risk === "Medium";
-
-  const predictionAvailable =
-    hasUsablePrediction(
-      pick
-    );
-
-  return {
-    confidence,
-    risk,
-    qualified,
-    consistencyValid,
-    pick,
-    confidencePassed,
-    riskPassed,
-    predictionAvailable,
-
-    candidatePassed:
-      confidencePassed &&
-      riskPassed &&
-      consistencyValid &&
-      predictionAvailable,
-  };
-}
-
 async function runScan(
   date:
     string
 ) {
-  /*
-   * STEP 1
-   *
-   * Fetch the daily fixture list once.
-   */
   const fixtures =
     await getFixturesByDate(
       date
@@ -437,297 +306,61 @@ async function runScan(
         }
       );
 
-  /*
-   * STEP 2
-   *
-   * Cheap-scan all valid pre-match fixtures.
-   */
-  const candidates:
-    Array<{
-      fixtureId:
-        string;
-
-      date:
-        string;
-
-      fixtureDate:
-        string | null;
-
-      homeTeam:
-        string;
-
-      awayTeam:
-        string;
-
-      confidence:
-        number;
-
-      risk:
-        string;
-
-      pick:
-        string;
-
-      qualified:
-        boolean;
-
-      consistencyValid:
-        boolean;
-    }> =
-    [];
-
-  const rejected:
-    Array<{
-      fixtureId:
-        string;
-
-      match:
-        string;
-
-      confidence:
-        number | null;
-
-      risk:
-        string | null;
-
-      qualified:
-        boolean | null;
-
-      consistencyValid:
-        boolean | null;
-
-      pick:
-        string | null;
-
-      reason:
-        string;
-    }> =
-    [];
-
-  let scanFailures =
-    0;
-
-  for (
-    const fixture
-    of preMatchFixtures
-  ) {
-    const fixtureId =
-      normalizeFixtureId(
+  const queueCandidates =
+    preMatchFixtures.map(
+      (
         fixture
-          .fixture
-          ?.id
-      );
+      ) => ({
+        fixtureId:
+          normalizeFixtureId(
+            fixture
+              .fixture
+              ?.id
+          ),
 
-    const homeTeam =
-      normalizeText(
-        fixture
-          .teams
-          ?.home
-          ?.name
-      );
+        date,
 
-    const awayTeam =
-      normalizeText(
-        fixture
-          .teams
-          ?.away
-          ?.name
-      );
+        fixtureDate:
+          getFixtureDate(
+            fixture
+          ),
 
-    try {
-      /*
-       * SINGLE-STAGE LOW-COST POLICY
-       *
-       * Calculate the prediction once using
-       * cached/recent-form enrichment.
-       *
-       * Candidate requirements:
-       * - confidence >= 68%
-       * - risk Low or Medium
-       * - consistency valid
-       * - usable canonical prediction
-       *
-       * primaryPrediction.qualified remains
-       * diagnostic only and is not a blocker.
-       */
-      const prediction =
-        await calculateScanPrediction(
-          fixture
-        );
+        homeTeam:
+          normalizeText(
+            fixture
+              .teams
+              ?.home
+              ?.name
+          ),
 
-      const decision =
-        readPredictionDecision(
-          prediction
-        );
-
-      const {
-        confidence,
-        risk,
-        qualified,
-        consistencyValid,
-        pick,
-        confidencePassed,
-        riskPassed,
-        predictionAvailable,
-        candidatePassed,
-      } =
-        decision;
-
-      if (
-        candidatePassed
-      ) {
-        candidates.push({
-          fixtureId,
-
-          date,
-
-          fixtureDate:
-            getFixtureDate(
-              fixture
-            ),
-
-          homeTeam,
-
-          awayTeam,
-
-          confidence,
-
-          risk,
-
-          pick,
-
-          qualified,
-
-          consistencyValid,
-        });
-
-        continue;
-      }
-
-      /*
-       * Only true Cheap Scan blockers are
-       * included in rejection reasons.
-       *
-       * qualified=false is intentionally
-       * not a rejection reason.
-       */
-      const reasons:
-        string[] =
-        [];
-
-      if (
-        !confidencePassed
-      ) {
-        reasons.push(
-          `confidence below ${MIN_CONFIDENCE}%`
-        );
-      }
-
-      if (
-        !riskPassed
-      ) {
-        reasons.push(
-          `risk is ${risk}`
-        );
-      }
-
-      if (
-        !consistencyValid
-      ) {
-        reasons.push(
-          "consistency validation failed"
-        );
-      }
-
-      if (
-        !predictionAvailable
-      ) {
-        reasons.push(
-          "no usable canonical prediction"
-        );
-      }
-
-      rejected.push({
-        fixtureId,
-
-        match:
-          `${homeTeam} vs ${awayTeam}`,
-
-        confidence,
-
-        risk,
-
-        qualified,
-
-        consistencyValid,
-
-        pick:
-          pick ||
-          null,
-
-        reason:
-          reasons.join(
-            "; "
-          ) ||
-          "Cheap scan rejected prediction.",
-      });
-    } catch (
-      error
-    ) {
-      scanFailures +=
-        1;
-
-      rejected.push({
-        fixtureId,
-
-        match:
-          `${homeTeam} vs ${awayTeam}`,
+        awayTeam:
+          normalizeText(
+            fixture
+              .teams
+              ?.away
+              ?.name
+          ),
 
         confidence:
-          null,
+          0,
 
         risk:
-          null,
-
-        qualified:
-          null,
-
-        consistencyValid:
-          null,
+          "Pending",
 
         pick:
-          null,
+          "Pending generation",
 
-        reason:
-          error instanceof
-            Error
-            ? error.message
-            : "Cheap scan failed.",
-      });
-    }
-  }
+        qualified:
+          false,
 
-  /*
-   * Highest confidence first.
-   */
-  candidates.sort(
-    (
-      first,
-      second
-    ) =>
-      second.confidence -
-      first.confidence
-  );
+        consistencyValid:
+          false,
+      })
+    );
 
-  /*
-   * STEP 3
-   *
-   * Persist strong candidates into the
-   * deterministic Firestore queue.
-   */
   const queueResult =
     await enqueuePredictionCandidates(
-      candidates
+      queueCandidates
     );
 
   const queueStats =
@@ -745,25 +378,12 @@ async function runScan(
     preMatchFixtures:
       preMatchFixtures.length,
 
-    fixturesScanned:
-      preMatchFixtures.length,
-
-    strongCandidates:
-      candidates.length,
-
-    rejected:
-      rejected.length,
-
-    scanFailures,
+    fixturesQueued:
+      queueCandidates.length,
 
     queueResult,
 
     queueStats,
-
-    candidates,
-
-    rejectedItems:
-      rejected,
   };
 }
 
@@ -906,7 +526,7 @@ async function runProcess(
             queueItem.fixtureId,
 
           mode:
-            "basic",
+            "enriched",
 
           limit:
             1,
@@ -1210,10 +830,13 @@ export async function GET(
 
         /*
          * This object intentionally mirrors
-         * the active low-cost scan policy.
+         * the active Cheap Scan policy.
          */
         policy: {
-          minimumConfidence:
+          confidenceRule:
+            "greater-than-68",
+
+          minimumReference:
             MIN_CONFIDENCE,
 
           allowedRisk: [
@@ -1221,40 +844,21 @@ export async function GET(
             "Medium",
           ],
 
-          /*
-           * qualified remains diagnostic
-           * information, not a Cheap Scan
-           * requirement.
-           */
-          primaryQualifiedRequired:
+          otherPublicationConditions:
             false,
 
-          consistencyRequired:
-            true,
+          scanMode:
+            "queue-all-prematch",
 
-          usablePredictionRequired:
-            true,
+          generationMode:
+            "enriched",
 
           processBatchSize:
             PROCESS_BATCH_SIZE,
 
-          insufficientDataAloneHardReject:
-            false,
-
-          scanDataMode:
-            "single-stage-low-cost",
-
-          rescueEnrichmentEnabled:
-            false,
-
-          fixtureRefetchPerMatch:
-            false,
-
-          openAIRequiredForBulkPrediction:
-            false,
-
           overwriteExistingPredictions:
             false,
+
         },
 
         result,

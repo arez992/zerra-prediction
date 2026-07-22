@@ -1546,12 +1546,7 @@ export async function generatePredictionsForDate(
       if (
         !generationDecision
           .allowed &&
-        !(
-          aiCEOAutonomous &&
-          generationDecision
-            .status ===
-            "insufficient-data"
-        )
+        !aiCEOAutonomous
       ) {
         if (
           generationDecision
@@ -2312,7 +2307,7 @@ export async function generatePredictionsForDate(
               ? generationDecision
                   .status ===
                 "insufficient-data"
-                ? "Prediction generated and published automatically by AI CEO under the 65% Low/Medium risk insufficient-data override policy."
+                ? "Prediction generated and published automatically by AI CEO because risk is Low/Medium and confidence is greater than 68%."
                 : "Prediction generated and published automatically by AI CEO."
               : "Prediction generated successfully and sent to the review queue."
             : "Prediction generated successfully.",
