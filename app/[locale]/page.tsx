@@ -48,6 +48,9 @@ type PublicPredictionItem = {
   id: string;
   fixtureId: string;
 
+  isFree?: boolean;
+  freeSelectionDate?: string | null;
+
   competition: {
     name: string;
     country: string | null;
@@ -77,9 +80,18 @@ type PublicPredictionItem = {
     overview: string;
     risk: string;
     riskScore: number | null;
+    marketCategory?: string | null;
     keyInsights: string[];
     teaser: string;
   };
+
+  freePrediction?: {
+    finalPrediction: string | null;
+    confidence: number | null;
+    exactScore: string | null;
+    valueBet: string | null;
+    reasoning: string[];
+  } | null;
 };
 
 type PublicPredictionsResponse = {
@@ -293,6 +305,12 @@ async function getFixtures(): Promise<
   }
 }
 
+function getTodayUTC(): string {
+  return new Date()
+    .toISOString()
+    .slice(0, 10);
+}
+
 async function getFreePredictions(): Promise<
   PublicPredictionItem[]
 > {
@@ -303,7 +321,7 @@ async function getFreePredictions(): Promise<
 
     const response =
       await fetch(
-        `${siteUrl}/api/predictions?limit=3`,
+        `${siteUrl}/api/predictions?free=true&date=${getTodayUTC()}&limit=3`,
         {
           cache:
             "no-store",
@@ -620,6 +638,46 @@ export default async function HomePage({
           </div>
         )}
       </section>
+
+      {freePredictions.length > 0 && (
+        <section className="border-y border-[#e0ebe3] bg-white">
+          <div className="mx-auto max-w-7xl px-6 py-16">
+            <SectionHeader
+              eyebrow="Daily Free Access"
+              title="Free Predictions"
+              description="Three Low Risk predictions selected automatically by ZERRA AI CEO for today's free access."
+              actionHref={getPath(
+                "/predictions"
+              )}
+              actionLabel="View predictions"
+            />
+
+            <div className="mt-8 grid gap-6 lg:grid-cols-3">
+              {freePredictions.map(
+                (
+                  prediction,
+                  index
+                ) => (
+                  <DailyFreePredictionCard
+                    key={
+                      prediction.id
+                    }
+                    prediction={
+                      prediction
+                    }
+                    number={
+                      index + 1
+                    }
+                    locale={
+                      locale
+                    }
+                  />
+                )
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="border-b border-[#e0ebe3] bg-[#f7faf8]">
         <div className="mx-auto max-w-7xl px-6 py-16">
@@ -1033,6 +1091,157 @@ function MatchCard({
         </span>
       </div>
     </Link>
+  );
+}
+
+function DailyFreePredictionCard({
+  prediction,
+  number,
+  locale,
+}: {
+  prediction:
+    PublicPredictionItem;
+
+  number: number;
+
+  locale: string;
+}) {
+  const free =
+    prediction.freePrediction;
+
+  return (
+    <article className="relative overflow-hidden rounded-[1.75rem] border border-[#bfe6cf] bg-[#fbfdfb] p-6 shadow-sm">
+      <div className="absolute right-0 top-0 rounded-bl-2xl bg-[#139653] px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white">
+        FREE
+      </div>
+
+      <div className="flex items-center gap-3 pr-16">
+        <span className="rounded-full bg-[#eaf7ef] px-3 py-1 text-xs font-black uppercase text-[#0d6f3d]">
+          Pick #{number}
+        </span>
+
+        <span className="text-xs font-black uppercase text-[#0d6f3d]">
+          {prediction.publicPrediction.risk} Risk
+        </span>
+      </div>
+
+      <p className="mt-5 text-xs font-black uppercase tracking-[0.15em] text-[#139653]">
+        {prediction.competition.name}
+      </p>
+
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <Team
+          name={
+            prediction.teams.home.name
+          }
+          logo={
+            prediction.teams.home.logo ||
+            undefined
+          }
+        />
+
+        <span className="text-xs font-black uppercase tracking-[0.14em] text-[#93a098]">
+          VS
+        </span>
+
+        <Team
+          name={
+            prediction.teams.away.name
+          }
+          logo={
+            prediction.teams.away.logo ||
+            undefined
+          }
+        />
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#d8e9dd] bg-white p-5">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#839188]">
+          ZERRA Free Prediction
+        </p>
+
+        <p className="mt-2 text-xl font-black text-[#102117]">
+          {free?.finalPrediction ||
+            "Prediction available"}
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <InfoBox
+            label="Confidence"
+            value={
+              free?.confidence !==
+              null &&
+              free?.confidence !==
+              undefined
+                ? `${free.confidence}%`
+                : "—"
+            }
+          />
+
+          <InfoBox
+            label="Risk"
+            value={
+              prediction
+                .publicPrediction
+                .risk
+            }
+          />
+        </div>
+
+        {free?.exactScore && (
+          <div className="mt-3">
+            <InfoBox
+              label="Exact Score Estimate"
+              value={
+                free.exactScore
+              }
+            />
+          </div>
+        )}
+      </div>
+
+      {free?.reasoning &&
+        free.reasoning.length > 0 && (
+          <div className="mt-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#839188]">
+              AI Reasoning
+            </p>
+
+            <ul className="mt-3 space-y-2">
+              {free.reasoning
+                .slice(0, 3)
+                .map(
+                  (
+                    reason,
+                    index
+                  ) => (
+                    <li
+                      key={`${prediction.id}-reason-${index}`}
+                      className="text-sm leading-6 text-[#66756c]"
+                    >
+                      • {reason}
+                    </li>
+                  )
+                )}
+            </ul>
+          </div>
+        )}
+
+      <div className="mt-5 flex items-center justify-between border-t border-[#e7efe9] pt-4">
+        <span className="text-xs font-bold text-[#7d8b82]">
+          {formatFixtureDate(
+            prediction.fixtureDate
+          )}
+        </span>
+
+        <Link
+          href={`/${locale}/predictions/${prediction.id}`}
+          className="text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
+        >
+          View Analysis →
+        </Link>
+      </div>
+    </article>
   );
 }
 

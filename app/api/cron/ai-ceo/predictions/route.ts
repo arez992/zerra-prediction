@@ -9,6 +9,10 @@ import {
 } from "@/lib/ai-ceo/prediction/generator";
 
 import {
+  selectDailyFreePredictions,
+} from "@/lib/ai-ceo/prediction/freeSelector";
+
+import {
   getFixturesByDate,
 } from "@/lib/api-football/service";
 
@@ -962,6 +966,25 @@ export async function GET(
             date
           );
 
+    /*
+     * AI CEO DAILY FREE PREDICTIONS
+     *
+     * - only process mode assigns free predictions
+     * - only published predictions for this fixture date
+     * - only Low risk
+     * - maximum 3 free predictions per day
+     *
+     * The selector is idempotent, so repeated process
+     * batches are safe. Once the daily limit reaches 3,
+     * no additional prediction is marked free.
+     */
+    const freeSelection =
+      mode ===
+        "process"
+        ? await selectDailyFreePredictions(
+            date
+          )
+        : null;
 
     if (
       mode ===
@@ -1026,6 +1049,25 @@ export async function GET(
             false,
 
         },
+
+        freePredictionPolicy: {
+          enabled:
+            true,
+
+          dailyLimit:
+            3,
+
+          requiredRisk:
+            "Low",
+
+          otherSelectionConditions:
+            false,
+
+          selectionDateBasis:
+            "fixtureDate",
+        },
+
+        freeSelection,
 
         result,
       },

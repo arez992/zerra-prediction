@@ -177,6 +177,79 @@ function asRecord(
   return {};
 }
 
+function normalizeDate(
+  value:
+    string | null
+): string | null {
+  if (
+    value ===
+    null
+  ) {
+    return null;
+  }
+
+  const date =
+    value.trim();
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      date
+    )
+  ) {
+    throw new Error(
+      "Date must use YYYY-MM-DD format."
+    );
+  }
+
+  return date;
+}
+
+function getFixtureDateKey(
+  value: unknown
+): string {
+  const serialized =
+    serializeTimestamp(
+      value
+    ) ||
+    normalizeText(
+      value
+    );
+
+  return serialized
+    ? serialized.slice(
+        0,
+        10
+      )
+    : "";
+}
+
+function getPublishedTime(
+  data:
+    DocumentData
+): number {
+  const value =
+    serializeTimestamp(
+      data.publishedAt
+    );
+
+  if (
+    !value
+  ) {
+    return 0;
+  }
+
+  const timestamp =
+    Date.parse(
+      value
+    );
+
+  return Number.isFinite(
+    timestamp
+  )
+    ? timestamp
+    : 0;
+}
+
 function toPublicPrediction(
   id:
     string,
@@ -187,6 +260,11 @@ function toPublicPrediction(
   const publicPrediction =
     asRecord(
       data.publicPrediction
+    );
+
+  const vipPrediction =
+    asRecord(
+      data.vipPrediction
     );
 
   const competition =
@@ -214,6 +292,10 @@ function toPublicPrediction(
       data.fixtureStatus
     );
 
+  const isFree =
+    data.isFree ===
+    true;
+
   return {
     id,
 
@@ -228,6 +310,16 @@ function toPublicPrediction(
 
     sport:
       "Football",
+
+    isFree,
+
+    freeSelectionDate:
+      isFree
+        ? normalizeText(
+            data.freeSelectionDate
+          ) ||
+          null
+        : null,
 
     competition: {
       name:
@@ -340,6 +432,45 @@ function toPublicPrediction(
         ),
     },
 
+    /*
+     * VIP data remains protected for normal
+     * predictions. It is exposed only when
+     * AI CEO has explicitly marked this record
+     * as a daily free prediction.
+     */
+    freePrediction:
+      isFree
+        ? {
+            finalPrediction:
+              normalizeText(
+                vipPrediction.finalPrediction
+              ) ||
+              null,
+
+            confidence:
+              normalizeNumber(
+                vipPrediction.confidence
+              ),
+
+            exactScore:
+              normalizeText(
+                vipPrediction.exactScore
+              ) ||
+              null,
+
+            valueBet:
+              normalizeText(
+                vipPrediction.valueBet
+              ) ||
+              null,
+
+            reasoning:
+              normalizeStringArray(
+                vipPrediction.reasoning
+              ),
+          }
+        : null,
+
     publishedAt:
       serializeTimestamp(
         data.publishedAt
@@ -357,6 +488,14 @@ function getErrorStatus(
 ): number {
   const normalized =
     message.toLowerCase();
+
+  if (
+    normalized.includes(
+      "yyyy-mm-dd"
+    )
+  ) {
+    return 400;
+  }
 
   if (
     normalized.includes(
@@ -386,6 +525,135 @@ export async function GET(
             "limit"
           )
       );
+
+    const freeOnly =
+      request
+        .nextUrl
+        .searchParams
+        .get(
+          "free"
+        ) ===
+      "true";
+
+    const date =
+      normalizeDate(
+        request
+          .nextUrl
+          .searchParams
+          .get(
+            "date"
+          )
+      );
+
+    if (
+      freeOnly
+    ) {
+      /*
+       * Use only the single-field isFree query
+       * so this feature does not require a new
+       * Firestore composite index.
+       *
+       * Status/date are validated in memory.
+       */
+      const snapshot =
+        await adminDb
+          .collection(
+            COLLECTION_NAME
+          )
+          .where(
+            "isFree",
+            "==",
+            true
+          )
+          .get();
+
+      const predictions =
+        snapshot.docs
+          .filter(
+            (
+              document
+            ) => {
+              const data =
+                document.data();
+
+              if (
+                data.status !==
+                "published"
+              ) {
+                return false;
+              }
+
+              if (
+                date &&
+                getFixtureDateKey(
+                  data.fixtureDate
+                ) !==
+                  date
+              ) {
+                return false;
+              }
+
+              return true;
+            }
+          )
+          .sort(
+            (
+              left,
+              right
+            ) =>
+              getPublishedTime(
+                right.data()
+              ) -
+              getPublishedTime(
+                left.data()
+              )
+          )
+          .slice(
+            0,
+            limit
+          )
+          .map(
+            (
+              document
+            ) =>
+              toPublicPrediction(
+                document.id,
+                document.data()
+              )
+          );
+
+      return NextResponse.json(
+        {
+          success:
+            true,
+
+          engine:
+            "ZERRA AI Prediction Engine",
+
+          sport:
+            "Football",
+
+          mode:
+            "free",
+
+          date,
+
+          count:
+            predictions.length,
+
+          predictions,
+        },
+        {
+          status:
+            200,
+
+          headers: {
+            "Cache-Control":
+              "public, s-maxage=60, stale-while-revalidate=300",
+          },
+        }
+      );
+    }
 
     const snapshot =
       await adminDb
@@ -427,6 +695,9 @@ export async function GET(
 
         sport:
           "Football",
+
+        mode:
+          "published",
 
         count:
           predictions.length,
