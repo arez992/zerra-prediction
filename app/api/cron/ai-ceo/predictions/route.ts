@@ -234,26 +234,6 @@ function isAuthorized(
     `Bearer ${secret}`;
 }
 
-function hasUsablePrediction(
-  value:
-    string
-): boolean {
-  const normalized =
-    value
-      .trim()
-      .toLowerCase();
-
-  return Boolean(
-    normalized &&
-    normalized !==
-      "no strong prediction" &&
-    normalized !==
-      "insufficient data" &&
-    normalized !==
-      "no value"
-  );
-}
-
 async function runScan(
   date:
     string
@@ -557,25 +537,44 @@ async function runProcess(
         null;
 
       /*
-       * An already existing prediction also
-       * means the queue work has effectively
-       * completed.
+       * A publication-policy rejection is NOT a
+       * processing failure.
+       *
+       * The fixture has been successfully evaluated
+       * even when the final decision is "withhold"
+       * because confidence is <= 68 or risk is High.
+       *
+       * Such fixtures must leave the pending queue,
+       * otherwise the same rejected matches would be
+       * retried forever and block later fixtures.
        */
-      const completedSuccessfully =
+      const evaluationCompleted =
         Boolean(
           summary.generatedPredictions >
             0 ||
           summary.existingPredictions >
-            0
+            0 ||
+          summary.policyWithheldPredictions >
+            0 ||
+          summary.withheldPredictions >
+            0 ||
+          summary.insufficientDataPredictions >
+            0 ||
+          item?.publicationDecision ===
+            "withhold" ||
+          item?.publicationDecision ===
+            "review" ||
+          item?.publicationDecision ===
+            "auto-publish"
         );
 
       if (
-        !completedSuccessfully
+        !evaluationCompleted
       ) {
         const failureReason =
           item
             ?.reason ||
-          "Prediction generator did not complete this queue item.";
+          "Prediction generation failed before a publication decision was reached.";
 
         await failPredictionQueueItem(
           queueItem.id,
@@ -627,7 +626,9 @@ async function runProcess(
 
           finalStatus,
 
-          publicationDecision,
+          publicationDecision:
+            publicationDecision ??
+            "withhold",
         }
       );
 
@@ -660,12 +661,14 @@ async function runProcess(
 
         finalStatus,
 
-        publicationDecision,
+        publicationDecision:
+          publicationDecision ??
+          "withhold",
 
         reason:
           item
             ?.reason ||
-          "Prediction queue item completed.",
+          "Prediction was evaluated and removed from the pending queue.",
       });
     } catch (
       error
