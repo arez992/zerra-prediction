@@ -7,9 +7,11 @@ import "../globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MaintenanceGate from "@/components/MaintenanceGate";
+
 import {
   VipProvider,
 } from "@/components/providers/VipProvider";
+
 import AuthSessionProvider from "@/components/providers/AuthSessionProvider";
 
 import {
@@ -18,9 +20,17 @@ import {
 
 export const metadata:
   Metadata = {
+  metadataBase:
+    new URL(
+      process.env
+        .NEXT_PUBLIC_SITE_URL ||
+      "https://zerraprediction.com"
+    ),
+
   title: {
     default:
       "ZERRA Prediction | AI Football Predictions",
+
     template:
       "%s | ZERRA Prediction",
   },
@@ -38,6 +48,24 @@ export const metadata:
     "ZERRA Prediction",
   ],
 
+  icons: {
+    icon: [
+      {
+        url:
+          "/brand/zerra-logo.png",
+
+        type:
+          "image/png",
+      },
+    ],
+
+    shortcut:
+      "/brand/zerra-logo.png",
+
+    apple:
+      "/brand/zerra-logo.png",
+  },
+
   openGraph: {
     title:
       "ZERRA Prediction | AI Football Predictions",
@@ -50,6 +78,16 @@ export const metadata:
 
     type:
       "website",
+
+    images: [
+      {
+        url:
+          "/brand/zerra-logo.png",
+
+        alt:
+          "ZERRA Prediction",
+      },
+    ],
   },
 
   twitter: {
@@ -61,6 +99,10 @@ export const metadata:
 
     description:
       "AI-powered football predictions and premium match intelligence.",
+
+    images: [
+      "/brand/zerra-logo.png",
+    ],
   },
 };
 

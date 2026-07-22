@@ -186,21 +186,15 @@ export default function Navbar() {
           href={getPath(
             ""
           )}
-          className="flex shrink-0 items-center gap-3"
+          className="flex shrink-0 items-center"
+          aria-label="ZERRA Home"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#139653] font-black text-white shadow-sm">
-            Z
-          </div>
-
-          <div>
-            <p className="text-xl font-black tracking-tight text-[#102117]">
-              ZERRA
-            </p>
-
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7d8b82]">
-              AI Football
-            </p>
-          </div>
+          <img
+            src="/brand/zerra-logo.png"
+            alt="ZERRA"
+            className="h-12 w-auto max-w-[190px] object-contain md:h-14 md:max-w-[230px]"
+            loading="eager"
+          />
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">

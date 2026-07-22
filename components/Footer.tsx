@@ -24,21 +24,15 @@ export default function Footer() {
         <div>
           <Link
             href={getPath("")}
-            className="inline-flex items-center gap-3"
+            className="inline-flex items-center"
+            aria-label="ZERRA Home"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#139653] font-black text-white shadow-sm">
-              Z
-            </div>
-
-            <div>
-              <h2 className="text-xl font-black tracking-tight">
-                ZERRA
-              </h2>
-
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7d8b82]">
-                AI Football Prediction
-              </p>
-            </div>
+            <img
+              src="/brand/zerra-logo.png"
+              alt="ZERRA"
+              className="h-14 w-auto max-w-[240px] object-contain"
+              loading="lazy"
+            />
           </Link>
 
           <p className="mt-5 max-w-sm text-sm leading-7 text-[#66756c]">
