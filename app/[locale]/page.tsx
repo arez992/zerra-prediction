@@ -57,10 +57,12 @@ type PublicPredictionItem = {
   teams: {
     home: {
       name: string;
+      logo: string | null;
     };
 
     away: {
       name: string;
+      logo: string | null;
     };
   };
 
@@ -97,10 +99,12 @@ type YesterdayGoalResultItem = {
   teams: {
     home: {
       name: string;
+      logo: string | null;
     };
 
     away: {
       name: string;
+      logo: string | null;
     };
   };
 
@@ -922,6 +926,40 @@ function Team({
   );
 }
 
+function CompactTeam({
+  name,
+  logo,
+}: {
+  name: string;
+  logo?: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      {logo ? (
+        <img
+          src={logo}
+          alt={`${name} logo`}
+          className="h-7 w-7 shrink-0 object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eaf7ef] text-xs font-black text-[#139653]">
+          {name
+            .slice(
+              0,
+              1
+            )
+            .toUpperCase()}
+        </div>
+      )}
+
+      <span className="min-w-0 break-words text-sm font-black text-[#102117]">
+        {name}
+      </span>
+    </div>
+  );
+}
+
 function MatchCard({
   fixture,
   href,
@@ -940,19 +978,39 @@ function MatchCard({
           "Football"}
       </p>
 
-      <h3 className="mt-4 text-lg font-black leading-7 text-[#102117]">
-        {fixture.teams
-          ?.home
-          ?.name ||
-          "Home Team"}
+      <div className="mt-4 space-y-3">
+        <CompactTeam
+          name={
+            fixture.teams
+              ?.home
+              ?.name ||
+            "Home Team"
+          }
+          logo={
+            fixture.teams
+              ?.home
+              ?.logo
+          }
+        />
 
-        {" vs "}
+        <div className="pl-10 text-[10px] font-black uppercase tracking-[0.14em] text-[#93a098]">
+          vs
+        </div>
 
-        {fixture.teams
-          ?.away
-          ?.name ||
-          "Away Team"}
-      </h3>
+        <CompactTeam
+          name={
+            fixture.teams
+              ?.away
+              ?.name ||
+            "Away Team"
+          }
+          logo={
+            fixture.teams
+              ?.away
+              ?.logo
+          }
+        />
+      </div>
 
       <p className="mt-4 text-sm leading-6 text-[#66756c]">
         {formatFixtureDate(
@@ -1014,23 +1072,43 @@ function FreePredictionCard({
         }
       </p>
 
-      <h3 className="mt-3 text-2xl font-black leading-tight text-[#102117]">
-        {
-          prediction
-            .teams
-            .home
-            .name
-        }
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <Team
+          name={
+            prediction
+              .teams
+              .home
+              .name
+          }
+          logo={
+            prediction
+              .teams
+              .home
+              .logo ||
+            undefined
+          }
+        />
 
-        {" vs "}
+        <span className="text-xs font-black uppercase tracking-[0.14em] text-[#93a098]">
+          VS
+        </span>
 
-        {
-          prediction
-            .teams
-            .away
-            .name
-        }
-      </h3>
+        <Team
+          name={
+            prediction
+              .teams
+              .away
+              .name
+          }
+          logo={
+            prediction
+              .teams
+              .away
+              .logo ||
+            undefined
+          }
+        />
+      </div>
 
       <p className="mt-4 line-clamp-4 text-sm leading-7 text-[#66756c]">
         {
@@ -1190,24 +1268,43 @@ function YesterdayResultRow({
           }
         </p>
 
-        <p className="mt-2 font-black text-[#102117]">
-          {
-            item
-              .teams
-              .home
-              .name
-          }
-        </p>
+        <div className="mt-3 space-y-2">
+          <CompactTeam
+            name={
+              item
+                .teams
+                .home
+                .name
+            }
+            logo={
+              item
+                .teams
+                .home
+                .logo ||
+              undefined
+            }
+          />
 
-        <p className="mt-1 text-sm font-bold text-[#66756c]">
-          vs{" "}
-          {
-            item
-              .teams
-              .away
-              .name
-          }
-        </p>
+          <div className="pl-9 text-[10px] font-black uppercase tracking-[0.12em] text-[#93a098]">
+            vs
+          </div>
+
+          <CompactTeam
+            name={
+              item
+                .teams
+                .away
+                .name
+            }
+            logo={
+              item
+                .teams
+                .away
+                .logo ||
+              undefined
+            }
+          />
+        </div>
       </div>
 
       <ResultCell

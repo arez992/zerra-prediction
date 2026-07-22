@@ -96,6 +96,18 @@ type PublishedSEOPage = {
   fixtureDate:
     string | null;
 
+  teams: {
+    home: {
+      name: string;
+      logo: string | null;
+    };
+
+    away: {
+      name: string;
+      logo: string | null;
+    };
+  };
+
   slug:
     string;
 
@@ -495,6 +507,135 @@ function normalizePublicContent(
   };
 }
 
+const getPublishedPredictionTeams =
+  cache(
+    async (
+      fixtureId:
+        string | null
+    ): Promise<{
+      home: {
+        name: string;
+        logo: string | null;
+      };
+
+      away: {
+        name: string;
+        logo: string | null;
+      };
+    } | null> => {
+      const cleanFixtureId =
+        normalizeText(
+          fixtureId
+        );
+
+      if (
+        !cleanFixtureId
+      ) {
+        return null;
+      }
+
+      const document =
+        await adminDb
+          .collection(
+            "predictionHistory"
+          )
+          .doc(
+            `fixture-${cleanFixtureId}`
+          )
+          .get();
+
+      if (
+        !document.exists
+      ) {
+        return null;
+      }
+
+      const data =
+        document.data() ||
+        {};
+
+      const teams =
+        data.teams &&
+        typeof data.teams ===
+          "object" &&
+        !Array.isArray(
+          data.teams
+        )
+          ? data.teams as Record<
+              string,
+              unknown
+            >
+          : {};
+
+      const homeTeam =
+        teams.home &&
+        typeof teams.home ===
+          "object" &&
+        !Array.isArray(
+          teams.home
+        )
+          ? teams.home as Record<
+              string,
+              unknown
+            >
+          : {};
+
+      const awayTeam =
+        teams.away &&
+        typeof teams.away ===
+          "object" &&
+        !Array.isArray(
+          teams.away
+        )
+          ? teams.away as Record<
+              string,
+              unknown
+            >
+          : {};
+
+      const homeName =
+        normalizeText(
+          homeTeam.name
+        );
+
+      const awayName =
+        normalizeText(
+          awayTeam.name
+        );
+
+      if (
+        !homeName ||
+        !awayName
+      ) {
+        return null;
+      }
+
+      return {
+        home: {
+          name:
+            homeName,
+
+          logo:
+            normalizeText(
+              homeTeam.logo
+            ) ||
+            null,
+        },
+
+        away: {
+          name:
+            awayName,
+
+          logo:
+            normalizeText(
+              awayTeam.logo
+            ) ||
+            null,
+        },
+      };
+    }
+  );
+
 const getPublishedSEOPage =
   cache(
     async (
@@ -571,14 +712,50 @@ const getPublishedSEOPage =
       const data =
         document.data();
 
+      const fixtureId =
+        normalizeText(
+          data.fixtureId
+        ) ||
+        null;
+
+      const predictionTeams =
+        await getPublishedPredictionTeams(
+          fixtureId
+        );
+
+      const keyword =
+        normalizeText(
+          data.keyword
+        );
+
+      const keywordParts =
+        keyword
+          .split(
+            /\s+vs\s+/i
+          )
+          .map(
+            (
+              item
+            ) =>
+              item.trim()
+          )
+          .filter(
+            Boolean
+          );
+
+      const fallbackHomeName =
+        keywordParts[0] ||
+        "Home Team";
+
+      const fallbackAwayName =
+        keywordParts[1] ||
+        "Away Team";
+
       return {
         id:
           document.id,
 
-        keyword:
-          normalizeText(
-            data.keyword
-          ),
+        keyword,
 
         country:
           normalizeText(
@@ -589,17 +766,43 @@ const getPublishedSEOPage =
         language:
           cleanLocale,
 
-        fixtureId:
-          normalizeText(
-            data.fixtureId
-          ) ||
-          null,
+        fixtureId,
 
         fixtureDate:
           normalizeText(
             data.fixtureDate
           ) ||
           null,
+
+        teams: {
+          home: {
+            name:
+              predictionTeams
+                ?.home
+                .name ||
+              fallbackHomeName,
+
+            logo:
+              predictionTeams
+                ?.home
+                .logo ||
+              null,
+          },
+
+          away: {
+            name:
+              predictionTeams
+                ?.away
+                .name ||
+              fallbackAwayName,
+
+            logo:
+              predictionTeams
+                ?.away
+                .logo ||
+              null,
+          },
+        },
 
         slug:
           normalizeText(
@@ -849,6 +1052,66 @@ export default async function PredictionDetailPage(
 
         sport:
           "Football",
+
+        homeTeam: {
+          "@type":
+            "SportsTeam",
+
+          name:
+            page
+              .teams
+              .home
+              .name,
+
+          ...(page
+            .teams
+            .home
+            .logo
+            ? {
+                logo:
+                  page
+                    .teams
+                    .home
+                    .logo,
+
+                image:
+                  page
+                    .teams
+                    .home
+                    .logo,
+              }
+            : {}),
+        },
+
+        awayTeam: {
+          "@type":
+            "SportsTeam",
+
+          name:
+            page
+              .teams
+              .away
+              .name,
+
+          ...(page
+            .teams
+            .away
+            .logo
+            ? {
+                logo:
+                  page
+                    .teams
+                    .away
+                    .logo,
+
+                image:
+                  page
+                    .teams
+                    .away
+                    .logo,
+              }
+            : {}),
+        },
       },
 
       {
@@ -938,7 +1201,7 @@ export default async function PredictionDetailPage(
               getLocalizedText(
                 cleanLocale,
                 "Home",
-                "ط³غ•ط±غ•ع©غŒ"
+                "سەرەکی"
               ),
 
             item:
@@ -956,7 +1219,7 @@ export default async function PredictionDetailPage(
               getLocalizedText(
                 cleanLocale,
                 "Predictions",
-                "ظ¾غژط´ط¨غŒظ†غŒغŒغ•ع©ط§ظ†"
+                "پێشبینییەکان"
               ),
 
             item:
@@ -1013,7 +1276,7 @@ export default async function PredictionDetailPage(
             {getLocalizedText(
               cleanLocale,
               "Home",
-              "ط³غ•ط±غ•ع©غŒ"
+              "سەرەکی"
             )}
           </Link>
 
@@ -1026,7 +1289,7 @@ export default async function PredictionDetailPage(
             {getLocalizedText(
               cleanLocale,
               "Predictions",
-              "ظ¾غژط´ط¨غŒظ†غŒغŒغ•ع©ط§ظ†"
+              "پێشبینییەکان"
             )}
           </Link>
 
@@ -1044,7 +1307,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Published Analysis",
-                  "ط´غŒع©ط§ط±غŒ ط¨عµط§ظˆع©ط±ط§ظˆغ•"
+                  "شیکاری بڵاوکراوە"
                 )}
               </Badge>
 
@@ -1053,6 +1316,42 @@ export default async function PredictionDetailPage(
                   {page.country}
                 </Badge>
               ) : null}
+            </div>
+
+            <div className="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-[1.75rem] border border-white/10 bg-black/20 p-5 md:p-7">
+              <SEOTeam
+                name={
+                  page
+                    .teams
+                    .home
+                    .name
+                }
+                logo={
+                  page
+                    .teams
+                    .home
+                    .logo
+                }
+              />
+
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-[#D4AF37]">
+                VS
+              </span>
+
+              <SEOTeam
+                name={
+                  page
+                    .teams
+                    .away
+                    .name
+                }
+                logo={
+                  page
+                    .teams
+                    .away
+                    .logo
+                }
+              />
             </div>
 
             <h1 className="mt-6 text-4xl font-black leading-tight md:text-6xl">
@@ -1070,12 +1369,12 @@ export default async function PredictionDetailPage(
               label={getLocalizedText(
                 cleanLocale,
                 "Public Analysis",
-                "ط´غŒع©ط§ط±غŒ ع¯ط´طھغŒ"
+                "شیکاری گشتی"
               )}
               title={getLocalizedText(
                 cleanLocale,
                 "Match Overview",
-                "ع©ظˆط±طھغ•غŒ غŒط§ط±غŒ"
+                "پوختەی یاری"
               )}
               content={
                 page
@@ -1111,7 +1410,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Key Insights",
-                  "طھغژط¨غŒظ†غŒغŒغ• ط³غ•ط±غ•ع©غŒغŒغ•ع©ط§ظ†"
+                  "تێبینییە سەرەکییەکان"
                 )}
               </p>
 
@@ -1149,7 +1448,7 @@ export default async function PredictionDetailPage(
               title={getLocalizedText(
                 cleanLocale,
                 "AI Public Insight",
-                "طھغژع•ظˆط§ظ†غŒظ†غŒ ع¯ط´طھغŒ AI"
+                "تێڕوانینی گشتی AI"
               )}
               content={
                 page
@@ -1170,7 +1469,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Frequently Asked Questions",
-                  "ظ¾ط±ط³غŒط§ط±غ• ط¨ط§ظˆغ•ع©ط§ظ†"
+                  "پرسیارە باوەکان"
                 )}
               </h2>
 
@@ -1200,14 +1499,14 @@ export default async function PredictionDetailPage(
 
           <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D4AF37]/35 bg-gradient-to-br from-[#1B2230] via-[#111B2B] to-[#0B1422] p-7 shadow-2xl md:p-9">
             <p className="text-xs font-black uppercase tracking-[0.32em] text-[#D4AF37]">
-              ًں”’ ZERRA VIP
+              🔒 ZERRA VIP
             </p>
 
             <h2 className="mt-4 text-3xl font-black">
               {getLocalizedText(
                 cleanLocale,
                 "Unlock the Final AI Prediction",
-                "ظ¾غژط´ط¨غŒظ†غŒ ع©غ†طھط§غŒغŒ AI ط¨ع©غ•ط±غ•ظˆغ•"
+                "پێشبینی کۆتایی AI بکەرەوە"
               )}
             </h2>
 
@@ -1226,7 +1525,7 @@ export default async function PredictionDetailPage(
               {getLocalizedText(
                 cleanLocale,
                 "Explore VIP",
-                "VIP ط¨ط¨غŒظ†غ•"
+                "VIP ببینە"
               )}
             </Link>
           </section>
@@ -1239,7 +1538,7 @@ export default async function PredictionDetailPage(
                 {getLocalizedText(
                   cleanLocale,
                   "Explore ZERRA",
-                  "ط¨غ•ط´غ•ع©ط§ظ†غŒ ZERRA"
+                  "بەشەکانی ZERRA"
                 )}
               </h2>
 
@@ -1267,6 +1566,47 @@ export default async function PredictionDetailPage(
         </article>
       </div>
     </main>
+  );
+}
+
+function SEOTeam(
+  {
+    name,
+    logo,
+  }: {
+    name:
+      string;
+
+    logo:
+      string | null;
+  }
+) {
+  return (
+    <div className="flex min-w-0 flex-col items-center text-center">
+      {logo ? (
+        <img
+          src={
+            logo
+          }
+          alt={`${name} logo`}
+          className="h-16 w-16 object-contain md:h-20 md:w-20"
+          loading="eager"
+        />
+      ) : (
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#D4AF37]/10 text-xl font-black text-[#D4AF37] md:h-20 md:w-20">
+          {name
+            .slice(
+              0,
+              1
+            )
+            .toUpperCase()}
+        </div>
+      )}
+
+      <p className="mt-3 break-words text-sm font-black text-white md:text-base">
+        {name}
+      </p>
+    </div>
   );
 }
 

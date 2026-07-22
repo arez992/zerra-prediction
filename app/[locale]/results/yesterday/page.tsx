@@ -12,10 +12,12 @@ type YesterdayGoalResultItem = {
   teams: {
     home: {
       name: string;
+      logo: string | null;
     };
 
     away: {
       name: string;
+      logo: string | null;
     };
   };
 
@@ -450,24 +452,41 @@ function ResultRow({
           }
         </p>
 
-        <p className="mt-2 font-black text-[#102117]">
-          {
-            item
-              .teams
-              .home
-              .name
-          }
-        </p>
+        <div className="mt-3 space-y-2">
+          <TeamResultIdentity
+            name={
+              item
+                .teams
+                .home
+                .name
+            }
+            logo={
+              item
+                .teams
+                .home
+                .logo
+            }
+          />
 
-        <p className="mt-1 text-sm font-bold text-[#66756c]">
-          vs{" "}
-          {
-            item
-              .teams
-              .away
-              .name
-          }
-        </p>
+          <div className="pl-9 text-[10px] font-black uppercase tracking-[0.12em] text-[#93a098]">
+            vs
+          </div>
+
+          <TeamResultIdentity
+            name={
+              item
+                .teams
+                .away
+                .name
+            }
+            logo={
+              item
+                .teams
+                .away
+                .logo
+            }
+          />
+        </div>
       </div>
 
       <Cell
@@ -548,6 +567,43 @@ function ResultRow({
         </div>
       </div>
     </article>
+  );
+}
+
+function TeamResultIdentity({
+  name,
+  logo,
+}: {
+  name: string;
+  logo: string | null;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      {logo ? (
+        <img
+          src={logo}
+          alt={`${name} logo`}
+          className="h-7 w-7 shrink-0 object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eaf7ef] text-xs font-black text-[#139653]"
+          aria-hidden="true"
+        >
+          {name
+            .slice(
+              0,
+              1
+            )
+            .toUpperCase()}
+        </div>
+      )}
+
+      <span className="min-w-0 break-words text-sm font-black text-[#102117]">
+        {name}
+      </span>
+    </div>
   );
 }
 

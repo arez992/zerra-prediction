@@ -22,10 +22,12 @@ type PublicPredictionItem = {
   teams: {
     home: {
       name: string;
+      logo: string | null;
     };
 
     away: {
       name: string;
+      logo: string | null;
     };
   };
 
@@ -435,11 +437,29 @@ function FeaturedPrediction({
             }
 
             {item.competition.round
-              ? ` آ· ${item.competition.round}`
+              ? ` · ${item.competition.round}`
               : ""}
           </p>
 
-          <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl">
+          <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+            <TeamIdentity
+              name={item.teams.home.name}
+              logo={item.teams.home.logo}
+              featured
+            />
+
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-[#93a098]">
+              VS
+            </span>
+
+            <TeamIdentity
+              name={item.teams.away.name}
+              logo={item.teams.away.logo}
+              featured
+            />
+          </div>
+
+          <h2 className="sr-only">
             {matchTitle}
           </h2>
 
@@ -628,21 +648,21 @@ function PredictionCard({
         }
       </p>
 
-      <h3 className="mt-3 text-2xl font-black leading-tight">
-        {
-          item
-            .teams
-            .home
-            .name
-        }{" "}
-        vs{" "}
-        {
-          item
-            .teams
-            .away
-            .name
-        }
-      </h3>
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <TeamIdentity
+          name={item.teams.home.name}
+          logo={item.teams.home.logo}
+        />
+
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-[#93a098]">
+          VS
+        </span>
+
+        <TeamIdentity
+          name={item.teams.away.name}
+          logo={item.teams.away.logo}
+        />
+      </div>
 
       <p className="mt-4 text-sm leading-7 text-[#66756c]">
         {
@@ -667,7 +687,7 @@ function PredictionCard({
               .publicPrediction
               .riskScore !==
             null
-              ? `${item.publicPrediction.risk} آ· ${item.publicPrediction.riskScore}/100`
+              ? `${item.publicPrediction.risk} · ${item.publicPrediction.riskScore}/100`
               : item.publicPrediction.risk
           }
         />
@@ -717,6 +737,52 @@ function PredictionCard({
         />
       </div>
     </article>
+  );
+}
+
+function TeamIdentity({
+  name,
+  logo,
+  featured = false,
+}: {
+  name: string;
+  logo: string | null;
+  featured?: boolean;
+}) {
+  const logoSize =
+    featured
+      ? "h-16 w-16 md:h-20 md:w-20"
+      : "h-11 w-11";
+
+  const textSize =
+    featured
+      ? "text-base md:text-xl"
+      : "text-sm md:text-base";
+
+  return (
+    <div className="flex min-w-0 flex-col items-center text-center">
+      {logo ? (
+        <img
+          src={logo}
+          alt={`${name} logo`}
+          className={`${logoSize} object-contain`}
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className={`${logoSize} flex items-center justify-center rounded-full bg-[#eaf7ef] font-black text-[#139653]`}
+          aria-hidden="true"
+        >
+          {name
+            .slice(0, 1)
+            .toUpperCase()}
+        </div>
+      )}
+
+      <span className={`mt-2 min-w-0 break-words font-black leading-tight text-[#102117] ${textSize}`}>
+        {name}
+      </span>
+    </div>
   );
 }
 
