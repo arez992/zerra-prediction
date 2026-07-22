@@ -92,6 +92,9 @@ type FixtureLike = {
 
       name?:
         string;
+
+      logo?:
+        string;
     };
 
     away?: {
@@ -99,6 +102,9 @@ type FixtureLike = {
         number;
 
       name?:
+        string;
+
+      logo?:
         string;
     };
   };
@@ -1956,6 +1962,94 @@ export async function generatePredictionsForDate(
         ...engineResult
           .data
           .document,
+
+        /*
+         * Persist the team identity directly from the
+         * original fixtures-by-date payload.
+         *
+         * This guarantees that published predictions
+         * keep the API-Football team logos even when an
+         * enriched pipeline/mapper omits logo fields.
+         */
+        teams: {
+          home: {
+            id:
+              fixture
+                .teams
+                ?.home
+                ?.id ??
+              engineResult
+                .data
+                .document
+                .teams
+                .home
+                .id ??
+              null,
+
+            name:
+              normalizeOptionalText(
+                fixture
+                  .teams
+                  ?.home
+                  ?.name
+              ) ||
+              engineResult
+                .data
+                .document
+                .teams
+                .home
+                .name ||
+              "Home team",
+
+            logo:
+              normalizeOptionalText(
+                fixture
+                  .teams
+                  ?.home
+                  ?.logo
+              ) ||
+              null,
+          },
+
+          away: {
+            id:
+              fixture
+                .teams
+                ?.away
+                ?.id ??
+              engineResult
+                .data
+                .document
+                .teams
+                .away
+                .id ??
+              null,
+
+            name:
+              normalizeOptionalText(
+                fixture
+                  .teams
+                  ?.away
+                  ?.name
+              ) ||
+              engineResult
+                .data
+                .document
+                .teams
+                .away
+                .name ||
+              "Away team",
+
+            logo:
+              normalizeOptionalText(
+                fixture
+                  .teams
+                  ?.away
+                  ?.logo
+              ) ||
+              null,
+          },
+        },
 
         status:
           finalStatus,
