@@ -13,6 +13,7 @@ import {
 
 import {
   enrichExistingFixtureForPrediction,
+  enrichExistingFixtureForPredictionRescue,
   getFixturesByDate,
 } from "@/lib/api-football/service";
 
@@ -263,6 +264,125 @@ function hasUsablePrediction(
   );
 }
 
+async function calculateScanPrediction(
+  fixture: FixtureLike,
+  rescue: boolean
+) {
+  const enriched =
+    rescue
+      ? await enrichExistingFixtureForPredictionRescue(
+          fixture as any,
+          {
+            recentFixtureLimit:
+              8,
+          }
+        )
+      : await enrichExistingFixtureForPrediction(
+          fixture as any,
+          {
+            recentFixtureLimit:
+              8,
+          }
+        );
+
+  const engineResult =
+    await runPredictionEngine({
+      ...toPredictionPipelineInput(
+        enriched
+      ),
+
+      source:
+        rescue
+          ? "ai-ceo-season-statistics-rescue"
+          : "ai-ceo-cached-enriched-scan",
+    });
+
+  if (
+    !engineResult.success
+  ) {
+    throw new Error(
+      engineResult.error
+    );
+  }
+
+  return engineResult
+    .data
+    .prediction;
+}
+
+function readPredictionDecision(
+  prediction: any
+) {
+  const primary =
+    prediction
+      ?.vipPrediction
+      ?.primaryPrediction;
+
+  const confidence =
+    primary
+      ?.confidence ??
+    prediction
+      ?.confidence ??
+    0;
+
+  const risk =
+    prediction
+      ?.risk ??
+    prediction
+      ?.publicPrediction
+      ?.risk ??
+    "High";
+
+  const qualified =
+    primary
+      ?.qualified ===
+    true;
+
+  const consistencyValid =
+    prediction
+      ?.consistency
+      ?.valid ===
+    true;
+
+  const pick =
+    primary
+      ?.pick ??
+    prediction
+      ?.vipPrediction
+      ?.finalPrediction ??
+    "";
+
+  const confidencePassed =
+    confidence >=
+    MIN_CONFIDENCE;
+
+  const riskPassed =
+    risk === "Low" ||
+    risk === "Medium";
+
+  const predictionAvailable =
+    hasUsablePrediction(
+      pick
+    );
+
+  return {
+    confidence,
+    risk,
+    qualified,
+    consistencyValid,
+    pick,
+    confidencePassed,
+    riskPassed,
+    predictionAvailable,
+
+    candidatePassed:
+      confidencePassed &&
+      riskPassed &&
+      consistencyValid &&
+      predictionAvailable,
+  };
+}
+
 async function runScan(
   date:
     string
@@ -390,6 +510,12 @@ async function runScan(
   let scanFailures =
     0;
 
+  let rescueAttempts =
+    0;
+
+  let rescueCandidates =
+    0;
+
   for (
     const fixture
     of preMatchFixtures
@@ -419,129 +545,74 @@ async function runScan(
 
     try {
       /*
-       * Cached-enriched bulk scan.
-       *
-       * The fixture itself is already available from
-       * getFixturesByDate(), so it is not refetched.
-       *
-       * Only recent completed team fixtures are added.
-       * ZERRA derives local team profiles from them and
-       * then runs the normal prediction engine.
+       * STAGE 1 — cheap cached-enriched scan.
        */
-      const enriched =
-        await enrichExistingFixtureForPrediction(
-          fixture as any,
-          {
-            recentFixtureLimit:
-              8,
-          }
+      let prediction =
+        await calculateScanPrediction(
+          fixture,
+          false
         );
 
-      const engineResult =
-        await runPredictionEngine({
-          ...toPredictionPipelineInput(
-            enriched
-          ),
+      let decision =
+        readPredictionDecision(
+          prediction
+        );
 
-          source:
-            "ai-ceo-cached-enriched-scan",
-        });
+      let enrichmentStage:
+        "cheap" |
+        "rescue" =
+        "cheap";
 
+      /*
+       * STAGE 2 — rescue with season statistics.
+       * Only runs when Stage 1 does not qualify.
+       */
       if (
-        !engineResult.success
+        !decision
+          .candidatePassed
       ) {
-        throw new Error(
-          engineResult.error
-        );
+        rescueAttempts +=
+          1;
+
+        prediction =
+          await calculateScanPrediction(
+            fixture,
+            true
+          );
+
+        decision =
+          readPredictionDecision(
+            prediction
+          );
+
+        enrichmentStage =
+          "rescue";
       }
 
-      const prediction =
-        engineResult
-          .data
-          .prediction;
-
-      const primary =
-        prediction
-          .vipPrediction
-          ?.primaryPrediction;
-
-      const confidence =
-        primary
-          ?.confidence ??
-        prediction
-          .confidence ??
-        0;
-
-      const risk =
-        prediction
-          .risk ??
-        prediction
-          .publicPrediction
-          ?.risk ??
-        "High";
-
-      /*
-       * Retain qualified as diagnostic
-       * metadata only.
-       *
-       * It is deliberately NOT part of
-       * candidatePassed below.
-       */
-      const qualified =
-        primary
-          ?.qualified ===
-        true;
-
-      const consistencyValid =
-        prediction
-          .consistency
-          ?.valid ===
-        true;
-
-      const pick =
-        primary
-          ?.pick ??
-        prediction
-          .vipPrediction
-          ?.finalPrediction ??
-        "";
-
-      const confidencePassed =
-        confidence >=
-        MIN_CONFIDENCE;
-
-      const riskPassed =
-        risk ===
-          "Low" ||
-        risk ===
-          "Medium";
-
-      const predictionAvailable =
-        hasUsablePrediction(
-          pick
-        );
-
-      /*
-       * ZERRA RELAXED CHEAP-SCAN POLICY
-       *
-       * primary qualified=false is NOT
-       * a hard rejection condition here.
-       *
-       * This is intentional because
-       * insufficient supporting data can
-       * lower qualification while the
-       * canonical model prediction itself
-       * can still be strong.
-       */
-      const candidatePassed =
-        confidencePassed &&
-        riskPassed &&
-        consistencyValid &&
-        predictionAvailable;
+      const {
+        confidence,
+        risk,
+        qualified,
+        consistencyValid,
+        pick,
+        confidencePassed,
+        riskPassed,
+        predictionAvailable,
+        candidatePassed,
+      } =
+        decision;
 
       if (
         candidatePassed
       ) {
+        if (
+          enrichmentStage ===
+            "rescue"
+        ) {
+          rescueCandidates +=
+            1;
+        }
+
         candidates.push({
           fixtureId,
 
@@ -721,6 +792,10 @@ async function runScan(
       rejected.length,
 
     scanFailures,
+
+    rescueAttempts,
+
+    rescueCandidates,
 
     queueResult,
 
@@ -1208,12 +1283,18 @@ export async function GET(
             false,
 
           scanDataMode:
-            "cached-enriched-recent-form",
+            "adaptive-two-stage",
 
-          fixtureRefetchPerMatch:
+          cheapStageSeasonStatistics:
             false,
 
-          seasonStatisticsInBulkScan:
+          rescueStageSeasonStatistics:
+            true,
+
+          rescueOnlyAfterCheapFailure:
+            true,
+
+          fixtureRefetchPerMatch:
             false,
 
           openAIRequiredForBulkPrediction:
