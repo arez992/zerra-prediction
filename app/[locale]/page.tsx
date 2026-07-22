@@ -621,6 +621,50 @@ export default async function HomePage({
         )}
       </section>
 
+      <section className="border-b border-[#e0ebe3] bg-[#f7faf8]">
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          <SectionHeader
+            eyebrow="Published Predictions"
+            title="Latest Prediction Previews"
+            description="Explore recently published football prediction previews from the ZERRA AI workflow."
+            actionHref={getPath(
+              "/predictions"
+            )}
+            actionLabel="View predictions"
+          />
+
+          {freePredictions.length ===
+          0 ? (
+            <EmptyState message="No published prediction previews are available right now." />
+          ) : (
+            <div className="mt-8 grid gap-6 lg:grid-cols-3">
+              {freePredictions.map(
+                (
+                  prediction,
+                  index
+                ) => (
+                  <FreePredictionCard
+                    key={
+                      prediction.id
+                    }
+                    prediction={
+                      prediction
+                    }
+                    number={
+                      index + 1
+                    }
+                    locale={
+                      locale
+                    }
+                  />
+                )
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+
       <section className="border-y border-[#e0ebe3] bg-white">
         <div className="mx-auto max-w-7xl px-6 py-16">
           <SectionHeader
@@ -704,49 +748,6 @@ export default async function HomePage({
                 </Link>
               </div>
             </>
-          )}
-        </div>
-      </section>
-
-      <section className="border-b border-[#e0ebe3] bg-[#f7faf8]">
-        <div className="mx-auto max-w-7xl px-6 py-16">
-          <SectionHeader
-            eyebrow="Published Predictions"
-            title="Latest Prediction Previews"
-            description="Explore recently published football prediction previews from the ZERRA AI workflow."
-            actionHref={getPath(
-              "/predictions"
-            )}
-            actionLabel="View predictions"
-          />
-
-          {freePredictions.length ===
-          0 ? (
-            <EmptyState message="No published prediction previews are available right now." />
-          ) : (
-            <div className="mt-8 grid gap-6 lg:grid-cols-3">
-              {freePredictions.map(
-                (
-                  prediction,
-                  index
-                ) => (
-                  <FreePredictionCard
-                    key={
-                      prediction.id
-                    }
-                    prediction={
-                      prediction
-                    }
-                    number={
-                      index + 1
-                    }
-                    locale={
-                      locale
-                    }
-                  />
-                )
-              )}
-            </div>
           )}
         </div>
       </section>
