@@ -260,6 +260,115 @@ function getTimestamp(
     : timestamp;
 }
 
+async function getPredictionCandidateByFixtureId(
+  fixtureId:
+    string
+): Promise<
+  PredictionCandidate | null
+> {
+  const normalizedFixtureId =
+    normalizeText(
+      fixtureId
+    );
+
+  if (
+    !normalizedFixtureId
+  ) {
+    return null;
+  }
+
+  /*
+   * Prediction documents are stored with
+   * the deterministic ID fixture-{fixtureId}.
+   *
+   * This makes the immediate SEO path a single
+   * Firestore document read instead of scanning
+   * the full published-prediction collection.
+   */
+  const document =
+    await adminDb
+      .collection(
+        "predictionHistory"
+      )
+      .doc(
+        `fixture-${normalizedFixtureId}`
+      )
+      .get();
+
+  if (
+    !document.exists
+  ) {
+    return null;
+  }
+
+  const data =
+    document.data() ||
+    {};
+
+  if (
+    normalizeText(
+      data.status
+    ).toLowerCase() !==
+    "published"
+  ) {
+    return null;
+  }
+
+  const homeTeam =
+    normalizeText(
+      data.teams
+        ?.home
+        ?.name
+    );
+
+  const awayTeam =
+    normalizeText(
+      data.teams
+        ?.away
+        ?.name
+    );
+
+  if (
+    !homeTeam ||
+    !awayTeam
+  ) {
+    return null;
+  }
+
+  return {
+    id:
+      document.id,
+
+    fixtureId:
+      normalizedFixtureId,
+
+    fixtureDate:
+      serializeDate(
+        data.fixtureDate
+      ),
+
+    keyword:
+      `${homeTeam} vs ${awayTeam}`,
+
+    country:
+      normalizeText(
+        data.competition
+          ?.country
+      ) ||
+      null,
+
+    publishedAt:
+      serializeDate(
+        data.publishedAt
+      ),
+
+    updatedAt:
+      serializeDate(
+        data.updatedAt
+      ),
+  };
+}
+
 /*
  * Get published prediction candidates.
  *
@@ -464,6 +573,17 @@ export async function GET(
         ? "ku"
         : "en";
 
+
+    const requestedFixtureId =
+      normalizeText(
+        request
+          .nextUrl
+          .searchParams
+          .get(
+            "fixtureId"
+          )
+      );
+
     /*
      * Load existing SEO inventory once
      * before generation.
@@ -500,10 +620,23 @@ export async function GET(
           )
       );
 
+    const requestedCandidate =
+      requestedFixtureId
+        ? await getPredictionCandidateByFixtureId(
+            requestedFixtureId
+          )
+        : null;
+
     const candidates =
-      await getPredictionCandidates(
-        limit
-      );
+      requestedFixtureId
+        ? requestedCandidate
+          ? [
+              requestedCandidate,
+            ]
+          : []
+        : await getPredictionCandidates(
+            limit
+          );
 
     const items:
       SEOGenerationItem[] =
@@ -540,7 +673,11 @@ export async function GET(
     ) {
       if (
         generatedCount >=
-        limit
+        (
+          requestedFixtureId
+            ? 1
+            : limit
+        )
       ) {
         break;
       }
@@ -870,7 +1007,18 @@ export async function GET(
 
         summary: {
           requestedLimit:
-            limit,
+            requestedFixtureId
+              ? 1
+              : limit,
+
+          requestedFixtureId:
+            requestedFixtureId ||
+            null,
+
+          immediateFixtureMode:
+            Boolean(
+              requestedFixtureId
+            ),
 
           language,
 

@@ -1,4 +1,5 @@
 import {
+  after,
   NextRequest,
   NextResponse,
 } from "next/server";
@@ -541,12 +542,7 @@ async function runProcess(
        * processing failure.
        *
        * The fixture has been successfully evaluated
-       * even when the final decision is "withhold"
-       * because confidence is <= 68 or risk is High.
-       *
-       * Such fixtures must leave the pending queue,
-       * otherwise the same rejected matches would be
-       * retried forever and block later fixtures.
+       * even when the final decision is "withhold".
        */
       const evaluationCompleted =
         Boolean(
@@ -754,6 +750,158 @@ async function runProcess(
   };
 }
 
+function scheduleImmediateSEOForPublishedFixtures(
+  request:
+    NextRequest,
+  result:
+    Awaited<
+      ReturnType<
+        typeof runProcess
+      >
+    >
+): void {
+  const publishedFixtureIds =
+    result.results
+      .filter(
+        (
+          item
+        ) =>
+          item.status ===
+            "completed" &&
+          item.publicationDecision ===
+            "auto-publish" &&
+          item.finalStatus ===
+            "published"
+      )
+      .map(
+        (
+          item
+        ) =>
+          item.fixtureId
+      );
+
+  if (
+    publishedFixtureIds.length ===
+    0
+  ) {
+    return;
+  }
+
+  const cronSecret =
+    process.env
+      .CRON_SECRET;
+
+  if (
+    !cronSecret
+  ) {
+    console.error(
+      "[AI_CEO_IMMEDIATE_SEO_TRIGGER_ERROR]",
+      "CRON_SECRET is missing."
+    );
+
+    return;
+  }
+
+  /*
+   * Next.js after() lets the prediction route return
+   * its response first. SEO is then triggered in the
+   * post-response phase, so SEO generation no longer
+   * makes mode=process wait and time out.
+   *
+   * Each published fixture gets its own SEO request.
+   * That prevents one large SEO batch from holding a
+   * single serverless function open too long.
+   */
+  after(
+    async () => {
+      const tasks =
+        publishedFixtureIds.map(
+          async (
+            fixtureId
+          ) => {
+            const url =
+              new URL(
+                "/api/cron/ai-ceo/seo",
+                request.nextUrl.origin
+              );
+
+            url.searchParams.set(
+              "fixtureId",
+              fixtureId
+            );
+
+            url.searchParams.set(
+              "language",
+              "en"
+            );
+
+            url.searchParams.set(
+              "limit",
+              "1"
+            );
+
+            try {
+              const response =
+                await fetch(
+                  url,
+                  {
+                    method:
+                      "GET",
+
+                    headers: {
+                      Authorization:
+                        `Bearer ${cronSecret}`,
+                    },
+
+                    cache:
+                      "no-store",
+                  }
+                );
+
+              if (
+                !response.ok
+              ) {
+                console.error(
+                  "[AI_CEO_IMMEDIATE_SEO_TRIGGER_HTTP_ERROR]",
+                  {
+                    fixtureId,
+
+                    status:
+                      response.status,
+
+                    statusText:
+                      response.statusText,
+                  }
+                );
+              }
+            } catch (
+              error
+            ) {
+              console.error(
+                "[AI_CEO_IMMEDIATE_SEO_TRIGGER_ERROR]",
+                {
+                  fixtureId,
+
+                  error:
+                    error instanceof
+                      Error
+                      ? error.message
+                      : String(
+                          error
+                        ),
+                }
+              );
+            }
+          }
+        );
+
+      await Promise.allSettled(
+        tasks
+      );
+    }
+  );
+}
+
 export async function GET(
   request:
     NextRequest
@@ -813,6 +961,21 @@ export async function GET(
         : await runScan(
             date
           );
+
+
+    if (
+      mode ===
+        "process"
+    ) {
+      scheduleImmediateSEOForPublishedFixtures(
+        request,
+        result as Awaited<
+          ReturnType<
+            typeof runProcess
+          >
+        >
+      );
+    }
 
     return NextResponse.json(
       {

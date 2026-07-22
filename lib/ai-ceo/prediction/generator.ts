@@ -33,23 +33,6 @@ import {
   evaluatePredictionLearningPolicy,
 } from "@/lib/ai-ceo/prediction/learningPolicy";
 
-import {
-  createSEOPageDraft,
-  listSEOPageDrafts,
-} from "@/lib/ai-ceo/pageGenerator";
-
-import {
-  evaluateSEOAutoPublishPolicy,
-} from "@/lib/ai-ceo/seoAutoPublishPolicy";
-
-import {
-  applySEOAutonomousLifecycle,
-} from "@/lib/ai-ceo/seoLifecycle";
-
-import type {
-  SEOPageDraftItem,
-} from "@/lib/ai-ceo/client";
-
 const COLLECTION_NAME =
   "predictionHistory";
 
@@ -1106,224 +1089,6 @@ async function writeGenerationAudit(
     );
 }
 
-
-type ImmediateSEOResult = {
-  attempted:
-    boolean;
-
-  generated:
-    boolean;
-
-  draftId:
-    string | null;
-
-  decision:
-    "auto-publish" |
-    "review" |
-    "withhold" |
-    "skipped" |
-    "failed";
-
-  status:
-    string | null;
-
-  reason:
-    string;
-};
-
-async function generateImmediateSEOForPublishedPrediction(
-  input: {
-    fixtureId:
-      string;
-
-    fixtureDate:
-      string | null;
-
-    homeTeam:
-      string;
-
-    awayTeam:
-      string;
-
-    country:
-      string | null;
-  }
-): Promise<
-  ImmediateSEOResult
-> {
-  const keyword =
-    `${input.homeTeam} vs ${input.awayTeam}`;
-
-  try {
-    /*
-     * createSEOPageDraft already protects against
-     * duplicate fixture/language pages.
-     *
-     * We intentionally attempt creation directly
-     * instead of loading the full SEO inventory
-     * before creation. This keeps immediate SEO
-     * generation lighter during prediction batches.
-     */
-    const draft =
-      await createSEOPageDraft({
-        keyword,
-
-        language:
-          "en",
-
-        country:
-          input.country,
-
-        fixtureId:
-          input.fixtureId,
-
-        fixtureDate:
-          input.fixtureDate,
-
-        sourceRecommendationId:
-          null,
-
-        createdBy:
-          "ai-ceo-immediate-prediction-seo",
-      });
-
-    /*
-     * The existing SEO quality policy remains
-     * responsible for deciding whether the new
-     * page can publish automatically.
-     */
-    const latestDraftsRaw =
-      await listSEOPageDrafts(
-        1000
-      );
-
-    const latestDrafts =
-      latestDraftsRaw as
-        SEOPageDraftItem[];
-
-    const currentDraft =
-      draft as unknown as
-        SEOPageDraftItem;
-
-    const policy =
-      evaluateSEOAutoPublishPolicy(
-        currentDraft,
-        latestDrafts
-      );
-
-    const lifecycle =
-      await applySEOAutonomousLifecycle({
-        draftId:
-          draft.id,
-
-        policy,
-
-        performedBy:
-          "ai-ceo-immediate-prediction-seo",
-      });
-
-    return {
-      attempted:
-        true,
-
-      generated:
-        true,
-
-      draftId:
-        draft.id,
-
-      decision:
-        lifecycle.decision,
-
-      status:
-        lifecycle.status,
-
-      reason:
-        lifecycle.message,
-    };
-  } catch (
-    error
-  ) {
-    const message =
-      error instanceof
-        Error
-        ? error.message
-        : "Immediate SEO generation failed.";
-
-    /*
-     * An already-existing SEO page is a normal
-     * idempotent outcome, not an error.
-     */
-    if (
-      message
-        .toLowerCase()
-        .includes(
-          "already exists"
-        )
-    ) {
-      return {
-        attempted:
-          true,
-
-        generated:
-          false,
-
-        draftId:
-          null,
-
-        decision:
-          "skipped",
-
-        status:
-          null,
-
-        reason:
-          message,
-      };
-    }
-
-    /*
-     * Prediction publication must never be rolled
-     * back because SEO generation failed.
-     *
-     * The existing SEO cron remains a fallback and
-     * can create the page on a later run.
-     */
-    console.error(
-      "[AI_CEO_IMMEDIATE_SEO_ERROR]",
-      {
-        fixtureId:
-          input.fixtureId,
-
-        keyword,
-
-        error:
-          message,
-      }
-    );
-
-    return {
-      attempted:
-        true,
-
-      generated:
-        false,
-
-      draftId:
-        null,
-
-      decision:
-        "failed",
-
-      status:
-        null,
-
-      reason:
-        message,
-    };
-  }
-}
-
 export async function generatePredictionsForDate(
   options: {
     date:
@@ -1781,12 +1546,7 @@ export async function generatePredictionsForDate(
       if (
         !generationDecision
           .allowed &&
-        !(
-          aiCEOAutonomous &&
-          generationDecision
-            .status ===
-            "insufficient-data"
-        )
+        !aiCEOAutonomous
       ) {
         if (
           generationDecision
@@ -2528,83 +2288,6 @@ export async function generatePredictionsForDate(
 
       await batch.commit();
 
-      /*
-       * Immediately generate SEO after a prediction
-       * has been successfully auto-published.
-       *
-       * This is intentionally after Firestore commit
-       * so the SEO page is always based on an already
-       * published prediction record.
-       */
-      let immediateSEO:
-        ImmediateSEOResult | null =
-        null;
-
-      if (
-        aiCEOAutonomous &&
-        publicationDecision ===
-          "auto-publish" &&
-        finalStatus ===
-          "published"
-      ) {
-        immediateSEO =
-          await generateImmediateSEOForPublishedPrediction({
-            fixtureId,
-
-            fixtureDate,
-
-            homeTeam:
-              String(
-                fixture
-                  .teams
-                  ?.home
-                  ?.name ||
-                ""
-              ).trim(),
-
-            awayTeam:
-              String(
-                fixture
-                  .teams
-                  ?.away
-                  ?.name ||
-                ""
-              ).trim(),
-
-            country:
-              normalizeOptionalText(
-                fixture
-                  .league
-                  ?.country
-              ),
-          });
-
-        try {
-          await predictionRef.set(
-            sanitizeForFirestore({
-              immediateSEO: {
-                ...immediateSEO,
-
-                generatedAt:
-                  new Date()
-                    .toISOString(),
-              },
-            }) as FirebaseFirestore.DocumentData,
-            {
-              merge:
-                true,
-            }
-          );
-        } catch (
-          seoMetadataError
-        ) {
-          console.error(
-            "[AI_CEO_IMMEDIATE_SEO_METADATA_ERROR]",
-            seoMetadataError
-          );
-        }
-      }
-
       items.push({
         fixtureId,
 
@@ -2621,10 +2304,11 @@ export async function generatePredictionsForDate(
             ? publicationPolicy
                 .decision ===
               "auto-publish"
-              ? immediateSEO
-                  ?.generated
-                ? "Prediction generated and published automatically by AI CEO, and its SEO page was generated immediately."
-                : "Prediction generated and published automatically by AI CEO. Immediate SEO was skipped or deferred to the SEO fallback cron."
+              ? generationDecision
+                  .status ===
+                "insufficient-data"
+                ? "Prediction generated and published automatically by AI CEO because risk is Low/Medium and confidence is greater than 68%."
+                : "Prediction generated and published automatically by AI CEO."
               : "Prediction generated successfully and sent to the review queue."
             : "Prediction generated successfully.",
 
