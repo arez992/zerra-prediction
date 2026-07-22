@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -31,7 +31,7 @@ export default async function MarketScannerPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        â†گ Back to Admin
+        → Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -174,7 +174,7 @@ export default async function MarketScannerPage() {
                   />
                   <Metric
                     title="Search Position"
-                    value={market.searchPosition || "â€”"}
+                    value={market.searchPosition || "—"}
                   />
                   <Metric title="Registered Users" value={market.users} />
                   <Metric title="VIP Users" value={market.vipUsers} />
@@ -232,7 +232,7 @@ export default async function MarketScannerPage() {
                 {market.reasons?.length ? (
                   <ul className="mt-4 grid gap-3 text-sm text-white/70 md:grid-cols-2">
                     {market.reasons.map((reason: string) => (
-                      <li key={reason}>âœ“ {reason}</li>
+                      <li key={reason}>✓ {reason}</li>
                     ))}
                   </ul>
                 ) : (
@@ -450,7 +450,7 @@ function ActionBadge({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

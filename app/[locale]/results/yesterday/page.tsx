@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 type YesterdayGoalResultItem = {
   id: string;
@@ -201,7 +201,7 @@ export default async function YesterdayResultsPage({
                 href={homeHref}
                 className="text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
               >
-                â†گ Back to Home
+                → Back to Home
               </Link>
 
               <p className="mt-8 text-xs font-black uppercase tracking-[0.2em] text-[#139653]">
@@ -510,8 +510,8 @@ function ResultRow({
           }`}
         >
           {item.result.correct
-            ? "âœ“ Correct"
-            : "âœ• Incorrect"}
+            ? "✓ Correct"
+            : "✕ Incorrect"}
         </span>
       </div>
 

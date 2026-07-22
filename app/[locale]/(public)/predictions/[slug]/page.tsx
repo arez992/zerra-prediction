@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 
 import type {
   Metadata,
@@ -1129,7 +1129,7 @@ export default async function PredictionDetailPage(
                         className="flex gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
                       >
                         <span className="font-black text-[#D4AF37]">
-                          âœ“
+                          ✓
                         </span>
 
                         <p className="leading-7 text-white/65">

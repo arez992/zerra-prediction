@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import SettingsForm from "@/components/admin/SettingsForm";
 
 async function getSettings() {
@@ -27,7 +27,7 @@ export default async function AdminSettingsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        â†گ Back to Admin
+        → Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Settings</h1>
@@ -37,7 +37,7 @@ export default async function AdminSettingsPage() {
       </p>
 
       <section className="mt-10 grid gap-6 lg:grid-cols-3">
-        <SettingsCard title="Site Name" value={settings?.siteName || "â€”"} />
+        <SettingsCard title="Site Name" value={settings?.siteName || "—"} />
         <SettingsCard title="Currency" value={currency} />
 
         <SettingsCard

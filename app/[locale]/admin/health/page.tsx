@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 async function getHealth() {
   try {
@@ -45,7 +45,7 @@ export default async function AdminHealthPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        â†گ Back to Admin
+        → Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">System Health</h1>
@@ -97,7 +97,7 @@ export default async function AdminHealthPage() {
 }
 
 function formatDate(value?: string) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

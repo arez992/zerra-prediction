@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 type AdminPageProps = {
   params: Promise<{
@@ -178,7 +178,7 @@ export default async function AdminPage({
 
         value:
           stats?.todayViews ??
-          "â€”",
+          "—",
 
         note:
           stats?.todayViews ===
@@ -525,7 +525,7 @@ function KPICard({
       {content}
 
       <p className="mt-4 text-[11px] font-black text-[#D4AF37] opacity-50 transition group-hover:opacity-100">
-        View â†’
+        View →
       </p>
     </Link>
   );
@@ -575,7 +575,7 @@ function ToolCard({
         </span>
 
         <span className="text-[#D4AF37] transition group-hover:translate-x-1">
-          â†’
+          →
         </span>
       </div>
     </Link>

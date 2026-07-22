@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
 
@@ -470,7 +470,7 @@ function FeaturedPrediction({
                       className="flex gap-3 rounded-xl border border-[#e2ebe5] bg-[#fbfdfb] px-4 py-3"
                     >
                       <span className="font-black text-[#139653]">
-                        âœ“
+                        ✓
                       </span>
 
                       <p className="text-sm leading-6 text-[#536158]">
@@ -728,7 +728,7 @@ function HeaderBadge({
 }) {
   return (
     <span className="rounded-full border border-[#dce8df] bg-[#fbfdfb] px-4 py-2 text-xs font-bold text-[#536158]">
-      âœ“ {label}
+      ✓ {label}
     </span>
   );
 }
