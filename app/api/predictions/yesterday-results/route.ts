@@ -389,6 +389,12 @@ function toYesterdayResult(
             homeTeam.name,
             "Home team"
           ),
+
+        logo:
+          normalizeText(
+            homeTeam.logo
+          ) ||
+          null,
       },
 
       away: {
@@ -397,6 +403,12 @@ function toYesterdayResult(
             awayTeam.name,
             "Away team"
           ),
+
+        logo:
+          normalizeText(
+            awayTeam.logo
+          ) ||
+          null,
       },
     },
 

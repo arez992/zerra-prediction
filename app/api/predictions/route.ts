@@ -256,6 +256,12 @@ function toPublicPrediction(
             homeTeam.name,
             "Home team"
           ),
+
+        logo:
+          normalizeText(
+            homeTeam.logo
+          ) ||
+          null,
       },
 
       away: {
@@ -264,6 +270,12 @@ function toPublicPrediction(
             awayTeam.name,
             "Away team"
           ),
+
+        logo:
+          normalizeText(
+            awayTeam.logo
+          ) ||
+          null,
       },
     },
 
@@ -308,12 +320,6 @@ function toPublicPrediction(
           publicPrediction.riskScore
         ),
 
-      /*
-       * Safe public market-family hint.
-       *
-       * This reveals only the category,
-       * not the protected VIP pick.
-       */
       marketCategory:
         normalizeText(
           publicPrediction

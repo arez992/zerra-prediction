@@ -216,6 +216,12 @@ function toPublicPrediction(
             homeTeam.name,
             "Home team"
           ),
+
+        logo:
+          normalizeText(
+            homeTeam.logo
+          ) ||
+          null,
       },
 
       away: {
@@ -224,6 +230,12 @@ function toPublicPrediction(
             awayTeam.name,
             "Away team"
           ),
+
+        logo:
+          normalizeText(
+            awayTeam.logo
+          ) ||
+          null,
       },
     },
 
@@ -336,10 +348,6 @@ async function findPublishedPrediction(
     );
   }
 
-  /*
-   * First try the exact document ID.
-   * Example: fixture-123
-   */
   const directDocument =
     await adminDb
       .collection(
@@ -371,11 +379,6 @@ async function findPublishedPrediction(
     return null;
   }
 
-  /*
-   * Avoid reading the same deterministic
-   * document twice when id is already
-   * fixture-{id}.
-   */
   if (
     id !==
     `fixture-${normalizedFixtureId}`
@@ -400,10 +403,6 @@ async function findPublishedPrediction(
     }
   }
 
-  /*
-   * Legacy fallback:
-   * find by fixtureId + published status.
-   */
   const fixtureQuery =
     await adminDb
       .collection(

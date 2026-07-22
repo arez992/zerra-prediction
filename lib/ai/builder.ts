@@ -51,6 +51,9 @@ export type PredictionDocument = {
 
       name:
         string;
+
+      logo:
+        string | null;
     };
 
     away: {
@@ -59,6 +62,9 @@ export type PredictionDocument = {
 
       name:
         string;
+
+      logo:
+        string | null;
     };
   };
 
@@ -85,9 +91,6 @@ export type PredictionDocument = {
     PredictionResult["vipPrediction"];
 
   probabilities: {
-    /*
-     * Supporting 1X2 probabilities.
-     */
     homeWin:
       number;
 
@@ -97,9 +100,6 @@ export type PredictionDocument = {
     awayWin:
       number;
 
-    /*
-     * Core goal markets.
-     */
     over25:
       number;
 
@@ -109,10 +109,6 @@ export type PredictionDocument = {
     btts:
       number;
 
-    /*
-     * Extended ZERRA market
-     * architecture.
-     */
     over15?:
       number;
 
@@ -307,6 +303,9 @@ type FixtureLike = {
 
       name?:
         string;
+
+      logo?:
+        string;
     };
 
     away?: {
@@ -314,6 +313,9 @@ type FixtureLike = {
         number;
 
       name?:
+        string;
+
+      logo?:
         string;
     };
   };
@@ -444,6 +446,14 @@ export function buildPredictionDocument(
               ?.name
           ) ||
           "Home team",
+
+        logo:
+          safeString(
+            fixture
+              .teams
+              ?.home
+              ?.logo
+          ),
       },
 
       away: {
@@ -463,6 +473,14 @@ export function buildPredictionDocument(
               ?.name
           ) ||
           "Away team",
+
+        logo:
+          safeString(
+            fixture
+              .teams
+              ?.away
+              ?.logo
+          ),
       },
     },
 
