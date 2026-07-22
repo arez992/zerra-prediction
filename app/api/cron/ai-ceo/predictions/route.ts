@@ -50,7 +50,7 @@ const MIN_CONFIDENCE =
   68;
 
 const PROCESS_BATCH_SIZE =
-  30;
+  10;
 
 const UPCOMING_STATUSES =
   new Set([
