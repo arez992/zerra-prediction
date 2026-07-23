@@ -7,19 +7,27 @@ import {
   getCompleteFixtureData,
 } from "@/lib/api-football/service";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const runtime =
+  "nodejs";
+
+export const dynamic =
+  "force-dynamic";
+
+export const revalidate =
+  0;
 
 function getBooleanParam(
   value: string | null,
   fallback: boolean
 ): boolean {
-  if (value === null) {
+  if (
+    value === null
+  ) {
     return fallback;
   }
 
-  return value === "true";
+  return value ===
+    "true";
 }
 
 function getErrorStatus(
@@ -29,20 +37,28 @@ function getErrorStatus(
     message.toLowerCase();
 
   if (
-    normalized.includes("fixture id") ||
-    normalized.includes("valid numeric")
+    normalized.includes(
+      "fixture id"
+    ) ||
+    normalized.includes(
+      "valid numeric"
+    )
   ) {
     return 400;
   }
 
   if (
-    normalized.includes("not found")
+    normalized.includes(
+      "not found"
+    )
   ) {
     return 404;
   }
 
   if (
-    normalized.includes("api_football_key")
+    normalized.includes(
+      "api_football_key"
+    )
   ) {
     return 500;
   }
@@ -59,7 +75,9 @@ export async function GET(
         "fixture"
       );
 
-    if (!fixtureId) {
+    if (
+      !fixtureId
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -72,36 +90,46 @@ export async function GET(
       );
     }
 
+    const includeHeadToHead =
+      getBooleanParam(
+        request.nextUrl.searchParams.get(
+          "h2h"
+        ),
+        false
+      );
+
+    const includeInjuries =
+      getBooleanParam(
+        request.nextUrl.searchParams.get(
+          "injuries"
+        ),
+        false
+      );
+
+    const includeOdds =
+      getBooleanParam(
+        request.nextUrl.searchParams.get(
+          "odds"
+        ),
+        false
+      );
+
+    const includeTeamEnrichment =
+      getBooleanParam(
+        request.nextUrl.searchParams.get(
+          "enrichment"
+        ),
+        false
+      );
+
     const data =
       await getCompleteFixtureData(
         fixtureId,
         {
-          includeHeadToHead:
-            getBooleanParam(
-              request.nextUrl.searchParams.get(
-                "h2h"
-              ),
-              true
-            ),
-
-          includeInjuries:
-            getBooleanParam(
-              request.nextUrl.searchParams.get(
-                "injuries"
-              ),
-              true
-            ),
-
-          includeOdds:
-            getBooleanParam(
-              request.nextUrl.searchParams.get(
-                "odds"
-              ),
-              false
-            ),
-
-          includeTeamEnrichment:
-            true,
+          includeHeadToHead,
+          includeInjuries,
+          includeOdds,
+          includeTeamEnrichment,
         }
       );
 
@@ -114,11 +142,13 @@ export async function GET(
         status: 200,
         headers: {
           "Cache-Control":
-            "no-store",
+            "private, max-age=30",
         },
       }
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     const message =
       error instanceof Error
         ? error.message
@@ -129,11 +159,14 @@ export async function GET(
         success: false,
         message:
           "Failed to fetch match details.",
-        error: message,
+        error:
+          message,
       },
       {
         status:
-          getErrorStatus(message),
+          getErrorStatus(
+            message
+          ),
       }
     );
   }

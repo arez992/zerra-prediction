@@ -186,6 +186,22 @@ export default function MatchDetailsPage() {
     );
 
   const [
+    enrichedMatch,
+    setEnrichedMatch,
+  ] =
+    useState<any>(
+      null
+    );
+
+  const [
+    enrichmentLoading,
+    setEnrichmentLoading,
+  ] =
+    useState(
+      false
+    );
+
+  const [
     activeTab,
     setActiveTab,
   ] =
@@ -193,6 +209,14 @@ export default function MatchDetailsPage() {
       "overview"
     );
 
+  /*
+   * FAST INITIAL LOAD
+   *
+   * This request intentionally asks only for
+   * the lightweight match payload. It lets the
+   * header and fixture information appear as
+   * quickly as possible.
+   */
   useEffect(() => {
     const controller =
       new AbortController();
@@ -201,6 +225,14 @@ export default function MatchDetailsPage() {
       try {
         setLoading(
           true
+        );
+
+        setMatch(
+          null
+        );
+
+        setEnrichedMatch(
+          null
         );
 
         const response =
@@ -284,21 +316,124 @@ export default function MatchDetailsPage() {
     fixtureId,
   ]);
 
+  /*
+   * BACKGROUND ENRICHMENT
+   *
+   * Heavy team history / H2H / injuries are
+   * fetched only after the lightweight fixture
+   * has already rendered.
+   *
+   * AI prediction and AI analysis wait for this
+   * richer payload so we do not calculate twice
+   * or trigger duplicate OpenAI requests.
+   */
+  useEffect(() => {
+    if (
+      !fixtureId ||
+      !match?.fixture ||
+      enrichedMatch
+    ) {
+      return;
+    }
+
+    const controller =
+      new AbortController();
+
+    async function loadEnrichment() {
+      try {
+        setEnrichmentLoading(
+          true
+        );
+
+        const response =
+          await fetch(
+            `/api/sports/football/match?fixture=${fixtureId}&enrichment=true&h2h=true&injuries=true`,
+            {
+              cache:
+                "no-store",
+
+              signal:
+                controller.signal,
+            }
+          );
+
+        if (
+          !response.ok
+        ) {
+          return;
+        }
+
+        const data =
+          await response.json();
+
+        if (
+          !controller.signal
+            .aborted
+        ) {
+          setEnrichedMatch(
+            data
+          );
+        }
+      } catch (
+        error
+      ) {
+        if (
+          error instanceof
+            DOMException &&
+          error.name ===
+            "AbortError"
+        ) {
+          return;
+        }
+
+        console.error(
+          "Failed to enrich match:",
+          error
+        );
+      } finally {
+        if (
+          !controller.signal
+            .aborted
+        ) {
+          setEnrichmentLoading(
+            false
+          );
+        }
+      }
+    }
+
+    void loadEnrichment();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    fixtureId,
+    match,
+    enrichedMatch,
+  ]);
+
+  const predictionSource =
+    enrichedMatch?.fixture
+      ? enrichedMatch
+      : null;
+
   const prediction =
     useMemo(
       () => {
         if (
-          !match?.fixture
+          !predictionSource
+            ?.fixture
         ) {
           return null;
         }
 
         return calculatePrediction(
-          match
+          predictionSource
         );
       },
       [
-        match,
+        predictionSource,
       ]
     );
 
@@ -306,22 +441,28 @@ export default function MatchDetailsPage() {
     useMemo(
       () => {
         if (
-          !match?.fixture ||
+          !predictionSource
+            ?.fixture ||
           !prediction
         ) {
           return null;
         }
 
         return generateExplanation(
-          match,
+          predictionSource,
           prediction
         );
       },
       [
-        match,
+        predictionSource,
         prediction,
       ]
     );
+
+  const detailedMatch =
+    enrichedMatch?.fixture
+      ? enrichedMatch
+      : match;
 
   if (
     loading
@@ -334,8 +475,9 @@ export default function MatchDetailsPage() {
           </p>
 
           <p className="mt-2 text-sm text-[#758179]">
-            ZERRA is loading real
-            fixture information.
+            ZERRA is loading the
+            core fixture first for
+            a faster experience.
           </p>
         </div>
       </main>
@@ -343,9 +485,7 @@ export default function MatchDetailsPage() {
   }
 
   if (
-    !match?.fixture ||
-    !prediction ||
-    !explanation
+    !match?.fixture
   ) {
     return (
       <main className="min-h-screen bg-[#f7faf8] px-4 py-10 text-[#102117]">
@@ -397,29 +537,34 @@ export default function MatchDetailsPage() {
 
   const primaryPrediction =
     prediction
-      .vipPrediction
-      .primaryPrediction;
+      ?.vipPrediction
+      ?.primaryPrediction;
 
   const markets =
     prediction
-      .vipPrediction
-      .markets;
+      ?.vipPrediction
+      ?.markets;
 
   const hasStrongPrediction =
-    primaryPrediction
-      .qualified;
+    Boolean(
+      primaryPrediction
+        ?.qualified
+    );
 
   const primaryPick =
     primaryPrediction
-      .pick;
+      ?.pick ||
+    "Analyzing...";
 
   const primaryCategory =
     primaryPrediction
-      .category;
+      ?.category ||
+    "Pending";
 
   const primaryConfidence =
     primaryPrediction
-      .confidence;
+      ?.confidence ||
+    0;
 
   const tabs: {
     label:
@@ -647,8 +792,22 @@ export default function MatchDetailsPage() {
       </nav>
 
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+        {(activeTab ===
+          "overview" ||
+          activeTab ===
+            "prediction") &&
+          (
+            enrichmentLoading ||
+            !prediction ||
+            !explanation
+          ) && (
+          <PredictionLoadingPanel />
+        )}
+
         {activeTab ===
-          "overview" && (
+          "overview" &&
+          prediction &&
+          explanation && (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.75fr)]">
             <div className="grid gap-6">
               <VipGate
@@ -753,7 +912,7 @@ export default function MatchDetailsPage() {
                       <p className="mt-2 text-sm leading-7 text-[#6c6042]">
                         {
                           primaryPrediction
-                            .reason
+                            ?.reason
                         }
                       </p>
                     </div>
@@ -839,7 +998,7 @@ export default function MatchDetailsPage() {
 
                 <AIAnalysis
                   match={
-                    match
+                    predictionSource
                   }
                   prediction={
                     prediction
@@ -922,94 +1081,106 @@ export default function MatchDetailsPage() {
               </section>
 
               <VipGate hideFallback>
-              <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
-                  Core Goal Signals
-                </p>
-
-                <h2 className="mt-2 text-xl font-black">
-                  Market Probabilities
-                </h2>
-
-                <div className="mt-6 grid gap-5">
-                  <ProbabilityBar
-                    label="Over 2.5 Goals"
-                    value={
-                      markets.over25
-                    }
-                  />
-
-                  <ProbabilityBar
-                    label="Under 2.5 Goals"
-                    value={
-                      markets.under25
-                    }
-                  />
-
-                  <ProbabilityBar
-                    label="BTTS Yes"
-                    value={
-                      markets.bttsYes ??
-                      markets.btts
-                    }
-                  />
-
-                  <ProbabilityBar
-                    label="BTTS No"
-                    value={
-                      markets.bttsNo ??
-                      (
-                        100 -
-                        markets.btts
-                      )
-                    }
-                  />
-                </div>
-              </section>
-
-              <section className="rounded-[1.75rem] bg-[#102117] p-6 text-white">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6be39e]">
-                  ZERRA Primary Verdict
-                </p>
-
-                <h2 className="mt-3 text-2xl font-black">
-                  {
-                    primaryPick
-                  }
-                </h2>
-
-                <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[#6be39e]">
-                  {
-                    primaryCategory
-                  }
-                </p>
-
-                <p className="mt-3 text-sm leading-6 text-white/60">
-                  Confidence{" "}
-                  {Math.round(
-                    primaryConfidence
-                  )}
-                  % · Risk{" "}
-                  {
-                    prediction.risk
-                  }
-                </p>
-
-                {!hasStrongPrediction && (
-                  <p className="mt-4 text-sm leading-6 text-white/55">
-                    ZERRA is not forcing
-                    a weak prediction for
-                    this match.
+                <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#139653]">
+                    Core Goal Signals
                   </p>
-                )}
-              </section>
+
+                  <h2 className="mt-2 text-xl font-black">
+                    Market Probabilities
+                  </h2>
+
+                  <div className="mt-6 grid gap-5">
+                    <ProbabilityBar
+                      label="Over 2.5 Goals"
+                      value={
+                        markets?.over25 ??
+                        0
+                      }
+                    />
+
+                    <ProbabilityBar
+                      label="Under 2.5 Goals"
+                      value={
+                        markets?.under25 ??
+                        0
+                      }
+                    />
+
+                    <ProbabilityBar
+                      label="BTTS Yes"
+                      value={
+                        markets
+                          ?.bttsYes ??
+                        markets
+                          ?.btts ??
+                        0
+                      }
+                    />
+
+                    <ProbabilityBar
+                      label="BTTS No"
+                      value={
+                        markets
+                          ?.bttsNo ??
+                        (
+                          100 -
+                          (
+                            markets
+                              ?.btts ??
+                            0
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                </section>
+
+                <section className="rounded-[1.75rem] bg-[#102117] p-6 text-white">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6be39e]">
+                    ZERRA Primary Verdict
+                  </p>
+
+                  <h2 className="mt-3 text-2xl font-black">
+                    {
+                      primaryPick
+                    }
+                  </h2>
+
+                  <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[#6be39e]">
+                    {
+                      primaryCategory
+                    }
+                  </p>
+
+                  <p className="mt-3 text-sm leading-6 text-white/60">
+                    Confidence{" "}
+                    {Math.round(
+                      primaryConfidence
+                    )}
+                    % · Risk{" "}
+                    {
+                      prediction.risk
+                    }
+                  </p>
+
+                  {!hasStrongPrediction && (
+                    <p className="mt-4 text-sm leading-6 text-white/55">
+                      ZERRA is not forcing
+                      a weak prediction for
+                      this match.
+                    </p>
+                  )}
+                </section>
               </VipGate>
             </aside>
           </div>
         )}
 
         {activeTab ===
-          "prediction" && (
+          "prediction" &&
+          prediction &&
+          explanation && (
           <VipGate
             fallbackTitle="Premium AI Prediction Locked"
             fallbackText="Upgrade to VIP to unlock full ZERRA AI market prediction intelligence."
@@ -1077,7 +1248,7 @@ export default function MatchDetailsPage() {
 
               <AIAnalysis
                 match={
-                  match
+                  predictionSource
                 }
                 prediction={
                   prediction
@@ -1091,7 +1262,9 @@ export default function MatchDetailsPage() {
           "statistics" && (
           <StatsPanel
             statistics={
-              match.statistics
+              detailedMatch
+                ?.statistics ||
+              []
             }
           />
         )}
@@ -1100,7 +1273,9 @@ export default function MatchDetailsPage() {
           "timeline" && (
           <TimelinePanel
             events={
-              match.events
+              detailedMatch
+                ?.events ||
+              []
             }
           />
         )}
@@ -1109,12 +1284,33 @@ export default function MatchDetailsPage() {
           "lineups" && (
           <LineupsPanel
             lineups={
-              match.lineups
+              detailedMatch
+                ?.lineups ||
+              []
             }
           />
         )}
       </div>
     </main>
+  );
+}
+
+function PredictionLoadingPanel() {
+  return (
+    <section className="rounded-[1.75rem] border border-[#dce8df] bg-white p-8 text-center">
+      <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[#dce8df] border-t-[#139653]" />
+
+      <p className="mt-4 font-black text-[#102117]">
+        Preparing ZERRA AI analysis...
+      </p>
+
+      <p className="mt-2 text-sm leading-6 text-[#758179]">
+        Match information is already
+        available. Advanced prediction
+        intelligence is loading in the
+        background.
+      </p>
+    </section>
   );
 }
 
