@@ -59,6 +59,37 @@ type PublicPredictionItem = {
       string;
   };
 
+  result: {
+    checked: boolean;
+
+    status:
+      | "pending"
+      | "correct"
+      | "incorrect"
+      | "void";
+
+    correct:
+      boolean | null;
+
+    label:
+      string | null;
+
+    settledAt:
+      string | null;
+
+    finalStatus:
+      string | null;
+
+    homeGoals:
+      number | null;
+
+    awayGoals:
+      number | null;
+
+    finalScore:
+      string | null;
+  };
+
   publishedAt:
     string | null;
 
@@ -252,6 +283,69 @@ export default async function PredictionsPage({
       1
     );
 
+  const totalPublished =
+    predictions.length;
+
+  const pendingCount =
+    predictions.filter(
+      (
+        item
+      ) =>
+        item.result.status ===
+        "pending"
+    ).length;
+
+  const correctCount =
+    predictions.filter(
+      (
+        item
+      ) =>
+        item.result.status ===
+        "correct"
+    ).length;
+
+  const incorrectCount =
+    predictions.filter(
+      (
+        item
+      ) =>
+        item.result.status ===
+        "incorrect"
+    ).length;
+
+  const lowRiskCount =
+    predictions.filter(
+      (
+        item
+      ) =>
+        item.publicPrediction.risk
+          .trim()
+          .toLowerCase() ===
+        "low"
+    ).length;
+
+  const mediumRiskCount =
+    predictions.filter(
+      (
+        item
+      ) =>
+        item.publicPrediction.risk
+          .trim()
+          .toLowerCase() ===
+        "medium"
+    ).length;
+
+  const highRiskCount =
+    predictions.filter(
+      (
+        item
+      ) =>
+        item.publicPrediction.risk
+          .trim()
+          .toLowerCase() ===
+        "high"
+    ).length;
+
   return (
     <main className="min-h-screen bg-[#f7faf8] text-[#102117]">
       <section className="border-b border-[#e1e9e3] bg-white">
@@ -281,6 +375,52 @@ export default async function PredictionsPage({
 
             <HeaderBadge
               label="VIP Protected Insights"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-[#e1e9e3] bg-white">
+        <div className="mx-auto max-w-7xl px-5 pb-10 md:px-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+            <SummaryStat
+              label="Total Published"
+              value={totalPublished}
+            />
+
+            <SummaryStat
+              label="Pending"
+              value={pendingCount}
+            />
+
+            <SummaryStat
+              label="Correct"
+              value={correctCount}
+              tone="positive"
+            />
+
+            <SummaryStat
+              label="Incorrect"
+              value={incorrectCount}
+              tone="negative"
+            />
+
+            <SummaryStat
+              label="Low Risk"
+              value={lowRiskCount}
+              tone="positive"
+            />
+
+            <SummaryStat
+              label="Medium Risk"
+              value={mediumRiskCount}
+              tone="warning"
+            />
+
+            <SummaryStat
+              label="High Risk"
+              value={highRiskCount}
+              tone="negative"
             />
           </div>
         </div>
@@ -781,6 +921,50 @@ function TeamIdentity({
       <span className={`mt-2 min-w-0 break-words font-black leading-tight text-[#102117] ${textSize}`}>
         {name}
       </span>
+    </div>
+  );
+}
+
+function SummaryStat({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label:
+    string;
+
+  value:
+    number;
+
+  tone?:
+    | "neutral"
+    | "positive"
+    | "warning"
+    | "negative";
+}) {
+  const toneClass =
+    tone ===
+    "positive"
+      ? "border-[#bfe6cf] bg-[#f3fbf6] text-[#0d6f3d]"
+      : tone ===
+        "warning"
+        ? "border-[#eadcb5] bg-[#fffaf0] text-[#8a6a17]"
+        : tone ===
+          "negative"
+          ? "border-[#f0cccc] bg-[#fff7f7] text-[#b54b4b]"
+          : "border-[#dce8df] bg-[#fbfdfb] text-[#102117]";
+
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-4 text-center ${toneClass}`}
+    >
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] opacity-70">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black">
+        {value}
+      </p>
     </div>
   );
 }
