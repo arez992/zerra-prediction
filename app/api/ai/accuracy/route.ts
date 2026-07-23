@@ -13,8 +13,22 @@ import {
 export const runtime =
   "nodejs";
 
+/*
+ * IMPORTANT:
+ *
+ * This route must never be evaluated during
+ * `next build`, because the build environment
+ * may not have network access to Firestore.
+ *
+ * Runtime requests still use the internal
+ * 1-hour `unstable_cache` below, so this does
+ * not increase normal Firebase read cost.
+ */
+export const dynamic =
+  "force-dynamic";
+
 export const revalidate =
-  3600;
+  0;
 
 type PredictionData = {
   correct?: boolean;
@@ -217,7 +231,8 @@ const getCachedAccuracy =
         );
 
       return {
-        success: true,
+        success:
+          true,
 
         totalPredictions,
 
@@ -274,10 +289,15 @@ const getCachedAccuracy =
     },
     [
       "zerra-ai-accuracy",
+      "v2",
     ],
     {
       revalidate:
         3600,
+
+      tags: [
+        "zerra-ai-accuracy",
+      ],
     }
   );
 
@@ -289,7 +309,8 @@ export async function GET() {
     return NextResponse.json(
       accuracy,
       {
-        status: 200,
+        status:
+          200,
 
         headers: {
           "Cache-Control":
@@ -297,26 +318,31 @@ export async function GET() {
         },
       }
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "[AI_ACCURACY_ERROR]",
       error
     );
 
     const message =
-      error instanceof Error
+      error instanceof
+        Error
         ? error.message
         : "Unable to calculate AI accuracy.";
 
     return NextResponse.json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           message,
       },
       {
-        status: 500,
+        status:
+          500,
 
         headers: {
           "Cache-Control":

@@ -3,6 +3,10 @@ import {
   NextResponse,
 } from "next/server";
 
+import {
+  unstable_cache,
+} from "next/cache";
+
 import type {
   DocumentData,
 } from "firebase-admin/firestore";
@@ -28,6 +32,12 @@ const DEFAULT_LIMIT =
 
 const MAX_LIMIT =
   50;
+
+const PUBLIC_CACHE_SECONDS =
+  60;
+
+const FREE_CACHE_SECONDS =
+  5 * 60;
 
 type TimestampLike = {
   toDate: () => Date;
@@ -562,6 +572,173 @@ function toPublicPrediction(
   };
 }
 
+const getCachedPublicPredictionPool =
+  unstable_cache(
+    async () => {
+      const [
+        publishedSnapshot,
+        settledSnapshot,
+      ] =
+        await Promise.all([
+          adminDb
+            .collection(
+              COLLECTION_NAME
+            )
+            .where(
+              "status",
+              "==",
+              "published"
+            )
+            .orderBy(
+              "publishedAt",
+              "desc"
+            )
+            .limit(
+              MAX_LIMIT
+            )
+            .get(),
+
+          adminDb
+            .collection(
+              COLLECTION_NAME
+            )
+            .where(
+              "status",
+              "==",
+              "settled"
+            )
+            .orderBy(
+              "publishedAt",
+              "desc"
+            )
+            .limit(
+              MAX_LIMIT
+            )
+            .get(),
+        ]);
+
+      const documents =
+        [
+          ...publishedSnapshot.docs,
+          ...settledSnapshot.docs,
+        ];
+
+      return Array.from(
+        new Map(
+          documents.map(
+            (
+              document
+            ) => [
+              document.id,
+              document,
+            ]
+          )
+        ).values()
+      )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            getPublishedTime(
+              right.data()
+            ) -
+            getPublishedTime(
+              left.data()
+            )
+        )
+        .slice(
+          0,
+          MAX_LIMIT
+        )
+        .map(
+          (
+            document
+          ) =>
+            toPublicPrediction(
+              document.id,
+              document.data()
+            )
+        );
+    },
+    [
+      "zerra-public-predictions-pool",
+      "v2",
+    ],
+    {
+      revalidate:
+        PUBLIC_CACHE_SECONDS,
+
+      tags: [
+        "zerra-public-predictions",
+      ],
+    }
+  );
+
+const getCachedFreePredictionPool =
+  unstable_cache(
+    async () => {
+      const snapshot =
+        await adminDb
+          .collection(
+            COLLECTION_NAME
+          )
+          .where(
+            "isFree",
+            "==",
+            true
+          )
+          .get();
+
+      return snapshot.docs
+        .map(
+          (
+            document
+          ) => ({
+            id:
+              document.id,
+
+            publishedTime:
+              getPublishedTime(
+                document.data()
+              ),
+
+            fixtureDateKey:
+              getFixtureDateKey(
+                document.data()
+                  .fixtureDate
+              ),
+
+            prediction:
+              toPublicPrediction(
+                document.id,
+                document.data()
+              ),
+          })
+        )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            right.publishedTime -
+            left.publishedTime
+        );
+    },
+    [
+      "zerra-free-predictions-pool",
+      "v2",
+    ],
+    {
+      revalidate:
+        FREE_CACHE_SECONDS,
+
+      tags: [
+        "zerra-free-predictions",
+      ],
+    }
+  );
+
 function getErrorStatus(
   message: string
 ): number {
@@ -628,63 +805,24 @@ export async function GET(
       freeOnly
     ) {
       /*
-       * Use only the single-field isFree query
-       * so this feature does not require a new
-       * Firestore composite index.
+       * Free selections are immutable for the day,
+       * so they can use a longer shared cache.
        *
-       * Status/date are validated in memory.
+       * Firestore is read once per cache window,
+       * not once per page visitor.
        */
-      const snapshot =
-        await adminDb
-          .collection(
-            COLLECTION_NAME
-          )
-          .where(
-            "isFree",
-            "==",
-            true
-          )
-          .get();
+      const freePool =
+        await getCachedFreePredictionPool();
 
       const predictions =
-        snapshot.docs
+        freePool
           .filter(
             (
-              document
-            ) => {
-              const data =
-                document.data();
-
-              /*
-               * Free selections are immutable for the day.
-               * Do not remove/replace them merely because
-               * settlement later changes status from
-               * "published" to "settled".
-               */
-              if (
-                date &&
-                getFixtureDateKey(
-                  data.fixtureDate
-                ) !==
-                  date
-              ) {
-                return false;
-              }
-
-              return true;
-            }
-          )
-          .sort(
-            (
-              left,
-              right
+              item
             ) =>
-              getPublishedTime(
-                right.data()
-              ) -
-              getPublishedTime(
-                left.data()
-              )
+              !date ||
+              item.fixtureDateKey ===
+                date
           )
           .slice(
             0,
@@ -692,12 +830,9 @@ export async function GET(
           )
           .map(
             (
-              document
+              item
             ) =>
-              toPublicPrediction(
-                document.id,
-                document.data()
-              )
+              item.prediction
           );
 
       return NextResponse.json(
@@ -727,107 +862,27 @@ export async function GET(
 
           headers: {
             "Cache-Control":
-              "public, s-maxage=60, stale-while-revalidate=300",
+              "public, s-maxage=300, stale-while-revalidate=900",
           },
         }
       );
     }
 
     /*
-     * Public history includes both active published
-     * predictions and predictions already settled
-     * after the match finished.
+     * Shared 60-second server data cache.
      *
-     * Two simple queries avoid requiring a new
-     * Firestore composite index for an "in" query.
+     * All visitors reuse the same Firestore result
+     * during the cache window. This keeps result
+     * updates reasonably fresh without making every
+     * page view generate new Firestore reads.
      */
-    const [
-      publishedSnapshot,
-      settledSnapshot,
-    ] =
-      await Promise.all([
-        adminDb
-          .collection(
-            COLLECTION_NAME
-          )
-          .where(
-            "status",
-            "==",
-            "published"
-          )
-          .orderBy(
-            "publishedAt",
-            "desc"
-          )
-          .limit(
-            limit
-          )
-          .get(),
-
-        adminDb
-          .collection(
-            COLLECTION_NAME
-          )
-          .where(
-            "status",
-            "==",
-            "settled"
-          )
-          .orderBy(
-            "publishedAt",
-            "desc"
-          )
-          .limit(
-            limit
-          )
-          .get(),
-      ]);
-
-    const documents =
-      [
-        ...publishedSnapshot.docs,
-        ...settledSnapshot.docs,
-      ];
-
-    const uniqueDocuments =
-      Array.from(
-        new Map(
-          documents.map(
-            (
-              document
-            ) => [
-              document.id,
-              document,
-            ]
-          )
-        ).values()
-      )
-        .sort(
-          (
-            left,
-            right
-          ) =>
-            getPublishedTime(
-              right.data()
-            ) -
-            getPublishedTime(
-              left.data()
-            )
-        )
-        .slice(
-          0,
-          limit
-        );
+    const predictionPool =
+      await getCachedPublicPredictionPool();
 
     const predictions =
-      uniqueDocuments.map(
-        (
-          document
-        ) =>
-          toPublicPrediction(
-            document.id,
-            document.data()
-          )
+      predictionPool.slice(
+        0,
+        limit
       );
 
     return NextResponse.json(
