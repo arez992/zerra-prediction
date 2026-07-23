@@ -4,6 +4,10 @@ import {
 } from "next/server";
 
 import {
+  unstable_cache,
+} from "next/cache";
+
+import {
   getCompleteFixtureData,
 } from "@/lib/api-football/service";
 
@@ -15,6 +19,12 @@ export const dynamic =
 
 export const revalidate =
   0;
+
+const FAST_CACHE_SECONDS =
+  5 * 60;
+
+const ENRICHED_CACHE_SECONDS =
+  30 * 60;
 
 function getBooleanParam(
   value: string | null,
@@ -66,6 +76,92 @@ function getErrorStatus(
   return 502;
 }
 
+/*
+ * Persistent Next/Vercel data cache.
+ *
+ * Unlike the in-memory Map cache inside service.ts,
+ * this cache is designed to survive normal serverless
+ * request boundaries. After the first request for a
+ * fixture, repeated match-page visits can reuse the
+ * cached result instead of calling API-Football again
+ * until the cache expires.
+ */
+const getCachedFastMatch =
+  unstable_cache(
+    async (
+      fixtureId: string
+    ) =>
+      getCompleteFixtureData(
+        fixtureId,
+        {
+          includeHeadToHead:
+            false,
+
+          includeInjuries:
+            false,
+
+          includeOdds:
+            false,
+
+          includeTeamEnrichment:
+            false,
+        }
+      ),
+
+    [
+      "zerra-match-page",
+      "fast",
+      "v1",
+    ],
+
+    {
+      revalidate:
+        FAST_CACHE_SECONDS,
+
+      tags: [
+        "zerra-match-fast",
+      ],
+    }
+  );
+
+const getCachedEnrichedMatch =
+  unstable_cache(
+    async (
+      fixtureId: string,
+      includeHeadToHead: boolean,
+      includeInjuries: boolean,
+      includeOdds: boolean
+    ) =>
+      getCompleteFixtureData(
+        fixtureId,
+        {
+          includeHeadToHead,
+
+          includeInjuries,
+
+          includeOdds,
+
+          includeTeamEnrichment:
+            true,
+        }
+      ),
+
+    [
+      "zerra-match-page",
+      "enriched",
+      "v1",
+    ],
+
+    {
+      revalidate:
+        ENRICHED_CACHE_SECONDS,
+
+      tags: [
+        "zerra-match-enriched",
+      ],
+    }
+  );
+
 export async function GET(
   request: NextRequest
 ) {
@@ -81,11 +177,13 @@ export async function GET(
       return NextResponse.json(
         {
           success: false,
+
           message:
             "fixture id is required",
         },
         {
-          status: 400,
+          status:
+            400,
         }
       );
     }
@@ -122,27 +220,55 @@ export async function GET(
         false
       );
 
+    const enrichedMode =
+      includeTeamEnrichment ||
+      includeHeadToHead ||
+      includeInjuries ||
+      includeOdds;
+
     const data =
-      await getCompleteFixtureData(
-        fixtureId,
-        {
-          includeHeadToHead,
-          includeInjuries,
-          includeOdds,
-          includeTeamEnrichment,
-        }
-      );
+      enrichedMode
+        ? await getCachedEnrichedMatch(
+            fixtureId,
+            includeHeadToHead,
+            includeInjuries,
+            includeOdds
+          )
+        : await getCachedFastMatch(
+            fixtureId
+          );
 
     return NextResponse.json(
       {
-        success: true,
+        success:
+          true,
+
+        cacheMode:
+          enrichedMode
+            ? "enriched"
+            : "fast",
+
+        cacheTtlSeconds:
+          enrichedMode
+            ? ENRICHED_CACHE_SECONDS
+            : FAST_CACHE_SECONDS,
+
         ...data,
       },
       {
-        status: 200,
+        status:
+          200,
+
         headers: {
+          /*
+           * Browser/CDN layer on top of the server data cache.
+           * stale-while-revalidate lets a cached response be
+           * served immediately while it refreshes in background.
+           */
           "Cache-Control":
-            "private, max-age=30",
+            enrichedMode
+              ? "public, s-maxage=1800, stale-while-revalidate=3600"
+              : "public, s-maxage=300, stale-while-revalidate=900",
         },
       }
     );
@@ -156,9 +282,12 @@ export async function GET(
 
     return NextResponse.json(
       {
-        success: false,
+        success:
+          false,
+
         message:
           "Failed to fetch match details.",
+
         error:
           message,
       },
@@ -167,6 +296,11 @@ export async function GET(
           getErrorStatus(
             message
           ),
+
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
       }
     );
   }
