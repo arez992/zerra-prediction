@@ -576,13 +576,12 @@ export async function GET(
               const data =
                 document.data();
 
-              if (
-                data.status !==
-                "published"
-              ) {
-                return false;
-              }
-
+              /*
+               * Free selections are immutable for the day.
+               * Do not remove/replace them merely because
+               * settlement later changes status from
+               * "published" to "settled".
+               */
               if (
                 date &&
                 getFixtureDateKey(

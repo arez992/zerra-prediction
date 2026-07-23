@@ -9,6 +9,9 @@ import {
 const COLLECTION_NAME =
   "predictionHistory";
 
+const DAILY_SELECTION_COLLECTION =
+  "aiCeoDailyFreeSelections";
+
 const DAILY_FREE_LIMIT =
   3;
 
@@ -25,6 +28,8 @@ type FreeSelectionResult = {
     string[];
 
   remainingSlots: number;
+
+  locked: boolean;
 };
 
 function normalizeDate(
@@ -46,6 +51,27 @@ function normalizeDate(
   return date;
 }
 
+function asRecord(
+  value: unknown
+): Record<
+  string,
+  unknown
+> {
+  return (
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
+  )
+    ? value as Record<
+        string,
+        unknown
+      >
+    : {};
+}
+
 function getRiskLabel(
   data: Record<
     string,
@@ -53,93 +79,57 @@ function getRiskLabel(
   >
 ): string {
   const risk =
-    data.risk;
+    asRecord(
+      data.risk
+    );
+
+  const riskLabel =
+    risk.label;
 
   if (
-    risk &&
-    typeof risk ===
-      "object" &&
-    !Array.isArray(
-      risk
-    )
+    typeof riskLabel ===
+      "string" &&
+    riskLabel.trim()
   ) {
-    const label =
-      (
-        risk as Record<
-          string,
-          unknown
-        >
-      ).label;
-
-    if (
-      typeof label ===
-        "string"
-    ) {
-      return label
-        .trim()
-        .toLowerCase();
-    }
+    return riskLabel
+      .trim()
+      .toLowerCase();
   }
 
   const prediction =
-    data.prediction;
+    asRecord(
+      data.prediction
+    );
+
+  const predictionRisk =
+    prediction.risk;
 
   if (
-    prediction &&
-    typeof prediction ===
-      "object" &&
-    !Array.isArray(
-      prediction
-    )
+    typeof predictionRisk ===
+      "string" &&
+    predictionRisk.trim()
   ) {
-    const value =
-      (
-        prediction as Record<
-          string,
-          unknown
-        >
-      ).risk;
-
-    if (
-      typeof value ===
-        "string"
-    ) {
-      return value
-        .trim()
-        .toLowerCase();
-    }
+    return predictionRisk
+      .trim()
+      .toLowerCase();
   }
 
   const publicPrediction =
-    data.publicPrediction;
+    asRecord(
+      data.publicPrediction
+    );
 
-  if (
-    publicPrediction &&
-    typeof publicPrediction ===
-      "object" &&
-    !Array.isArray(
-      publicPrediction
-    )
-  ) {
-    const value =
-      (
-        publicPrediction as Record<
-          string,
-          unknown
-        >
-      ).risk;
+  const publicRisk =
+    publicPrediction.risk;
 
-    if (
-      typeof value ===
-        "string"
-    ) {
-      return value
+  return (
+    typeof publicRisk ===
+      "string"
+  )
+    ? publicRisk
         .trim()
-        .toLowerCase();
-    }
-  }
-
-  return "";
+        .toLowerCase()
+    : "";
 }
 
 function getFixtureDateKey(
@@ -166,6 +156,119 @@ function getFixtureDateKey(
   return "";
 }
 
+function getConfidence(
+  data: Record<
+    string,
+    unknown
+  >
+): number {
+  const vipPrediction =
+    asRecord(
+      data.vipPrediction
+    );
+
+  const directConfidence =
+    vipPrediction.confidence;
+
+  if (
+    typeof directConfidence ===
+      "number" &&
+    Number.isFinite(
+      directConfidence
+    )
+  ) {
+    return directConfidence;
+  }
+
+  const prediction =
+    asRecord(
+      data.prediction
+    );
+
+  const nestedVip =
+    asRecord(
+      prediction.vipPrediction
+    );
+
+  const primaryPrediction =
+    asRecord(
+      nestedVip.primaryPrediction
+    );
+
+  const primaryConfidence =
+    primaryPrediction.confidence;
+
+  if (
+    typeof primaryConfidence ===
+      "number" &&
+    Number.isFinite(
+      primaryConfidence
+    )
+  ) {
+    return primaryConfidence;
+  }
+
+  const predictionConfidence =
+    prediction.confidence;
+
+  return (
+    typeof predictionConfidence ===
+      "number" &&
+    Number.isFinite(
+      predictionConfidence
+    )
+  )
+    ? predictionConfidence
+    : 0;
+}
+
+function uniqueIds(
+  values: unknown
+): string[] {
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      values
+        .map(
+          (
+            value
+          ) =>
+            typeof value ===
+              "string"
+              ? value.trim()
+              : ""
+        )
+        .filter(
+          Boolean
+        )
+    )
+  ).slice(
+    0,
+    DAILY_FREE_LIMIT
+  );
+}
+
+/*
+ * Daily Free Prediction rule:
+ *
+ * 1. Exactly one immutable pool per fixture date.
+ * 2. Maximum 3 predictions.
+ * 3. Only Low Risk predictions can enter the pool.
+ * 4. Once 3 IDs are selected, later prediction publishing
+ *    MUST NOT replace or rotate those selections.
+ * 5. Match settlement/status changes also MUST NOT create
+ *    replacement free predictions.
+ *
+ * The dedicated daily selection document is the lock/source
+ * of truth. This makes repeated and overlapping cron runs safe.
+ */
 export async function selectDailyFreePredictions(
   rawDate: string
 ): Promise<
@@ -176,16 +279,59 @@ export async function selectDailyFreePredictions(
       rawDate
     );
 
+  const selectionRef =
+    adminDb
+      .collection(
+        DAILY_SELECTION_COLLECTION
+      )
+      .doc(
+        date
+      );
+
   /*
-   * Read published predictions.
-   *
-   * Filtering by date/risk is
-   * intentionally done in memory so
-   * this feature does not immediately
-   * require another Firestore composite
-   * index.
+   * Recover selections that were already created by the
+   * previous implementation before the permanent daily
+   * lock document existed.
    */
-  const snapshot =
+  const legacySnapshot =
+    await adminDb
+      .collection(
+        COLLECTION_NAME
+      )
+      .where(
+        "freeSelectionDate",
+        "==",
+        date
+      )
+      .get();
+
+  const legacySelectedIds =
+    legacySnapshot.docs
+      .filter(
+        (
+          document
+        ) =>
+          document.data()
+            .isFree ===
+          true
+      )
+      .map(
+        (
+          document
+        ) =>
+          document.id
+      )
+      .slice(
+        0,
+        DAILY_FREE_LIMIT
+      );
+
+  /*
+   * Candidate discovery is intentionally separate from the
+   * lock. Only published + Low Risk predictions for this
+   * fixture date are eligible for the INITIAL selection.
+   */
+  const publishedSnapshot =
     await adminDb
       .collection(
         COLLECTION_NAME
@@ -197,76 +343,8 @@ export async function selectDailyFreePredictions(
       )
       .get();
 
-  const dailyDocuments =
-    snapshot.docs.filter(
-      (
-        document
-      ) => {
-        const data =
-          document.data();
-
-        return (
-          getFixtureDateKey(
-            data
-          ) === date
-        );
-      }
-    );
-
-  /*
-   * Existing selections are counted
-   * first. This makes repeated cron runs
-   * idempotent.
-   */
-  const existingFree =
-    dailyDocuments.filter(
-      (
-        document
-      ) =>
-        document.data()
-          .isFree ===
-        true
-    );
-
-  const existingFreeCount =
-    existingFree.length;
-
-  const remainingSlots =
-    Math.max(
-      0,
-      DAILY_FREE_LIMIT -
-        existingFreeCount
-    );
-
-  if (
-    remainingSlots ===
-    0
-  ) {
-    return {
-      date,
-
-      limit:
-        DAILY_FREE_LIMIT,
-
-      existingFreeCount,
-
-      selectedCount:
-        0,
-
-      selectedPredictionIds:
-        [],
-
-      remainingSlots:
-        0,
-    };
-  }
-
-  /*
-   * Only published + Low Risk
-   * predictions are eligible.
-   */
   const candidates =
-    dailyDocuments
+    publishedSnapshot.docs
       .filter(
         (
           document
@@ -274,18 +352,15 @@ export async function selectDailyFreePredictions(
           const data =
             document.data();
 
-          if (
-            data.isFree ===
-            true
-          ) {
-            return false;
-          }
-
           return (
+            getFixtureDateKey(
+              data
+            ) ===
+              date &&
             getRiskLabel(
               data
             ) ===
-            "low"
+              "low"
           );
         }
       )
@@ -293,181 +368,241 @@ export async function selectDailyFreePredictions(
         (
           left,
           right
-        ) => {
-          /*
-           * Prefer stronger confidence
-           * when available.
-           */
-          const getConfidence =
-            (
-              data: Record<
-                string,
-                unknown
-              >
-            ): number => {
-              const prediction =
-                data.prediction;
-
-              if (
-                prediction &&
-                typeof prediction ===
-                  "object" &&
-                !Array.isArray(
-                  prediction
-                )
-              ) {
-                const primary =
-                  (
-                    prediction as Record<
-                      string,
-                      unknown
-                    >
-                  )
-                    .vipPrediction;
-
-                if (
-                  primary &&
-                  typeof primary ===
-                    "object" &&
-                  !Array.isArray(
-                    primary
-                  )
-                ) {
-                  const primaryPrediction =
-                    (
-                      primary as Record<
-                        string,
-                        unknown
-                      >
-                    )
-                      .primaryPrediction;
-
-                  if (
-                    primaryPrediction &&
-                    typeof primaryPrediction ===
-                      "object" &&
-                    !Array.isArray(
-                      primaryPrediction
-                    )
-                  ) {
-                    const confidence =
-                      (
-                        primaryPrediction as Record<
-                          string,
-                          unknown
-                        >
-                      )
-                        .confidence;
-
-                    if (
-                      typeof confidence ===
-                        "number" &&
-                      Number.isFinite(
-                        confidence
-                      )
-                    ) {
-                      return confidence;
-                    }
-                  }
-                }
-              }
-
-              return 0;
-            };
-
-          return (
-            getConfidence(
-              right.data()
-            ) -
-            getConfidence(
-              left.data()
-            )
-          );
-        }
-      )
-      .slice(
-        0,
-        remainingSlots
+        ) =>
+          getConfidence(
+            right.data()
+          ) -
+          getConfidence(
+            left.data()
+          )
       );
 
-  if (
-    candidates.length ===
-    0
-  ) {
-    return {
-      date,
+  return adminDb.runTransaction(
+    async (
+      transaction
+    ) => {
+      const selectionSnapshot =
+        await transaction.get(
+          selectionRef
+        );
 
-      limit:
-        DAILY_FREE_LIMIT,
+      const storedIds =
+        selectionSnapshot.exists
+          ? uniqueIds(
+              selectionSnapshot
+                .data()
+                ?.selectedPredictionIds
+            )
+          : [];
 
-      existingFreeCount,
+      /*
+       * Merge in any already-existing isFree selections once.
+       * This preserves the 3 predictions already shown today.
+       */
+      const currentIds =
+        uniqueIds([
+          ...storedIds,
+          ...legacySelectedIds,
+        ]);
 
-      selectedCount:
-        0,
+      if (
+        currentIds.length >=
+        DAILY_FREE_LIMIT
+      ) {
+        if (
+          !selectionSnapshot.exists ||
+          storedIds.length !==
+            currentIds.length
+        ) {
+          transaction.set(
+            selectionRef,
+            {
+              date,
 
-      selectedPredictionIds:
-        [],
+              selectedPredictionIds:
+                currentIds,
 
-      remainingSlots,
-    };
-  }
+              count:
+                currentIds.length,
 
-  const batch =
-    adminDb.batch();
+              limit:
+                DAILY_FREE_LIMIT,
 
-  for (
-    const document
-    of candidates
-  ) {
-    batch.update(
-      document.ref,
-      {
-        isFree:
-          true,
+              locked:
+                true,
 
-        freeSelectionDate:
+              selectedBy:
+                "ai-ceo",
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              lockedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge:
+                true,
+            }
+          );
+        }
+
+        return {
           date,
 
-        freeSelectedBy:
-          "ai-ceo",
+          limit:
+            DAILY_FREE_LIMIT,
 
-        freeSelectedAt:
-          FieldValue
-            .serverTimestamp(),
+          existingFreeCount:
+            currentIds.length,
 
-        updatedAt:
-          FieldValue
-            .serverTimestamp(),
+          selectedCount:
+            0,
+
+          selectedPredictionIds:
+            currentIds,
+
+          remainingSlots:
+            0,
+
+          locked:
+            true,
+        };
       }
-    );
-  }
 
-  await batch.commit();
+      const remainingSlots =
+        DAILY_FREE_LIMIT -
+        currentIds.length;
 
-  return {
-    date,
+      const newCandidates =
+        candidates
+          .filter(
+            (
+              document
+            ) =>
+              !currentIds.includes(
+                document.id
+              )
+          )
+          .slice(
+            0,
+            remainingSlots
+          );
 
-    limit:
-      DAILY_FREE_LIMIT,
+      const newIds =
+        newCandidates.map(
+          (
+            document
+          ) =>
+            document.id
+        );
 
-    existingFreeCount,
+      const finalIds =
+        uniqueIds([
+          ...currentIds,
+          ...newIds,
+        ]);
 
-    selectedCount:
-      candidates.length,
+      for (
+        const document
+        of newCandidates
+      ) {
+        transaction.set(
+          document.ref,
+          {
+            isFree:
+              true,
 
-    selectedPredictionIds:
-      candidates.map(
-        (
-          document
-        ) =>
-          document.id
-      ),
+            freeSelectionDate:
+              date,
 
-    remainingSlots:
-      Math.max(
-        0,
-        remainingSlots -
-          candidates.length
-      ),
-  };
+            freeSelectedBy:
+              "ai-ceo",
+
+            freeSelectedAt:
+              FieldValue
+                .serverTimestamp(),
+
+            updatedAt:
+              FieldValue
+                .serverTimestamp(),
+          },
+          {
+            merge:
+              true,
+          }
+        );
+      }
+
+      const locked =
+        finalIds.length >=
+        DAILY_FREE_LIMIT;
+
+      transaction.set(
+        selectionRef,
+        {
+          date,
+
+          selectedPredictionIds:
+            finalIds,
+
+          count:
+            finalIds.length,
+
+          limit:
+            DAILY_FREE_LIMIT,
+
+          locked,
+
+          selectedBy:
+            "ai-ceo",
+
+          updatedAt:
+            FieldValue
+              .serverTimestamp(),
+
+          ...(
+            locked
+              ? {
+                  lockedAt:
+                    FieldValue
+                      .serverTimestamp(),
+                }
+              : {}
+          ),
+        },
+        {
+          merge:
+            true,
+        }
+      );
+
+      return {
+        date,
+
+        limit:
+          DAILY_FREE_LIMIT,
+
+        existingFreeCount:
+          currentIds.length,
+
+        selectedCount:
+          newIds.length,
+
+        selectedPredictionIds:
+          finalIds,
+
+        remainingSlots:
+          Math.max(
+            0,
+            DAILY_FREE_LIMIT -
+              finalIds.length
+          ),
+
+        locked,
+      };
+    }
+  );
 }
