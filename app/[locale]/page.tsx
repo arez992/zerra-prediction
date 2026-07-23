@@ -646,10 +646,6 @@ export default async function HomePage({
               eyebrow="Daily Free Access"
               title="Free Predictions"
               description="Three Low Risk predictions selected automatically by ZERRA AI CEO for today's free access."
-              actionHref={getPath(
-                "/predictions"
-              )}
-              actionLabel="View predictions"
             />
 
             <div className="mt-8 grid gap-6 lg:grid-cols-3">
@@ -1652,8 +1648,8 @@ function SectionHeader({
   eyebrow: string;
   title: string;
   description: string;
-  actionHref: string;
-  actionLabel: string;
+  actionHref?: string;
+  actionLabel?: string;
 }) {
   return (
     <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -1671,14 +1667,14 @@ function SectionHeader({
         </p>
       </div>
 
-      <Link
-        href={
-          actionHref
-        }
-        className="shrink-0 text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
-      >
-        {actionLabel} →
-      </Link>
+      {actionHref && actionLabel && (
+        <Link
+          href={actionHref}
+          className="shrink-0 text-sm font-black text-[#139653] transition hover:text-[#0d6f3d]"
+        >
+          {actionLabel} →
+        </Link>
+      )}
     </div>
   );
 }
