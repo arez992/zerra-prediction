@@ -553,6 +553,12 @@ function FeaturedPrediction({
               Published
             </Badge>
 
+            <ResultBadge
+              status={
+                item.result.status
+              }
+            />
+
             <span className="rounded-full bg-[#f3f7f4] px-3 py-1.5 text-[10px] font-black uppercase text-[#7a877e]">
               Football
             </span>
@@ -705,6 +711,13 @@ function FeaturedPrediction({
               />
             )}
 
+            <PredictionResultPanel
+              item={
+                item
+              }
+              compact
+            />
+
             <SignalCard
               label="Kickoff"
               value={formatFixtureDate(
@@ -756,6 +769,12 @@ function PredictionCard({
         <Badge>
           Published
         </Badge>
+
+        <ResultBadge
+          status={
+            item.result.status
+          }
+        />
 
         <span className="rounded-full bg-[#f3f7f4] px-3 py-1.5 text-[10px] font-black uppercase text-[#7a877e]">
           {
@@ -845,6 +864,14 @@ function PredictionCard({
         )}
       </div>
 
+      <div className="mt-5">
+        <PredictionResultPanel
+          item={
+            item
+          }
+        />
+      </div>
+
       <div className="mt-5 rounded-2xl border border-[#dce8df] bg-[#fbfdfb] p-4">
         <p className="text-sm leading-7 text-[#66756c]">
           {
@@ -921,6 +948,149 @@ function TeamIdentity({
       <span className={`mt-2 min-w-0 break-words font-black leading-tight text-[#102117] ${textSize}`}>
         {name}
       </span>
+    </div>
+  );
+}
+
+function ResultBadge({
+  status,
+}: {
+  status:
+    PublicPredictionItem[
+      "result"
+    ][
+      "status"
+    ];
+}) {
+  const config =
+    status ===
+    "correct"
+      ? {
+          label:
+            "Correct",
+          className:
+            "border-[#bfe6cf] bg-[#eaf7ef] text-[#0d6f3d]",
+        }
+      : status ===
+        "incorrect"
+        ? {
+            label:
+              "Incorrect",
+            className:
+              "border-[#f0cccc] bg-[#fff1f1] text-[#b54b4b]",
+          }
+        : status ===
+          "void"
+          ? {
+              label:
+                "Void",
+              className:
+                "border-[#eadcb5] bg-[#fff9e8] text-[#8a6a17]",
+            }
+          : {
+              label:
+                "Pending",
+              className:
+                "border-[#dce8df] bg-[#f3f7f4] text-[#66756c]",
+            };
+
+  return (
+    <span
+      className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase ${config.className}`}
+    >
+      {config.label}
+    </span>
+  );
+}
+
+function PredictionResultPanel({
+  item,
+  compact = false,
+}: {
+  item:
+    PublicPredictionItem;
+
+  compact?:
+    boolean;
+}) {
+  const result =
+    item.result;
+
+  if (
+    !result.checked
+  ) {
+    return (
+      <div className="rounded-xl border border-[#e2ebe5] bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8a978e]">
+            Prediction Result
+          </p>
+
+          <ResultBadge
+            status="pending"
+          />
+        </div>
+
+        {!compact && (
+          <p className="mt-2 text-sm font-bold text-[#66756c]">
+            Waiting for the final match result.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        result.status ===
+        "correct"
+          ? "border-[#bfe6cf] bg-[#f4fbf6]"
+          : result.status ===
+            "incorrect"
+            ? "border-[#f0cccc] bg-[#fff7f7]"
+            : "border-[#eadcb5] bg-[#fffaf0]"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#6f7e74]">
+          Prediction Result
+        </p>
+
+        <ResultBadge
+          status={
+            result.status
+          }
+        />
+      </div>
+
+      {result.finalScore && (
+        <div className="mt-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a978e]">
+            Final Score
+          </p>
+
+          <p className="mt-1 text-xl font-black text-[#102117]">
+            {item.teams.home.name}{" "}
+            {result.homeGoals ??
+              result.finalScore.split(
+                "-"
+              )[0]}{" "}
+            -{" "}
+            {result.awayGoals ??
+              result.finalScore.split(
+                "-"
+              )[1]}{" "}
+            {item.teams.away.name}
+          </p>
+        </div>
+      )}
+
+      {result.label && (
+        <p className="mt-3 text-sm leading-6 text-[#66756c]">
+          {result.label}
+        </p>
+      )}
     </div>
   );
 }
