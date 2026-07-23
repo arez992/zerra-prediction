@@ -356,6 +356,51 @@ async function getFreePredictions(): Promise<
   }
 }
 
+async function getLatestPredictions(): Promise<
+  PublicPredictionItem[]
+> {
+  try {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://zerraprediction.com";
+
+    const response =
+      await fetch(
+        `${siteUrl}/api/predictions?limit=3`,
+        {
+          cache:
+            "no-store",
+        }
+      );
+
+    if (
+      !response.ok
+    ) {
+      return [];
+    }
+
+    const data =
+      (await response.json()) as
+        PublicPredictionsResponse;
+
+    if (
+      data.success &&
+      Array.isArray(
+        data.predictions
+      )
+    ) {
+      return data.predictions.slice(
+        0,
+        3
+      );
+    }
+
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 async function getYesterdayGoalResults(): Promise<
   YesterdayGoalResultsData | null
 > {
@@ -446,11 +491,13 @@ export default async function HomePage({
   const [
     fixtures,
     freePredictions,
+    latestPredictions,
     yesterdayResults,
   ] =
     await Promise.all([
       getFixtures(),
       getFreePredictions(),
+      getLatestPredictions(),
       getYesterdayGoalResults(),
     ]);
 
@@ -687,12 +734,12 @@ export default async function HomePage({
             actionLabel="View predictions"
           />
 
-          {freePredictions.length ===
+          {latestPredictions.length ===
           0 ? (
             <EmptyState message="No published prediction previews are available right now." />
           ) : (
             <div className="mt-8 grid gap-6 lg:grid-cols-3">
-              {freePredictions.map(
+              {latestPredictions.map(
                 (
                   prediction,
                   index
