@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -18,12 +19,18 @@ type Analysis = {
   riskNote: string;
 };
 
+const memoryCache =
+  new Map<
+    string,
+    Analysis
+  >();
+
 function getErrorMessage(
   error: unknown
 ): string {
   if (
     typeof error ===
-    "string"
+      "string"
   ) {
     return error;
   }
@@ -41,14 +48,14 @@ function getErrorMessage(
 
     if (
       typeof value.message ===
-      "string"
+        "string"
     ) {
       return value.message;
     }
 
     if (
       typeof value.error ===
-      "string"
+        "string"
     ) {
       return value.error;
     }
@@ -122,10 +129,144 @@ function normalizeAnalysis(
   };
 }
 
+function createClientCacheKey(
+  match: any,
+  prediction: any
+): string {
+  const fixtureId =
+    String(
+      match?.fixture
+        ?.fixture
+        ?.id ||
+      match?.fixture
+        ?.id ||
+      match?.id ||
+      "unknown"
+    );
+
+  const primary =
+    prediction
+      ?.vipPrediction
+      ?.primaryPrediction;
+
+  const pick =
+    typeof primary?.pick ===
+      "string"
+      ? primary.pick
+      : "none";
+
+  const confidence =
+    Number.isFinite(
+      Number(
+        primary?.confidence
+      )
+    )
+      ? Math.round(
+          Number(
+            primary.confidence
+          )
+        )
+      : 0;
+
+  const risk =
+    typeof prediction?.risk ===
+      "string"
+      ? prediction.risk
+      : "unknown";
+
+  return [
+    "zerra-ai-analysis-v2",
+    fixtureId,
+    pick,
+    confidence,
+    risk,
+  ].join("|");
+}
+
+function readSessionCache(
+  key: string
+): Analysis | null {
+  try {
+    const raw =
+      sessionStorage.getItem(
+        key
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    return normalizeAnalysis(
+      JSON.parse(
+        raw
+      )
+    );
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionCache(
+  key: string,
+  analysis: Analysis
+) {
+  try {
+    sessionStorage.setItem(
+      key,
+      JSON.stringify(
+        analysis
+      )
+    );
+  } catch {
+    // Ignore browser storage failures.
+  }
+}
+
 export default function AIAnalysis({
   match,
   prediction,
 }: AIAnalysisProps) {
+  const fixtureId =
+    String(
+      match?.fixture
+        ?.fixture
+        ?.id ||
+      match?.fixture
+        ?.id ||
+      match?.id ||
+      "unknown"
+    );
+
+  const primaryPick =
+    prediction
+      ?.vipPrediction
+      ?.primaryPrediction
+      ?.pick;
+
+  const primaryConfidence =
+    prediction
+      ?.vipPrediction
+      ?.primaryPrediction
+      ?.confidence;
+
+  const risk =
+    prediction?.risk;
+
+  const cacheKey =
+    useMemo(
+      () =>
+        createClientCacheKey(
+          match,
+          prediction
+        ),
+      [
+        fixtureId,
+        primaryPick,
+        primaryConfidence,
+        risk,
+      ]
+    );
+
   const [
     loading,
     setLoading,
@@ -149,6 +290,53 @@ export default function AIAnalysis({
     useState("");
 
   useEffect(() => {
+    const memory =
+      memoryCache.get(
+        cacheKey
+      );
+
+    if (
+      memory
+    ) {
+      setAnalysis(
+        memory
+      );
+
+      setError("");
+
+      setLoading(
+        false
+      );
+
+      return;
+    }
+
+    const session =
+      readSessionCache(
+        cacheKey
+      );
+
+    if (
+      session
+    ) {
+      memoryCache.set(
+        cacheKey,
+        session
+      );
+
+      setAnalysis(
+        session
+      );
+
+      setError("");
+
+      setLoading(
+        false
+      );
+
+      return;
+    }
+
     const controller =
       new AbortController();
 
@@ -172,9 +360,6 @@ export default function AIAnalysis({
                   "application/json",
               },
 
-              cache:
-                "no-store",
-
               signal:
                 controller.signal,
 
@@ -188,7 +373,8 @@ export default function AIAnalysis({
             }
           );
 
-        let data: any;
+        let data:
+          any;
 
         try {
           data =
@@ -222,6 +408,16 @@ export default function AIAnalysis({
             "AI analysis response is invalid."
           );
         }
+
+        memoryCache.set(
+          cacheKey,
+          normalized
+        );
+
+        writeSessionCache(
+          cacheKey,
+          normalized
+        );
 
         setAnalysis(
           normalized
@@ -261,14 +457,13 @@ export default function AIAnalysis({
       }
     }
 
-    loadAnalysis();
+    void loadAnalysis();
 
     return () => {
       controller.abort();
     };
   }, [
-    match,
-    prediction,
+    cacheKey,
   ]);
 
   if (

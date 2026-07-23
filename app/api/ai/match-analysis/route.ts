@@ -10,11 +10,14 @@ import {
   createAIAnalysisCacheKey,
   getCachedAIAnalysis,
   saveAIAnalysisCache,
-} from "@/lib/ai/cache";
+} from "@/lib/ai/server-cache";
 
 import {
   savePredictionHistory,
 } from "@/lib/ai/history";
+
+const OPENAI_TIMEOUT_MS =
+  8_000;
 
 function getFixtureId(
   match: any
@@ -255,7 +258,8 @@ export async function POST(
 
     const cacheKey =
       createAIAnalysisCacheKey(
-        match
+        match,
+        prediction
       );
 
     const fixtureId =
@@ -314,6 +318,12 @@ export async function POST(
     if (
       !apiKey
     ) {
+      await saveAIAnalysisCache(
+        cacheKey,
+        fallbackAnalysis,
+        context
+      );
+
       return NextResponse.json({
         success:
           true,
@@ -391,6 +401,16 @@ Return JSON with this exact shape:
     let response:
       Response;
 
+    const controller =
+      new AbortController();
+
+    const timeout =
+      setTimeout(
+        () =>
+          controller.abort(),
+        OPENAI_TIMEOUT_MS
+      );
+
     try {
       response =
         await fetch(
@@ -415,9 +435,18 @@ Return JSON with this exact shape:
                 input:
                   prompt,
               }),
+
+            signal:
+              controller.signal,
           }
         );
     } catch {
+      await saveAIAnalysisCache(
+        cacheKey,
+        fallbackAnalysis,
+        context
+      );
+
       return NextResponse.json({
         success:
           true,
@@ -429,13 +458,17 @@ Return JSON with this exact shape:
           true,
 
         fallbackReason:
-          "openai-network-error",
+          "openai-network-or-timeout",
 
         context,
 
         analysis:
           fallbackAnalysis,
       });
+    } finally {
+      clearTimeout(
+        timeout
+      );
     }
 
     let data:
@@ -446,6 +479,12 @@ Return JSON with this exact shape:
         await response
           .json();
     } catch {
+      await saveAIAnalysisCache(
+        cacheKey,
+        fallbackAnalysis,
+        context
+      );
+
       return NextResponse.json({
         success:
           true,
@@ -485,6 +524,12 @@ Return JSON with this exact shape:
           code:
             errorCode,
         }
+      );
+
+      await saveAIAnalysisCache(
+        cacheKey,
+        fallbackAnalysis,
+        context
       );
 
       return NextResponse.json({
@@ -574,17 +619,21 @@ Return JSON with this exact shape:
       context
     );
 
-    await savePredictionHistory({
-      fixtureId,
+    if (
+      !usedFallback
+    ) {
+      await savePredictionHistory({
+        fixtureId,
 
-      match,
+        match,
 
-      prediction,
+        prediction,
 
-      analysis,
+        analysis,
 
-      cacheKey,
-    });
+        cacheKey,
+      });
+    }
 
     return NextResponse.json({
       success:
