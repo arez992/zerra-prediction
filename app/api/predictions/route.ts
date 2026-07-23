@@ -292,6 +292,16 @@ function toPublicPrediction(
       data.fixtureStatus
     );
 
+  const settlement =
+    asRecord(
+      data.settlement
+    );
+
+  const actual =
+    asRecord(
+      settlement.actual
+    );
+
   const isFree =
     data.isFree ===
     true;
@@ -470,6 +480,75 @@ function toPublicPrediction(
               ),
           }
         : null,
+
+    result: {
+      checked:
+        data.resultChecked ===
+        true,
+
+      status:
+        data.resultChecked ===
+        true
+          ? data.correct ===
+            true
+            ? "correct"
+            : data.correct ===
+              false
+              ? "incorrect"
+              : "void"
+          : "pending",
+
+      correct:
+        typeof data.correct ===
+          "boolean"
+          ? data.correct
+          : null,
+
+      label:
+        normalizeText(
+          data.result
+        ) ||
+        null,
+
+      settledAt:
+        serializeTimestamp(
+          data.settledAt
+        ),
+
+      finalStatus:
+        normalizeText(
+          settlement.finalStatus
+        ) ||
+        normalizeText(
+          fixtureStatus.short
+        ) ||
+        null,
+
+      homeGoals:
+        normalizeNumber(
+          actual.homeGoals
+        ),
+
+      awayGoals:
+        normalizeNumber(
+          actual.awayGoals
+        ),
+
+      finalScore:
+        normalizeText(
+          actual.exactScore
+        ) ||
+        (
+          normalizeNumber(
+            actual.homeGoals
+          ) !== null &&
+          normalizeNumber(
+            actual.awayGoals
+          ) !== null
+            ? `${normalizeNumber(actual.homeGoals)}-${normalizeNumber(actual.awayGoals)}`
+            : null
+        ),
+    },
 
     publishedAt:
       serializeTimestamp(
@@ -654,27 +733,94 @@ export async function GET(
       );
     }
 
-    const snapshot =
-      await adminDb
-        .collection(
-          COLLECTION_NAME
+    /*
+     * Public history includes both active published
+     * predictions and predictions already settled
+     * after the match finished.
+     *
+     * Two simple queries avoid requiring a new
+     * Firestore composite index for an "in" query.
+     */
+    const [
+      publishedSnapshot,
+      settledSnapshot,
+    ] =
+      await Promise.all([
+        adminDb
+          .collection(
+            COLLECTION_NAME
+          )
+          .where(
+            "status",
+            "==",
+            "published"
+          )
+          .orderBy(
+            "publishedAt",
+            "desc"
+          )
+          .limit(
+            limit
+          )
+          .get(),
+
+        adminDb
+          .collection(
+            COLLECTION_NAME
+          )
+          .where(
+            "status",
+            "==",
+            "settled"
+          )
+          .orderBy(
+            "publishedAt",
+            "desc"
+          )
+          .limit(
+            limit
+          )
+          .get(),
+      ]);
+
+    const documents =
+      [
+        ...publishedSnapshot.docs,
+        ...settledSnapshot.docs,
+      ];
+
+    const uniqueDocuments =
+      Array.from(
+        new Map(
+          documents.map(
+            (
+              document
+            ) => [
+              document.id,
+              document,
+            ]
+          )
+        ).values()
+      )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            getPublishedTime(
+              right.data()
+            ) -
+            getPublishedTime(
+              left.data()
+            )
         )
-        .where(
-          "status",
-          "==",
-          "published"
-        )
-        .orderBy(
-          "publishedAt",
-          "desc"
-        )
-        .limit(
+        .slice(
+          0,
           limit
-        )
-        .get();
+        );
 
     const predictions =
-      snapshot.docs.map(
+      uniqueDocuments.map(
         (
           document
         ) =>
@@ -696,7 +842,7 @@ export async function GET(
           "Football",
 
         mode:
-          "published",
+          "published-and-settled",
 
         count:
           predictions.length,
