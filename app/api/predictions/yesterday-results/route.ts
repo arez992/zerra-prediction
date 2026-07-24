@@ -3,6 +3,10 @@ import {
   NextResponse,
 } from "next/server";
 
+import {
+  unstable_cache,
+} from "next/cache";
+
 import type {
   DocumentData,
 } from "firebase-admin/firestore";
@@ -17,22 +21,27 @@ export const runtime =
 export const dynamic =
   "force-dynamic";
 
-export const revalidate = 0;
+export const revalidate =
+  0;
 
 const COLLECTION_NAME =
   "predictionHistory";
 
-const DEFAULT_LIMIT = 6;
+const DEFAULT_LIMIT =
+  6;
 
-const MAX_LIMIT = 50;
+const MAX_LIMIT =
+  50;
+
+const CACHE_SECONDS =
+  300;
+
+const MAX_SETTLED_READS =
+  200;
 
 type TimestampLike = {
   toDate: () => Date;
 };
-
-type GoalMarket =
-  | "Over 2.5 Goals"
-  | "Under 2.5 Goals";
 
 function normalizeText(
   value: unknown,
@@ -49,7 +58,8 @@ function normalizeNumber(
   value: unknown
 ): number | null {
   const parsed =
-    typeof value === "number"
+    typeof value ===
+      "number"
       ? value
       : Number(value);
 
@@ -70,7 +80,8 @@ function serializeTimestamp(
     "toDate" in value &&
     typeof (
       value as TimestampLike
-    ).toDate === "function"
+    ).toDate ===
+      "function"
   ) {
     return (
       value as TimestampLike
@@ -80,9 +91,11 @@ function serializeTimestamp(
   }
 
   if (
-    value instanceof Date
+    value instanceof
+      Date
   ) {
-    return value.toISOString();
+    return value
+      .toISOString();
   }
 
   if (
@@ -90,7 +103,9 @@ function serializeTimestamp(
       "string"
   ) {
     const parsed =
-      Date.parse(value);
+      Date.parse(
+        value
+      );
 
     if (
       Number.isFinite(
@@ -124,7 +139,9 @@ function getSafeLimit(
     MAX_LIMIT,
     Math.max(
       1,
-      Math.floor(parsed)
+      Math.floor(
+        parsed
+      )
     )
   );
 }
@@ -139,7 +156,9 @@ function getObject(
     value &&
     typeof value ===
       "object" &&
-    !Array.isArray(value)
+    !Array.isArray(
+      value
+    )
   ) {
     return value as Record<
       string,
@@ -151,16 +170,6 @@ function getObject(
 }
 
 function getYesterdayRange() {
-  /*
-   * Yesterday is calculated
-   * using UTC because stored
-   * fixture dates are ISO dates.
-   *
-   * This gives us:
-   *
-   * yesterday 00:00:00 UTC
-   * today     00:00:00 UTC
-   */
   const now =
     new Date();
 
@@ -186,108 +195,102 @@ function getYesterdayRange() {
   return {
     start:
       yesterdayStart,
-
     end:
       todayStart,
   };
 }
 
-function chooseGoalMarket(
-  prediction:
-    Record<string, unknown>
+function getCanonicalPrediction(
+  data: DocumentData
 ): {
-  market: GoalMarket;
+  market: string;
+  category: string | null;
   confidence: number;
-} {
+} | null {
+  const prediction =
+    getObject(
+      data.prediction
+    );
+
   const vipPrediction =
     getObject(
       prediction.vipPrediction
     );
 
-  const vipMarkets =
+  const primaryPrediction =
     getObject(
-      vipPrediction.markets
+      vipPrediction.primaryPrediction
     );
 
-  const topLevelOver =
+  const primaryPick =
+    normalizeText(
+      primaryPrediction.pick
+    );
+
+  const primaryCategory =
+    normalizeText(
+      primaryPrediction.category
+    ) ||
+    null;
+
+  const primaryConfidence =
     normalizeNumber(
-      prediction.over25
+      primaryPrediction.confidence
     );
 
-  const topLevelUnder =
+  const legacyFinalPrediction =
+    normalizeText(
+      vipPrediction.finalPrediction
+    );
+
+  const legacyValueBet =
+    normalizeText(
+      prediction.valueBet
+    ) ||
+    normalizeText(
+      vipPrediction.valueBet
+    );
+
+  const legacyConfidence =
     normalizeNumber(
-      prediction.under25
-    );
-
-  const nestedOver =
+      prediction.confidence
+    ) ??
     normalizeNumber(
-      vipMarkets.over25
+      vipPrediction.confidence
     );
 
-  const nestedUnder =
-    normalizeNumber(
-      vipMarkets.under25
-    );
-
-  const over25 =
-    topLevelOver ??
-    nestedOver ??
-    0;
-
-  const under25 =
-    topLevelUnder ??
-    nestedUnder ??
-    0;
+  const market =
+    primaryPick ||
+    legacyFinalPrediction ||
+    legacyValueBet;
 
   if (
-    over25 >
-    under25
+    !market
   ) {
-    return {
-      market:
-        "Over 2.5 Goals",
-
-      confidence:
-        over25,
-    };
+    return null;
   }
 
   return {
-    market:
-      "Under 2.5 Goals",
-
+    market,
+    category:
+      primaryCategory,
     confidence:
-      under25,
+      Number(
+        (
+          primaryConfidence ??
+          legacyConfidence ??
+          0
+        ).toFixed(
+          1
+        )
+      ),
   };
-}
-
-function evaluateGoalPrediction(
-  market: GoalMarket,
-  totalGoals: number
-): boolean {
-  if (
-    market ===
-    "Over 2.5 Goals"
-  ) {
-    return (
-      totalGoals >= 3
-    );
-  }
-
-  return (
-    totalGoals <= 2
-  );
 }
 
 function toYesterdayResult(
   id: string,
   data: DocumentData
 ) {
-  const prediction =
-    getObject(
-      data.prediction
-    );
-
   const competition =
     getObject(
       data.competition
@@ -328,33 +331,33 @@ function toYesterdayResult(
       actual.awayGoals
     );
 
-  const storedTotalGoals =
-    normalizeNumber(
-      actual.totalGoals
-    );
+  const correct =
+    typeof data.correct ===
+      "boolean"
+      ? data.correct
+      : null;
 
   if (
-    homeGoals === null ||
-    awayGoals === null
+    homeGoals ===
+      null ||
+    awayGoals ===
+      null ||
+    correct ===
+      null
   ) {
     return null;
   }
 
-  const totalGoals =
-    storedTotalGoals ??
-    homeGoals +
-      awayGoals;
-
-  const goalPrediction =
-    chooseGoalMarket(
-      prediction
+  const canonicalPrediction =
+    getCanonicalPrediction(
+      data
     );
 
-  const correct =
-    evaluateGoalPrediction(
-      goalPrediction.market,
-      totalGoals
-    );
+  if (
+    !canonicalPrediction
+  ) {
+    return null;
+  }
 
   return {
     id,
@@ -419,14 +422,13 @@ function toYesterdayResult(
 
     prediction: {
       market:
-        goalPrediction.market,
+        canonicalPrediction.market,
+
+      category:
+        canonicalPrediction.category,
 
       confidence:
-        Number(
-          goalPrediction
-            .confidence
-            .toFixed(1)
-        ),
+        canonicalPrediction.confidence,
     },
 
     result: {
@@ -444,7 +446,11 @@ function toYesterdayResult(
 
       awayGoals,
 
-      totalGoals,
+      label:
+        normalizeText(
+          data.result
+        ) ||
+        `${homeGoals}-${awayGoals}`,
     },
 
     settledAt:
@@ -454,6 +460,52 @@ function toYesterdayResult(
   };
 }
 
+const getCachedSettledPredictions =
+  unstable_cache(
+    async () => {
+      const snapshot =
+        await adminDb
+          .collection(
+            COLLECTION_NAME
+          )
+          .where(
+            "status",
+            "==",
+            "settled"
+          )
+          .limit(
+            MAX_SETTLED_READS
+          )
+          .get();
+
+      return snapshot.docs.map(
+        (
+          document
+        ) => ({
+          id:
+            document.id,
+
+          data:
+            document.data(),
+        })
+      );
+    },
+
+    [
+      "zerra-yesterday-primary-results",
+      "v1",
+    ],
+
+    {
+      revalidate:
+        CACHE_SECONDS,
+
+      tags: [
+        "zerra-yesterday-primary-results",
+      ],
+    }
+  );
+
 export async function GET(
   request: NextRequest
 ) {
@@ -462,7 +514,9 @@ export async function GET(
       getSafeLimit(
         request.nextUrl
           .searchParams
-          .get("limit")
+          .get(
+            "limit"
+          )
       );
 
     const {
@@ -471,45 +525,20 @@ export async function GET(
     } =
       getYesterdayRange();
 
-    /*
-     * We query settled predictions
-     * first and perform the exact
-     * fixture-date filtering in
-     * memory.
-     *
-     * This avoids requiring a new
-     * Firestore composite index for:
-     *
-     * status + fixtureDate
-     *
-     * The maximum read size is
-     * intentionally capped.
-     */
-    const snapshot =
-      await adminDb
-        .collection(
-          COLLECTION_NAME
-        )
-        .where(
-          "status",
-          "==",
-          "settled"
-        )
-        .limit(200)
-        .get();
+    const cachedDocuments =
+      await getCachedSettledPredictions();
 
     const yesterdayResults =
-      snapshot.docs
+      cachedDocuments
         .filter(
           (
             document
           ) => {
-            const data =
-              document.data();
-
             const fixtureDate =
               serializeTimestamp(
-                data.fixtureDate
+                document
+                  .data
+                  .fixtureDate
               );
 
             if (
@@ -540,7 +569,7 @@ export async function GET(
           ) =>
             toYesterdayResult(
               document.id,
-              document.data()
+              document.data
             )
         )
         .filter(
@@ -549,7 +578,8 @@ export async function GET(
           ): item is NonNullable<
             typeof item
           > =>
-            item !== null
+            item !==
+            null
         )
         .sort(
           (
@@ -580,8 +610,7 @@ export async function GET(
         (
           item
         ) =>
-          item.result
-            .correct
+          item.result.correct
       ).length;
 
     const incorrect =
@@ -590,7 +619,7 @@ export async function GET(
 
     const accuracy =
       yesterdayResults.length ===
-      0
+        0
         ? 0
         : Number(
             (
@@ -599,7 +628,9 @@ export async function GET(
                 yesterdayResults.length
               ) *
               100
-            ).toFixed(1)
+            ).toFixed(
+              1
+            )
           );
 
     const results =
@@ -610,13 +641,14 @@ export async function GET(
 
     return NextResponse.json(
       {
-        success: true,
+        success:
+          true,
 
         engine:
           "ZERRA AI Prediction Engine",
 
         type:
-          "yesterday-goal-predictions",
+          "yesterday-primary-predictions",
 
         date: {
           from:
@@ -646,7 +678,8 @@ export async function GET(
         results,
       },
       {
-        status: 200,
+        status:
+          200,
 
         headers: {
           "Cache-Control":
@@ -658,23 +691,27 @@ export async function GET(
     error
   ) {
     console.error(
-      "[YESTERDAY_GOAL_RESULTS_ERROR]",
+      "[YESTERDAY_PRIMARY_RESULTS_ERROR]",
       error
     );
 
     const message =
-      error instanceof Error
+      error instanceof
+        Error
         ? error.message
-        : "Unable to load yesterday's goal prediction results.";
+        : "Unable to load yesterday's primary prediction results.";
 
     return NextResponse.json(
       {
-        success: false,
+        success:
+          false,
+
         error:
           message,
       },
       {
-        status: 500,
+        status:
+          500,
 
         headers: {
           "Cache-Control":

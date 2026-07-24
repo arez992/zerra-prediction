@@ -99,7 +99,7 @@ type PublicPredictionsResponse = {
   predictions?: PublicPredictionItem[];
 };
 
-type YesterdayGoalResultItem = {
+type YesterdayPrimaryResultItem = {
   id: string;
   fixtureId: string;
 
@@ -123,10 +123,8 @@ type YesterdayGoalResultItem = {
   fixtureDate: string | null;
 
   prediction: {
-    market:
-      | "Over 2.5 Goals"
-      | "Under 2.5 Goals";
-
+    market: string;
+    category: string | null;
     confidence: number;
   };
 
@@ -143,13 +141,13 @@ type YesterdayGoalResultItem = {
 
     awayGoals: number;
 
-    totalGoals: number;
+    label: string;
   };
 
   settledAt: string | null;
 };
 
-type YesterdayGoalResultsResponse = {
+type YesterdayPrimaryResultsResponse = {
   success: boolean;
 
   summary?: {
@@ -159,10 +157,10 @@ type YesterdayGoalResultsResponse = {
     accuracyRate: number;
   };
 
-  results?: YesterdayGoalResultItem[];
+  results?: YesterdayPrimaryResultItem[];
 };
 
-type YesterdayGoalResultsData = {
+type YesterdayPrimaryResultsData = {
   summary: {
     totalPredictions: number;
     correctPredictions: number;
@@ -170,7 +168,7 @@ type YesterdayGoalResultsData = {
     accuracyRate: number;
   };
 
-  results: YesterdayGoalResultItem[];
+  results: YesterdayPrimaryResultItem[];
 };
 
 type PageProps = {
@@ -401,8 +399,8 @@ async function getLatestPredictions(): Promise<
   }
 }
 
-async function getYesterdayGoalResults(): Promise<
-  YesterdayGoalResultsData | null
+async function getYesterdayPrimaryResults(): Promise<
+  YesterdayPrimaryResultsData | null
 > {
   try {
     const siteUrl =
@@ -426,7 +424,7 @@ async function getYesterdayGoalResults(): Promise<
 
     const data =
       (await response.json()) as
-        YesterdayGoalResultsResponse;
+        YesterdayPrimaryResultsResponse;
 
     if (
       !data.success ||
@@ -498,7 +496,7 @@ export default async function HomePage({
       getFixtures(),
       getFreePredictions(),
       getLatestPredictions(),
-      getYesterdayGoalResults(),
+      getYesterdayPrimaryResults(),
     ]);
 
   const sortedFixtures =
@@ -770,8 +768,8 @@ export default async function HomePage({
         <div className="mx-auto max-w-7xl px-6 py-16">
           <SectionHeader
             eyebrow="Yesterday's Performance"
-            title="Yesterday's Goal Prediction Results"
-            description="See how ZERRA's Over/Under 2.5 goal predictions performed in yesterday's completed football matches."
+            title="Yesterday's Primary Prediction Results"
+            description="See how ZERRA's actual primary predictions performed across yesterday's completed football matches."
             actionHref={getPath(
               "/results/yesterday"
             )}
@@ -784,7 +782,7 @@ export default async function HomePage({
               .results
               .length ===
             0 ? (
-            <EmptyState message="No settled goal prediction results are available for yesterday yet." />
+            <EmptyState message="No settled primary prediction results are available for yesterday yet." />
           ) : (
             <>
               <YesterdaySummary
@@ -794,7 +792,7 @@ export default async function HomePage({
               />
 
               <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-[#dce8df]">
-                <div className="hidden grid-cols-[1.6fr_0.7fr_1fr_0.7fr_0.8fr_0.6fr] gap-4 border-b border-[#e7efe9] bg-[#f7faf8] px-6 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#839188] lg:grid">
+                <div className="hidden grid-cols-[1.6fr_0.7fr_1.2fr_0.8fr_0.6fr] gap-4 border-b border-[#e7efe9] bg-[#f7faf8] px-6 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#839188] lg:grid">
                   <span>
                     Match
                   </span>
@@ -805,10 +803,6 @@ export default async function HomePage({
 
                   <span>
                     ZERRA Prediction
-                  </span>
-
-                  <span>
-                    Actual Goals
                   </span>
 
                   <span>
@@ -825,7 +819,7 @@ export default async function HomePage({
                     (
                       item
                     ) => (
-                      <YesterdayResultRow
+                      <YesterdayPrimaryResultRow
                         key={
                           item.id
                         }
@@ -1420,7 +1414,7 @@ function YesterdaySummary({
   summary,
 }: {
   summary:
-    YesterdayGoalResultsData["summary"];
+    YesterdayPrimaryResultsData["summary"];
 }) {
   return (
     <div className="mt-8 grid gap-4 rounded-[1.75rem] border border-[#dce8df] bg-[#fbfdfb] p-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1429,7 +1423,7 @@ function YesterdaySummary({
         value={String(
           summary.correctPredictions
         )}
-        detail="Successful goal predictions"
+        detail="Successful primary predictions"
         tone="success"
       />
 
@@ -1438,7 +1432,7 @@ function YesterdaySummary({
         value={String(
           summary.incorrectPredictions
         )}
-        detail="Unsuccessful goal predictions"
+        detail="Unsuccessful primary predictions"
         tone="danger"
       />
 
@@ -1504,14 +1498,14 @@ function ResultStat({
   );
 }
 
-function YesterdayResultRow({
+function YesterdayPrimaryResultRow({
   item,
 }: {
   item:
-    YesterdayGoalResultItem;
+    YesterdayPrimaryResultItem;
 }) {
   return (
-    <article className="grid gap-5 bg-white px-6 py-5 transition hover:bg-[#fbfdfb] lg:grid-cols-[1.6fr_0.7fr_1fr_0.7fr_0.8fr_0.6fr] lg:items-center lg:gap-4">
+    <article className="grid gap-5 bg-white px-6 py-5 transition hover:bg-[#fbfdfb] lg:grid-cols-[1.6fr_0.7fr_1.2fr_0.8fr_0.6fr] lg:items-center lg:gap-4">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#139653]">
           {
@@ -1580,12 +1574,19 @@ function YesterdayResultRow({
               .market
           }
         </p>
-      </div>
 
-      <ResultCell
-        label="Actual Goals"
-        value={`${item.result.totalGoals} Goals`}
-      />
+        {item
+          .prediction
+          .category && (
+          <p className="mt-1 text-xs font-bold text-[#7d8b82]">
+            {
+              item
+                .prediction
+                .category
+            }
+          </p>
+        )}
+      </div>
 
       <div>
         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#839188] lg:hidden">
