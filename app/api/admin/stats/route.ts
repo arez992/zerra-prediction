@@ -15,9 +15,15 @@ import {
 } from "@/lib/firebaseAdmin";
 
 import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
+
+import {
   runAnalyticsReport,
 } from "@/lib/google/analytics";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 export const runtime =
   "nodejs";
 
@@ -536,25 +542,31 @@ function calculateBestCurrentMarket(
         country
       );
 
+    const paymentStatus =
+      getPaymentStatus(
+        payment as unknown as Record<
+          string,
+          unknown
+        >
+      );
+
     if (
-      payment.status ===
-      "completed"
+      paymentStatus ===
+        "completed"
     ) {
       stats.completedPayments +=
         1;
 
       stats.revenue +=
-        Number(
-          payment.price ||
-            0
+        getPaymentAmount(
+          payment as unknown as Record<
+            string,
+            unknown
+          >
         );
     } else if (
-      payment.status ===
-        "failed" ||
-      payment.paymentStatus ===
-        "failed" ||
-      payment.paymentStatus ===
-        "expired"
+      paymentStatus ===
+        "failed"
     ) {
       stats.failedPayments +=
         1;
@@ -766,8 +778,13 @@ const getCachedAdminStats =
           (
             payment
           ) =>
-            payment.status ===
-            "completed"
+            getPaymentStatus(
+              payment as unknown as Record<
+                string,
+                unknown
+              >
+            ) ===
+              "completed"
         );
 
       const todayRevenue =
@@ -789,9 +806,11 @@ const getCachedAdminStats =
               payment
             ) =>
               total +
-              Number(
-                payment.price ||
-                  0
+              getPaymentAmount(
+                payment as unknown as Record<
+                  string,
+                  unknown
+                >
               ),
             0
           );
@@ -839,7 +858,7 @@ const getCachedAdminStats =
     },
 
     [
-      "zerra-admin-dashboard-stats-v2",
+      "zerra-admin-dashboard-stats-v3",
     ],
 
     {
@@ -849,6 +868,25 @@ const getCachedAdminStats =
   );
 
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const stats =
       await getCachedAdminStats();
@@ -866,7 +904,7 @@ export async function GET() {
 
         headers: {
           "Cache-Control":
-            "private, s-maxage=300, stale-while-revalidate=600",
+            "private, no-store",
         },
       }
     );

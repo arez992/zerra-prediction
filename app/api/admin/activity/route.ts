@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const snap = await adminDb
       .collection("activityLogs")
@@ -27,6 +47,25 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const body = await request.json();
 

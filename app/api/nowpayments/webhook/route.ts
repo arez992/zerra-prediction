@@ -14,6 +14,10 @@ import {
   getPlanDays,
   normalizePurchasablePlan,
 } from "@/lib/nowPaymentsBilling";
+import {
+  normalizePaymentStatus,
+  timestampLikeToMillis,
+} from "@/lib/paymentRecords";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,38 +106,6 @@ function isPaidStatus(
   );
 }
 
-function timestampToMillis(
-  value: unknown
-): number | null {
-  if (
-    value &&
-    typeof value === "object" &&
-    "toMillis" in value &&
-    typeof (value as {
-      toMillis?: unknown;
-    }).toMillis === "function"
-  ) {
-    return (value as {
-      toMillis: () => number;
-    }).toMillis();
-  }
-
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  if (typeof value === "string") {
-    const parsed =
-      new Date(value).getTime();
-
-    return Number.isFinite(parsed)
-      ? parsed
-      : null;
-  }
-
-  return null;
-}
-
 export async function POST(
   request: Request
 ) {
@@ -189,6 +161,11 @@ export async function POST(
         ? body.payment_status
         : "unknown";
 
+    const canonicalProviderStatus =
+      normalizePaymentStatus(
+        paymentStatus
+      );
+
     const paymentRef =
       adminDb
         .collection("payments")
@@ -224,24 +201,55 @@ export async function POST(
         const payment =
           paymentSnapshot.data() || {};
 
-        transaction.set(
-          paymentRef,
-          {
+        const alreadyCompleted =
+          payment.status ===
+          "completed";
+
+        const statusUpdate:
+          Record<
+            string,
+            unknown
+          > = {
             paymentStatus,
-            nowpayments: body,
+            nowpayments:
+              body,
             nowpaymentsUpdatedAt:
               FieldValue.serverTimestamp(),
             updatedAt:
               FieldValue.serverTimestamp(),
-          },
+          };
+
+        if (
+          !alreadyCompleted &&
+          canonicalProviderStatus ===
+            "pending"
+        ) {
+          statusUpdate.status =
+            "pending";
+        }
+
+        if (
+          !alreadyCompleted &&
+          canonicalProviderStatus ===
+            "failed"
+        ) {
+          statusUpdate.status =
+            "failed";
+          statusUpdate.failedAt =
+            FieldValue.serverTimestamp();
+        }
+
+        transaction.set(
+          paymentRef,
+          statusUpdate,
           {
-            merge: true,
+            merge:
+              true,
           }
         );
 
         if (
-          payment.status ===
-          "completed"
+          alreadyCompleted
         ) {
           return;
         }
@@ -307,7 +315,7 @@ export async function POST(
           }
 
           const currentExpiry =
-            timestampToMillis(
+            timestampLikeToMillis(
               user.expiresAt
             );
 
@@ -336,6 +344,8 @@ export async function POST(
             isVip: true,
             plan,
             expiresAt,
+            vipExpireAt:
+              FieldValue.delete(),
             vipActivatedAt:
               FieldValue.serverTimestamp(),
             lastPaymentId:

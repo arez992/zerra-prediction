@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 async function getMarketInsights() {
   try {
@@ -8,6 +15,9 @@ async function getMarketInsights() {
 
     const res = await fetch(`${siteUrl}/api/admin/market-insights`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -27,7 +37,7 @@ export default async function MarketInsightsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -239,7 +249,7 @@ export default async function MarketInsightsPage() {
       </section>
 
       <p className="mt-6 text-sm text-white/40">
-        Countries scanned: {insights?.scannedCountries ?? 0} آ· Last checked:{" "}
+        Countries scanned: {insights?.scannedCountries ?? 0} ط¢آ· Last checked:{" "}
         {formatDate(insights?.checkedAt)}
       </p>
     </main>
@@ -279,7 +289,7 @@ function InsightBox({
       {items?.length ? (
         <ul className="mt-4 space-y-3 text-sm leading-6 text-white/70">
           {items.map((item) => (
-            <li key={item}>✓ {item}</li>
+            <li key={item}>âœ“ {item}</li>
           ))}
         </ul>
       ) : (
@@ -336,7 +346,7 @@ function SourceCard({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

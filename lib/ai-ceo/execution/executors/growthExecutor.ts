@@ -177,6 +177,27 @@ export const growthExecutor:
     const snapshot =
       await collectAICEOData();
 
+    const missingSources:
+      string[] = [];
+
+    if (
+      snapshot.googleAnalytics
+        .connected !== true
+    ) {
+      missingSources.push(
+        "google-analytics"
+      );
+    }
+
+    if (
+      snapshot.searchConsole
+        .connected !== true
+    ) {
+      missingSources.push(
+        "search-console"
+      );
+    }
+
     const baseline = {
       generatedAt:
         snapshot.generatedAt,
@@ -219,6 +240,37 @@ export const growthExecutor:
         snapshot.internal
           .totalRevenue,
     };
+
+    if (
+      missingSources.length >
+      0
+    ) {
+      return {
+        success: false,
+        completed: false,
+
+        message:
+          `Growth analysis could not be completed for ${executionType} because required external measurement data is unavailable.`,
+
+        data: {
+          recommendationId,
+          executionType,
+          payload,
+          analysisCompleted:
+            false,
+          planCreated:
+            false,
+          missingSources,
+          baseline,
+          actualImpact: {
+            users: 0,
+            seo: 0,
+            vipConversion: 0,
+            revenue: 0,
+          },
+        },
+      };
+    }
 
     const actions =
       createGrowthActions(

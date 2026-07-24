@@ -1,5 +1,12 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import CacheActions from "@/components/admin/CacheActions";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 async function getCacheItems() {
   try {
@@ -8,6 +15,9 @@ async function getCacheItems() {
 
     const res = await fetch(`${siteUrl}/api/admin/cache`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -26,7 +36,7 @@ export default async function AdminCachePage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">AI Cache</h1>

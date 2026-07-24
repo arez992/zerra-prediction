@@ -854,6 +854,15 @@ export async function runSEOLearningMeasurement(
   const snapshot =
     await collectAICEOData();
 
+  if (
+    snapshot.searchConsole
+      .connected !== true
+  ) {
+    throw new Error(
+      "Search Console is unavailable. SEO learning measurement was stopped to avoid recording API failure as zero search performance."
+    );
+  }
+
   const rawSearchConsolePages =
     Array.isArray(
       snapshot

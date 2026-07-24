@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 async function getSecurity() {
   try {
@@ -8,6 +15,9 @@ async function getSecurity() {
 
     const res = await fetch(`${siteUrl}/api/admin/security`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -26,7 +36,7 @@ export default async function AdminSecurityPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Security Dashboard</h1>
@@ -106,7 +116,7 @@ export default async function AdminSecurityPage() {
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

@@ -5,6 +5,7 @@ import {
 } from "next/server";
 
 import {
+  evaluatePredictionCheapScan,
   generatePredictionsForDate,
 } from "@/lib/ai-ceo/prediction/generator";
 
@@ -35,20 +36,24 @@ export const revalidate =
   0;
 
 /*
- * ZERRA autonomous candidate policy.
+ * ZERRA autonomous two-stage prediction policy.
  *
- * A fixture can enter the processing queue when:
+ * SCAN:
+ * - fetch fixtures-by-date once
+ * - run the local/basic prediction pipeline
+ * - do not persist a prediction
+ * - do not fetch enriched fixture/team data
+ * - queue only predictive candidates with:
+ *   confidence > 68%, Low/Medium risk,
+ *   valid consistency, and a usable pick
  *
- * - confidence >= 65%
- * - risk is Low or Medium
- * - prediction consistency is valid
- * - a usable canonical prediction exists
- *
- * primaryPrediction.qualified is retained for
- * diagnostics, but it is NOT a hard Cheap Scan
- * blocker because incomplete supporting data
- * must not automatically reject an otherwise
- * strong prediction.
+ * PROCESS:
+ * - claim queued candidates transactionally
+ * - run one enriched canonical generation
+ * - enforce the hard generation/data-quality gate
+ * - enforce qualification, consistency, risk,
+ *   confidence, pre-match, and learning policy
+ *   before autonomous publication
  */
 const MIN_CONFIDENCE =
   68;
@@ -291,57 +296,189 @@ async function runScan(
         }
       );
 
-  const queueCandidates =
-    preMatchFixtures.map(
-      (
+  const queueCandidates:
+    Array<{
+      fixtureId:
+        string;
+      date:
+        string;
+      fixtureDate:
+        string | null;
+      homeTeam:
+        string;
+      awayTeam:
+        string;
+      confidence:
+        number;
+      risk:
+        string;
+      pick:
+        string;
+      qualified:
+        boolean;
+      consistencyValid:
+        boolean;
+    }> =
+    [];
+
+  const cheapScanResults:
+    Array<{
+      fixtureId:
+        string;
+      match:
+        string;
+      selected:
+        boolean;
+      confidence:
+        number;
+      risk:
+        string;
+      qualified:
+        boolean;
+      consistencyValid:
+        boolean;
+      generationAllowed:
+        boolean;
+      pick:
+        string;
+      reason:
+        string;
+    }> =
+    [];
+
+  let cheapScanFailed =
+    0;
+
+  for (
+    const fixture
+    of preMatchFixtures
+  ) {
+    const fixtureId =
+      normalizeFixtureId(
         fixture
-      ) => ({
-        fixtureId:
-          normalizeFixtureId(
-            fixture
-              .fixture
-              ?.id
-          ),
+          .fixture
+          ?.id
+      );
 
+    const homeTeam =
+      normalizeText(
+        fixture
+          .teams
+          ?.home
+          ?.name
+      );
+
+    const awayTeam =
+      normalizeText(
+        fixture
+          .teams
+          ?.away
+          ?.name
+      );
+
+    try {
+      const scan =
+        await evaluatePredictionCheapScan(
+          fixture
+        );
+
+      const riskAllowed =
+        scan.risk ===
+          "Low" ||
+        scan.risk ===
+          "Medium";
+
+      const selected =
+        scan.eligible &&
+        scan.confidence >
+          MIN_CONFIDENCE &&
+        riskAllowed &&
+        scan.consistencyValid &&
+        Boolean(
+          scan.pick.trim()
+        );
+
+      cheapScanResults.push({
+        fixtureId,
+        match:
+          `${homeTeam} vs ${awayTeam}`,
+        selected,
+        confidence:
+          scan.confidence,
+        risk:
+          scan.risk,
+        qualified:
+          scan.qualified,
+        consistencyValid:
+          scan.consistencyValid,
+        generationAllowed:
+          scan.generationAllowed,
+        pick:
+          scan.pick,
+        reason:
+          selected
+            ? "Selected by cheap scan for enriched processing."
+            : "Rejected by cheap scan before enriched processing.",
+      });
+
+      if (
+        !selected
+      ) {
+        continue;
+      }
+
+      queueCandidates.push({
+        fixtureId,
         date,
-
         fixtureDate:
+          scan.fixtureDate ||
           getFixtureDate(
             fixture
           ),
+        homeTeam,
+        awayTeam,
+        confidence:
+          scan.confidence,
+        risk:
+          scan.risk,
+        pick:
+          scan.pick,
+        qualified:
+          scan.qualified,
+        consistencyValid:
+          scan.consistencyValid,
+      });
+    } catch (
+      error
+    ) {
+      cheapScanFailed +=
+        1;
 
-        homeTeam:
-          normalizeText(
-            fixture
-              .teams
-              ?.home
-              ?.name
-          ),
-
-        awayTeam:
-          normalizeText(
-            fixture
-              .teams
-              ?.away
-              ?.name
-          ),
-
+      cheapScanResults.push({
+        fixtureId,
+        match:
+          `${homeTeam} vs ${awayTeam}`,
+        selected:
+          false,
         confidence:
           0,
-
         risk:
-          "Pending",
-
-        pick:
-          "Pending generation",
-
+          "Unknown",
         qualified:
           false,
-
         consistencyValid:
           false,
-      })
-    );
+        generationAllowed:
+          false,
+        pick:
+          "",
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Cheap prediction scan failed.",
+      });
+    }
+  }
 
   const queueResult =
     await enqueuePredictionCandidates(
@@ -363,12 +500,30 @@ async function runScan(
     preMatchFixtures:
       preMatchFixtures.length,
 
+    cheapScanned:
+      cheapScanResults.length,
+
+    cheapScanSelected:
+      queueCandidates.length,
+
+    cheapScanRejected:
+      Math.max(
+        0,
+        cheapScanResults.length -
+          queueCandidates.length -
+          cheapScanFailed
+      ),
+
+    cheapScanFailed,
+
     fixturesQueued:
       queueCandidates.length,
 
     queueResult,
 
     queueStats,
+
+    cheapScanResults,
   };
 }
 
@@ -497,11 +652,12 @@ async function runProcess(
 
     try {
       /*
-       * Run the existing prediction lifecycle
-       * for this exact fixture.
+       * The queue item already passed the
+       * non-persisting basic/cheap scan.
        *
-       * BASIC mode intentionally avoids the
-       * expensive full enrichment pipeline.
+       * PROCESS intentionally performs one
+       * enriched canonical generation only for
+       * those selected candidates.
        */
       const summary =
         await generatePredictionsForDate({
@@ -1017,10 +1173,6 @@ export async function GET(
 
         date,
 
-        /*
-         * This object intentionally mirrors
-         * the active Cheap Scan policy.
-         */
         policy: {
           confidenceRule:
             "greater-than-68",
@@ -1033,21 +1185,49 @@ export async function GET(
             "Medium",
           ],
 
-          otherPublicationConditions:
-            false,
+          cheapScan: {
+            enabled:
+              true,
 
-          scanMode:
-            "queue-all-prematch",
+            mode:
+              "basic-local-no-persistence",
 
-          generationMode:
+            requiresConsistency:
+              true,
+
+            requiresUsablePick:
+              true,
+
+            qualificationDiagnosticOnly:
+              true,
+
+            generationAllowedDiagnosticOnly:
+              true,
+          },
+
+          processGenerationMode:
             "enriched",
 
           processBatchSize:
             PROCESS_BATCH_SIZE,
 
+          hardGenerationGate:
+            true,
+
+          publicationConditions: [
+            "qualified-primary-market",
+            "valid-consistency",
+            "generation-allowed",
+            "quality-gate-passed",
+            "pre-match-verified",
+            "canonical-prediction-available",
+            "low-or-medium-risk",
+            "confidence-threshold",
+            "learning-policy",
+          ],
+
           overwriteExistingPredictions:
             false,
-
         },
 
         freePredictionPolicy: {

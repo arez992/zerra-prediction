@@ -335,6 +335,35 @@ export const seoExecutor:
     const snapshot =
       await collectAICEOData();
 
+    if (
+      snapshot.searchConsole
+        .connected !== true
+    ) {
+      return {
+        success: false,
+        completed: false,
+        message:
+          `SEO analysis could not be completed for ${executionType} because Search Console data is unavailable.`,
+        data: {
+          recommendationId,
+          executionType,
+          payload,
+          analysisCompleted:
+            false,
+          planCreated:
+            false,
+          missingSources: [
+            "search-console",
+          ],
+          actualImpact: {
+            seo: 0,
+            users: 0,
+            revenue: 0,
+          },
+        },
+      };
+    }
+
     const pages =
       snapshot.searchConsole.pages;
 
@@ -351,12 +380,19 @@ export const seoExecutor:
           value:
             page.position,
           weight:
-            Math.max(
-              1,
-              page.impressions
-            ),
+            page.impressions > 0 &&
+            page.position > 0
+              ? page.impressions
+              : 0,
         }))
       );
+
+    const preferredAveragePosition =
+      weightedPagePosition > 0
+        ? weightedPagePosition
+        : snapshot.searchConsole
+            .totals
+            .averagePosition;
 
     const baseline = {
       generatedAt:
@@ -383,9 +419,7 @@ export const seoExecutor:
           .totals.ctr,
 
       averagePosition:
-        snapshot.searchConsole
-          .totals
-          .averagePosition,
+        preferredAveragePosition,
 
       weightedPagePosition,
 

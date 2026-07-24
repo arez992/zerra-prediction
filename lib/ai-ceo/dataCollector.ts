@@ -9,6 +9,11 @@ import {
 } from "@/lib/firebaseAdmin";
 
 import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
+
+import {
   getUsersByCountry,
 } from "@/lib/google/analytics";
 
@@ -213,7 +218,7 @@ async function collectAICEODataUncached():
             error
           );
 
-          return [];
+          return null;
         }
       ),
 
@@ -228,7 +233,7 @@ async function collectAICEODataUncached():
             error
           );
 
-          return [];
+          return null;
         }
       ),
 
@@ -243,7 +248,7 @@ async function collectAICEODataUncached():
             error
           );
 
-          return [];
+          return null;
         }
       ),
     ]);
@@ -376,46 +381,30 @@ async function collectAICEODataUncached():
       );
 
     const status =
-      payment.status ||
-      payment.paymentStatus ||
-      payment.nowpayments
-        ?.payment_status;
+      getPaymentStatus(
+        payment
+      );
 
     if (
       status ===
-        "completed" ||
-      status ===
-        "finished" ||
-      status ===
-        "confirmed"
+        "completed"
     ) {
       stats.completedPayments +=
         1;
 
       stats.revenue +=
-        Number(
-          payment.price ||
-            payment.priceAmount ||
-            payment.amount ||
-            0
+        getPaymentAmount(
+          payment
         );
     } else if (
       status ===
-        "pending" ||
-      status ===
-        "waiting" ||
-      status ===
-        "confirming"
+        "pending"
     ) {
       stats.pendingPayments +=
         1;
     } else if (
       status ===
-        "failed" ||
-      status ===
-        "expired" ||
-      status ===
-        "refunded"
+        "failed"
     ) {
       stats.failedPayments +=
         1;
@@ -531,8 +520,22 @@ async function collectAICEODataUncached():
       0
     );
 
+  const searchConsoleConnected =
+    searchCountries !== null &&
+    searchQueries !== null &&
+    searchPages !== null;
+
+  const safeSearchCountries =
+    searchCountries || [];
+
+  const safeSearchQueries =
+    searchQueries || [];
+
+  const safeSearchPages =
+    searchPages || [];
+
   const searchClicks =
-    searchCountries.reduce(
+    safeSearchCountries.reduce(
       (
         total,
         country
@@ -546,7 +549,7 @@ async function collectAICEODataUncached():
     );
 
   const searchImpressions =
-    searchCountries.reduce(
+    safeSearchCountries.reduce(
       (
         total,
         country
@@ -559,25 +562,72 @@ async function collectAICEODataUncached():
       0
     );
 
-  const averagePosition =
-    searchCountries.length ===
+  const positionWeight =
+    safeSearchCountries.reduce(
+      (
+        total,
+        country
+      ) => {
+        const impressions =
+          Number(
+            country.impressions ||
+              0
+          );
+
+        const position =
+          Number(
+            country.position ||
+              0
+          );
+
+        return (
+          impressions > 0 &&
+          position > 0
+        )
+          ? total +
+              impressions
+          : total;
+      },
       0
+    );
+
+  const weightedPositionTotal =
+    safeSearchCountries.reduce(
+      (
+        total,
+        country
+      ) => {
+        const impressions =
+          Number(
+            country.impressions ||
+              0
+          );
+
+        const position =
+          Number(
+            country.position ||
+              0
+          );
+
+        return (
+          impressions > 0 &&
+          position > 0
+        )
+          ? total +
+              position *
+                impressions
+          : total;
+      },
+      0
+    );
+
+  const averagePosition =
+    positionWeight <= 0
       ? 0
       : Number(
           (
-            searchCountries.reduce(
-              (
-                total,
-                country
-              ) =>
-                total +
-                Number(
-                  country.position ||
-                    0
-                ),
-              0
-            ) /
-            searchCountries.length
+            weightedPositionTotal /
+            positionWeight
           ).toFixed(
             2
           )
@@ -668,13 +718,8 @@ async function collectAICEODataUncached():
     },
 
     searchConsole: {
-      /*
-       * Existing behavior is preserved:
-       * Search Console calls degrade to
-       * empty arrays on failure.
-       */
       connected:
-        true,
+        searchConsoleConnected,
 
       totals: {
         clicks:
@@ -693,13 +738,13 @@ async function collectAICEODataUncached():
       },
 
       countries:
-        searchCountries,
+        safeSearchCountries,
 
       queries:
-        searchQueries,
+        safeSearchQueries,
 
       pages:
-        searchPages,
+        safeSearchPages,
     },
   };
 }
@@ -719,7 +764,7 @@ const getCachedAICEOData =
 
     [
       "zerra-ai-ceo-data-snapshot",
-      "v1",
+      "v3",
     ],
 
     {

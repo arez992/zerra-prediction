@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
 import { getUsersByCountry } from "@/lib/google/analytics";
 import {
   getSearchCountries,
   getSearchQueries,
 } from "@/lib/google/search-console";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -324,6 +329,25 @@ function getReasons({
 }
 
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const [
       usersSnap,
@@ -336,9 +360,19 @@ export async function GET() {
       adminDb.collection("payments").get(),
 
       getUsersByCountry().catch(() => null),
-      getSearchCountries(100).catch(() => []),
-      getSearchQueries(25).catch(() => []),
+      getSearchCountries(100).catch(() => null),
+      getSearchQueries(25).catch(() => null),
     ]);
+
+    const searchConsoleConnected =
+      searchCountries !== null &&
+      searchQueries !== null;
+
+    const safeSearchCountries =
+      searchCountries || [];
+
+    const safeSearchQueries =
+      searchQueries || [];
 
     const users = usersSnap.docs.map((document) => ({
       id: document.id,
@@ -403,15 +437,28 @@ export async function GET() {
 
       const { stats } = ensureCountry(country);
 
-      if (payment.status === "completed") {
+      const paymentStatus =
+        getPaymentStatus(
+          payment
+        );
+
+      if (
+        paymentStatus ===
+        "completed"
+      ) {
         stats.completedPayments += 1;
-        stats.revenue += Number(payment.price || 0);
-      } else if (payment.status === "pending") {
+        stats.revenue +=
+          getPaymentAmount(
+            payment
+          );
+      } else if (
+        paymentStatus ===
+        "pending"
+      ) {
         stats.pendingPayments += 1;
       } else if (
-        payment.status === "failed" ||
-        payment.paymentStatus === "failed" ||
-        payment.paymentStatus === "expired"
+        paymentStatus ===
+        "failed"
       ) {
         stats.failedPayments += 1;
       }
@@ -433,7 +480,7 @@ export async function GET() {
     }
 
     // Google Search Console by country
-    for (const item of searchCountries) {
+    for (const item of safeSearchCountries) {
       const { stats } = ensureCountry(item.countryCode);
 
       stats.searchClicks += Number(item.clicks || 0);
@@ -540,7 +587,7 @@ export async function GET() {
         return second.marketScore - first.marketScore;
       });
 
-    const topQueries = searchQueries.map((item) => ({
+    const topQueries = safeSearchQueries.map((item) => ({
       query: item.query,
       clicks: item.clicks,
       impressions: item.impressions,
@@ -562,8 +609,32 @@ export async function GET() {
           firestoreUsers: true,
           firestorePayments: true,
           googleAnalytics: Boolean(googleAnalyticsReport),
-          searchConsole: true,
+          searchConsole: searchConsoleConnected,
           googleAds: false,
+        },
+
+        dataQuality: {
+          complete:
+            Boolean(
+              googleAnalyticsReport
+            ) &&
+            searchConsoleConnected,
+          unavailableSources: [
+            ...(
+              googleAnalyticsReport
+                ? []
+                : [
+                    "google-analytics",
+                  ]
+            ),
+            ...(
+              searchConsoleConnected
+                ? []
+                : [
+                    "search-console",
+                  ]
+            ),
+          ],
         },
 
         notice:

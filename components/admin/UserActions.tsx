@@ -19,7 +19,10 @@ export default function UserActions({ user }: { user: any }) {
           role: user.role || "user",
           isVip: user.isVip || false,
           plan: user.plan || "Free",
-          vipExpireAt: user.vipExpireAt || null,
+          expiresAt:
+            user.expiresAt ||
+            user.vipExpireAt ||
+            null,
           ...payload,
         }),
       });
@@ -71,16 +74,24 @@ export default function UserActions({ user }: { user: any }) {
   }
 
   function extendVip() {
-    const expire = user.vipExpireAt
-      ? new Date(user.vipExpireAt)
-      : new Date();
+    const currentExpiry =
+      user.expiresAt ||
+      user.vipExpireAt;
+
+    const expire =
+      currentExpiry
+        ? new Date(
+            currentExpiry
+          )
+        : new Date();
 
     expire.setDate(expire.getDate() + 30);
 
     updateUser({
       isVip: true,
       plan: user.plan || "Monthly",
-      vipExpireAt: expire.toISOString(),
+      expiresAt:
+        expire.toISOString(),
     });
   }
 
@@ -105,11 +116,17 @@ export default function UserActions({ user }: { user: any }) {
           updateUser({
             isVip: !user.isVip,
             plan: user.isVip ? "Free" : "Monthly",
-            vipExpireAt: user.isVip
-              ? null
-              : new Date(
-                  Date.now() + 30 * 24 * 60 * 60 * 1000
-                ).toISOString(),
+            expiresAt:
+              user.isVip
+                ? null
+                : new Date(
+                    Date.now() +
+                      30 *
+                        24 *
+                        60 *
+                        60 *
+                        1000
+                  ).toISOString(),
           })
         }
         className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-black text-black disabled:opacity-50"

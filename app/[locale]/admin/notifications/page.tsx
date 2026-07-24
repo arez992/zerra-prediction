@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 async function getNotifications() {
   try {
@@ -7,6 +14,9 @@ async function getNotifications() {
 
     const res = await fetch(`${siteUrl}/api/admin/notifications`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -26,7 +36,7 @@ export default async function AdminNotificationsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Notification Center</h1>

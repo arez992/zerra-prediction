@@ -435,6 +435,42 @@ export const marketingExecutor:
       ),
     ]);
 
+    const missingAnalyticsSources:
+      string[] = [];
+
+    if (
+      snapshot.googleAnalytics
+        .connected !== true
+    ) {
+      missingAnalyticsSources.push(
+        "analytics-country-snapshot"
+      );
+    }
+
+    if (
+      trafficSourceReport === null
+    ) {
+      missingAnalyticsSources.push(
+        "analytics-traffic-sources"
+      );
+    }
+
+    if (
+      deviceReport === null
+    ) {
+      missingAnalyticsSources.push(
+        "analytics-devices"
+      );
+    }
+
+    if (
+      dailyUserReport === null
+    ) {
+      missingAnalyticsSources.push(
+        "analytics-daily-users"
+      );
+    }
+
     const trafficSources =
       readMetricRows(
         trafficSourceReport
@@ -503,6 +539,59 @@ export const marketingExecutor:
             10
           ),
     };
+
+    if (
+      missingAnalyticsSources.length >
+      0
+    ) {
+      return {
+        success: false,
+        completed: false,
+
+        message:
+          `Marketing analysis could not be completed for ${executionType} because required Google Analytics data is unavailable.`,
+
+        data: {
+          recommendationId,
+          executionType,
+          payload,
+
+          analysisCompleted:
+            false,
+
+          planCreated:
+            false,
+
+          missingSources:
+            missingAnalyticsSources,
+
+          baseline,
+
+          guardrails: {
+            advertisingBudgetChanged:
+              false,
+            campaignCreated:
+              false,
+            campaignPaused:
+              false,
+            audienceChanged:
+              false,
+            pricingChanged:
+              false,
+            contentPublished:
+              false,
+            externalActionExecuted:
+              false,
+          },
+
+          actualImpact: {
+            users: 0,
+            vipConversion: 0,
+            revenue: 0,
+          },
+        },
+      };
+    }
 
     const actions =
       createMarketingActions({

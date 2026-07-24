@@ -1,7 +1,31 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const usersSnap = await adminDb.collection("users").get();
     const paymentsSnap = await adminDb.collection("payments").get();
@@ -21,18 +45,24 @@ export async function GET() {
     const freeUsers = totalUsers - vipUsers;
 
     const completedPayments = payments.filter(
-      (payment) => payment.status === "completed"
+      (payment) =>
+        getPaymentStatus(
+          payment
+        ) === "completed"
     );
 
     const pendingPayments = payments.filter(
-      (payment) => payment.status === "pending"
+      (payment) =>
+        getPaymentStatus(
+          payment
+        ) === "pending"
     );
 
     const failedPayments = payments.filter(
       (payment) =>
-        payment.status === "failed" ||
-        payment.paymentStatus === "failed" ||
-        payment.paymentStatus === "expired"
+        getPaymentStatus(
+          payment
+        ) === "failed"
     );
 
     const totalPayments = payments.length;
@@ -40,14 +70,26 @@ export async function GET() {
     const vipConversionRate =
       totalUsers === 0 ? 0 : Number(((vipUsers / totalUsers) * 100).toFixed(1));
 
+    const processedPayments =
+      completedPayments.length +
+      failedPayments.length;
+
     const paymentSuccessRate =
-      totalPayments === 0
+      processedPayments === 0
         ? 0
-        : Number(((completedPayments.length / totalPayments) * 100).toFixed(1));
+        : Number(
+            (
+              (
+                completedPayments.length /
+                processedPayments
+              ) *
+              100
+            ).toFixed(1)
+          );
 
     const revenueByPlan = completedPayments.reduce((acc, payment) => {
       const plan = payment.plan || "Unknown";
-      acc[plan] = (acc[plan] || 0) + Number(payment.price || 0);
+      acc[plan] = (acc[plan] || 0) + getPaymentAmount(payment);
       return acc;
     }, {} as Record<string, number>);
 

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 function toDate(value: any) {
   if (!value) return null;
   if (typeof value?.toDate === "function") return value.toDate();
@@ -32,6 +37,25 @@ function isThisMonth(date: Date | null) {
 }
 
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const paymentsSnap = await adminDb.collection("payments").get();
     const usersSnap = await adminDb.collection("users").get();
@@ -47,41 +71,59 @@ export async function GET() {
     })) as any[];
 
     const completedPayments = payments.filter(
-      (payment) => payment.status === "completed"
+      (payment) =>
+        getPaymentStatus(
+          payment
+        ) === "completed"
     );
 
     const pendingPayments = payments.filter(
-      (payment) => payment.status === "pending"
+      (payment) =>
+        getPaymentStatus(
+          payment
+        ) === "pending"
     );
 
     const failedPayments = payments.filter(
       (payment) =>
-        payment.status === "failed" ||
-        payment.paymentStatus === "failed" ||
-        payment.paymentStatus === "expired"
+        getPaymentStatus(
+          payment
+        ) === "failed"
     );
 
     const lifetimeRevenue = completedPayments.reduce(
-      (total, payment) => total + Number(payment.price || 0),
+      (total, payment) => total + getPaymentAmount(payment),
       0
     );
 
     const todayRevenue = completedPayments
       .filter((payment) => isToday(toDate(payment.completedAt || payment.createdAt)))
-      .reduce((total, payment) => total + Number(payment.price || 0), 0);
+      .reduce((total, payment) => total + getPaymentAmount(payment), 0);
 
     const thisMonthRevenue = completedPayments
       .filter((payment) =>
         isThisMonth(toDate(payment.completedAt || payment.createdAt))
       )
-      .reduce((total, payment) => total + Number(payment.price || 0), 0);
+      .reduce((total, payment) => total + getPaymentAmount(payment), 0);
 
     const activeVipUsers = users.filter((user) => user.isVip === true).length;
 
+    const processedPayments =
+      completedPayments.length +
+      failedPayments.length;
+
     const successRate =
-      payments.length === 0
+      processedPayments === 0
         ? 0
-        : Number(((completedPayments.length / payments.length) * 100).toFixed(1));
+        : Number(
+            (
+              (
+                completedPayments.length /
+                processedPayments
+              ) *
+              100
+            ).toFixed(1)
+          );
 
     const planCounts = completedPayments.reduce((acc, payment) => {
       const plan = payment.plan || "Unknown";

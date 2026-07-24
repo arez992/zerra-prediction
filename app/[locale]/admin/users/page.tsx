@@ -1,5 +1,12 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import UserActions from "@/components/admin/UserActions";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 async function getUsers() {
   try {
@@ -8,6 +15,9 @@ async function getUsers() {
 
     const res = await fetch(`${siteUrl}/api/admin/users`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -26,7 +36,7 @@ export default async function AdminUsersPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">Users</h1>
@@ -51,7 +61,7 @@ export default async function AdminUsersPage() {
                 <Info title="Role" value={user.role || "user"} />
                 <Info title="VIP" value={user.isVip ? "Active" : "Free"} />
                 <Info title="Plan" value={user.plan || "Free"} />
-                <Info title="Expires" value={user.vipExpireAt || "—"} />
+                <Info title="Expires" value={user.vipExpireAt || "â€”"} />
                 <Info title="User ID" value={user.id} />
               </div>
 

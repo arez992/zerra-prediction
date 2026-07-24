@@ -50,16 +50,75 @@ export async function GET() {
         ? 0
         : Number(((totals.clicks / totals.impressions) * 100).toFixed(2));
 
+    const positionWeight =
+      daily.reduce(
+        (
+          total,
+          item
+        ) => {
+          const impressions =
+            Number(
+              item.impressions ||
+                0
+            );
+
+          const position =
+            Number(
+              item.position ||
+                0
+            );
+
+          return (
+            impressions > 0 &&
+            position > 0
+          )
+            ? total +
+                impressions
+            : total;
+        },
+        0
+      );
+
+    const weightedPositionTotal =
+      daily.reduce(
+        (
+          total,
+          item
+        ) => {
+          const impressions =
+            Number(
+              item.impressions ||
+                0
+            );
+
+          const position =
+            Number(
+              item.position ||
+                0
+            );
+
+          return (
+            impressions > 0 &&
+            position > 0
+          )
+            ? total +
+                position *
+                  impressions
+            : total;
+        },
+        0
+      );
+
     const averagePosition =
-      daily.length === 0
+      positionWeight <= 0
         ? 0
         : Number(
             (
-              daily.reduce(
-                (total, item) => total + Number(item.position || 0),
-                0
-              ) / daily.length
-            ).toFixed(2)
+              weightedPositionTotal /
+              positionWeight
+            ).toFixed(
+              2
+            )
           );
 
     return NextResponse.json({

@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,6 +18,9 @@ async function getMarketScanner() {
 
     const res = await fetch(`${siteUrl}/api/admin/market-scanner`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -31,7 +41,7 @@ export default async function MarketScannerPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -174,7 +184,7 @@ export default async function MarketScannerPage() {
                   />
                   <Metric
                     title="Search Position"
-                    value={market.searchPosition || "—"}
+                    value={market.searchPosition || "â€”"}
                   />
                   <Metric title="Registered Users" value={market.users} />
                   <Metric title="VIP Users" value={market.vipUsers} />
@@ -232,7 +242,7 @@ export default async function MarketScannerPage() {
                 {market.reasons?.length ? (
                   <ul className="mt-4 grid gap-3 text-sm text-white/70 md:grid-cols-2">
                     {market.reasons.map((reason: string) => (
-                      <li key={reason}>✓ {reason}</li>
+                      <li key={reason}>âœ“ {reason}</li>
                     ))}
                   </ul>
                 ) : (
@@ -316,7 +326,7 @@ export default async function MarketScannerPage() {
       )}
 
       <p className="mt-8 text-sm text-white/40">
-        Countries scanned: {scanner?.scannedCountries ?? 0} آ· Last checked:{" "}
+        Countries scanned: {scanner?.scannedCountries ?? 0} ط¢آ· Last checked:{" "}
         {formatDate(scanner?.checkedAt)}
       </p>
     </main>
@@ -450,7 +460,7 @@ function ActionBadge({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

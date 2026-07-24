@@ -45,6 +45,15 @@ function normalizeDate(
 function normalizeMode(
   value: unknown
 ): PredictionGenerationMode {
+  /*
+   * Direct AI CEO execution is owner-approved
+   * and bounded to a maximum of five enriched
+   * fixtures. Basic mode remains available when
+   * explicitly requested.
+   *
+   * The autonomous cron uses a separate
+   * basic cheap-scan -> enriched-selected flow.
+   */
   return value === "basic"
     ? "basic"
     : "enriched";
@@ -274,6 +283,15 @@ export async function predictionExecutor(
 
         failedPredictions:
           summary.failedPredictions,
+
+        autoPublishedPredictions:
+          summary.autoPublishedPredictions,
+
+        reviewPredictions:
+          summary.reviewPredictions,
+
+        policyWithheldPredictions:
+          summary.policyWithheldPredictions,
 
         fixturesFound:
           summary.fixturesFound,

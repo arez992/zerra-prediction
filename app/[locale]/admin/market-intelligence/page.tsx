@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 async function getMarketIntelligence() {
   try {
@@ -8,6 +15,9 @@ async function getMarketIntelligence() {
 
     const res = await fetch(`${siteUrl}/api/admin/market-intelligence`, {
       cache: "no-store",
+      headers: {
+        Cookie: await getCookieHeader(),
+      },
     });
 
     const data = await res.json();
@@ -27,7 +37,7 @@ export default async function MarketIntelligencePage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        → Back to Admin
+        â†’ Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -226,7 +236,7 @@ function RecommendationBadge({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
+  if (!value) return "â€”";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

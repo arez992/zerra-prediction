@@ -88,16 +88,41 @@ function calculateTotals(
       : Number(((clicks / impressions) * 100).toFixed(2));
 
   const weightedPositions = queries.reduce(
-    (total, item) =>
-      total +
-      Number(item.position || 0) *
-        Math.max(1, Number(item.impressions || 0)),
+    (total, item) => {
+      const impressions =
+        Number(item.impressions || 0);
+
+      const position =
+        Number(item.position || 0);
+
+      return (
+        impressions > 0 &&
+        position > 0
+      )
+        ? total +
+            position *
+              impressions
+        : total;
+    },
     0
   );
 
   const positionWeight = queries.reduce(
-    (total, item) =>
-      total + Math.max(1, Number(item.impressions || 0)),
+    (total, item) => {
+      const impressions =
+        Number(item.impressions || 0);
+
+      const position =
+        Number(item.position || 0);
+
+      return (
+        impressions > 0 &&
+        position > 0
+      )
+        ? total +
+            impressions
+        : total;
+    },
     0
   );
 
@@ -186,7 +211,7 @@ function buildQueryOpportunities(
     }
 
     /*
-     * Queries in positions 8–20 can be practical quick wins.
+     * Queries in positions 8â€“20 can be practical quick wins.
      */
     if (
       metrics.impressions >= 15 &&
@@ -378,7 +403,7 @@ export async function generateSEODirectorReport(): Promise<SEODirectorReport> {
         error
       );
 
-      return [];
+      return null;
     }),
 
     getSearchPages(250).catch((error) => {
@@ -387,15 +412,19 @@ export async function generateSEODirectorReport(): Promise<SEODirectorReport> {
         error
       );
 
-      return [];
+      return null;
     }),
   ]);
 
+  const connected =
+    queries !== null &&
+    pages !== null;
+
   const normalizedQueries =
-    queries as SearchQueryItem[];
+    (queries || []) as SearchQueryItem[];
 
   const normalizedPages =
-    pages as SearchPageItem[];
+    (pages || []) as SearchPageItem[];
 
   const totals = calculateTotals(normalizedQueries);
 
@@ -407,7 +436,7 @@ export async function generateSEODirectorReport(): Promise<SEODirectorReport> {
   ).slice(0, 50);
 
   return {
-    connected: true,
+    connected,
 
     summary: {
       totalQueries: normalizedQueries.length,

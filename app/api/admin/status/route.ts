@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 type ServiceStatus = "online" | "limited" | "offline";
 
 async function checkFirebase(): Promise<ServiceStatus> {
@@ -17,6 +18,25 @@ function checkEnv(name: string): ServiceStatus {
 }
 
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   const firebase = await checkFirebase();
 
   const openaiKey = checkEnv("OPENAI_API_KEY");

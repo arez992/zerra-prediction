@@ -67,7 +67,7 @@ const registrations:
       "Allow AI CEO to generate canonical ZERRA football predictions using the existing prediction engine, enrichment pipeline, quality gates, duplicate protection, and audit logging.",
 
     requiresApproval:
-      false,
+      true,
 
     producesFinalAction:
       true,
@@ -125,6 +125,26 @@ const registrations:
 
     description:
       "Analyze verified Search Console data and create a measurable metadata optimization plan.",
+
+    requiresApproval:
+      true,
+
+    producesFinalAction:
+      false,
+  },
+
+  {
+    executionType:
+      "seo-content-refresh",
+
+    handler:
+      seoExecutor,
+
+    department:
+      "seo",
+
+    description:
+      "Analyze an existing page with verified Search Console evidence and create a reviewed content-refresh plan without automatically publishing or changing canonicals.",
 
     requiresApproval:
       true,

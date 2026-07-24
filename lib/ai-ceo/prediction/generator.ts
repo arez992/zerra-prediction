@@ -122,6 +122,41 @@ export type PredictionGenerationMode =
   | "basic"
   | "enriched";
 
+export type PredictionCheapScanResult = {
+  fixtureId:
+    string;
+
+  fixtureDate:
+    string | null;
+
+  eligible:
+    boolean;
+
+  confidence:
+    number;
+
+  risk:
+    string;
+
+  pick:
+    string;
+
+  qualified:
+    boolean;
+
+  consistencyValid:
+    boolean;
+
+  generationAllowed:
+    boolean;
+
+  finalPrediction:
+    string | null;
+
+  reason:
+    string;
+};
+
 export type PredictionDataDiagnostics = {
   completenessScore:
     number;
@@ -978,6 +1013,165 @@ async function buildPipelineInput(
   };
 }
 
+export async function evaluatePredictionCheapScan(
+  fixtureValue:
+    unknown
+): Promise<
+  PredictionCheapScanResult
+> {
+  const fixture =
+    fixtureValue as FixtureLike;
+
+  const fixtureId =
+    normalizeFixtureId(
+      fixture
+        ?.fixture
+        ?.id
+    );
+
+  const fixtureDate =
+    getFixtureDate(
+      fixture
+    );
+
+  if (
+    !isEligibleFixture(
+      fixture
+    )
+  ) {
+    return {
+      fixtureId,
+      fixtureDate,
+      eligible:
+        false,
+      confidence:
+        0,
+      risk:
+        "Unknown",
+      pick:
+        "",
+      qualified:
+        false,
+      consistencyValid:
+        false,
+      generationAllowed:
+        false,
+      finalPrediction:
+        null,
+      reason:
+        "Fixture is not an eligible pre-match prediction candidate.",
+    };
+  }
+
+  const pipeline =
+    await buildPipelineInput(
+      fixture,
+      "basic"
+    );
+
+  const engineResult =
+    await runPredictionEngine(
+      pipeline.input
+    );
+
+  if (
+    !engineResult.success
+  ) {
+    throw new Error(
+      engineResult.error
+    );
+  }
+
+  const prediction =
+    engineResult
+      .data
+      .prediction;
+
+  const primaryPrediction =
+    prediction
+      .vipPrediction
+      ?.primaryPrediction;
+
+  const confidence =
+    Number(
+      primaryPrediction
+        ?.confidence ??
+      prediction
+        .confidence ??
+      0
+    );
+
+  const risk =
+    String(
+      prediction
+        .risk ??
+      prediction
+        .publicPrediction
+        ?.risk ??
+      "Unknown"
+    );
+
+  const finalPrediction =
+    normalizeOptionalText(
+      prediction
+        .vipPrediction
+        ?.finalPrediction
+    );
+
+  const pick =
+    normalizeOptionalText(
+      primaryPrediction
+        ?.pick
+    ) ||
+    finalPrediction ||
+    "";
+
+  const consistencyValid =
+    prediction
+      .consistency
+      ?.valid ===
+    true;
+
+  const qualified =
+    primaryPrediction
+      ?.qualified ===
+    true;
+
+  const generationAllowed =
+    engineResult
+      .data
+      .generationDecision
+      .allowed ===
+    true;
+
+  return {
+    fixtureId,
+    fixtureDate,
+    eligible:
+      true,
+    confidence:
+      Number.isFinite(
+        confidence
+      )
+        ? Math.max(
+            0,
+            Math.min(
+              100,
+              confidence
+            )
+          )
+        : 0,
+    risk,
+    pick,
+    qualified,
+    consistencyValid,
+    generationAllowed,
+    finalPrediction,
+    reason:
+      "Cheap scan completed using the basic prediction pipeline without enriched API-Football fixture calls or prediction persistence.",
+  };
+}
+
 async function writeGenerationAudit(
   input: {
     action:
@@ -1530,29 +1724,16 @@ export async function generatePredictionsForDate(
           .version;
 
       /*
-       * IMPORTANT:
+       * The canonical generation/data-quality
+       * decision is a hard gate for every path,
+       * including AI CEO autonomous execution.
        *
-       * Normal hard generation failures remain
-       * blocked.
-       *
-       * But for AI CEO autonomous generation,
-       * "insufficient-data" alone is allowed to
-       * continue into the publication policy.
-       *
-       * The publication policy will then decide
-       * based on:
-       *
-       * - confidence
-       * - risk
-       * - qualification
-       * - consistency
-       * - pre-match status
-       * - learning policy
+       * Auto-publication is evaluated only after
+       * prediction generation itself is allowed.
        */
       if (
         !generationDecision
-          .allowed &&
-        !aiCEOAutonomous
+          .allowed
       ) {
         if (
           generationDecision
@@ -1872,10 +2053,7 @@ export async function generatePredictionsForDate(
           generationDecision.allowed,
 
         insufficientDataOverride:
-          aiCEOAutonomous &&
-          generationDecision
-            .status ===
-            "insufficient-data",
+          false,
 
         evaluatedAt:
           now,
@@ -2145,10 +2323,7 @@ export async function generatePredictionsForDate(
             true,
 
           insufficientDataOverride:
-            aiCEOAutonomous &&
-            generationDecision
-              .status ===
-              "insufficient-data",
+            false,
 
           preMatchStatusVerified:
             true,
@@ -2274,10 +2449,7 @@ export async function generatePredictionsForDate(
           finalStatus,
 
           insufficientDataOverride:
-            aiCEOAutonomous &&
-            generationDecision
-              .status ===
-              "insufficient-data",
+            false,
 
           dataDiagnostics,
 
@@ -2363,10 +2535,7 @@ export async function generatePredictionsForDate(
               .allowed,
 
           insufficientDataOverride:
-            aiCEOAutonomous &&
-            generationDecision
-              .status ===
-              "insufficient-data",
+            false,
 
           dataDiagnostics,
 
@@ -2398,11 +2567,7 @@ export async function generatePredictionsForDate(
             ? publicationPolicy
                 .decision ===
               "auto-publish"
-              ? generationDecision
-                  .status ===
-                "insufficient-data"
-                ? "Prediction generated and published automatically by AI CEO because risk is Low/Medium and confidence is greater than 68%."
-                : "Prediction generated and published automatically by AI CEO."
+              ? "Prediction generated and published automatically by AI CEO after generation, quality, market, consistency, risk, confidence, pre-match, and learning-policy checks passed."
               : "Prediction generated successfully and sent to the review queue."
             : "Prediction generated successfully.",
 

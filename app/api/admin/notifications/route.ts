@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 type NotificationType = "success" | "warning" | "error" | "info";
 
 function makeNotification(
@@ -18,6 +19,25 @@ function makeNotification(
 }
 
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const settingsSnap = await adminDb.collection("settings").doc("site").get();
     const paymentsSnap = await adminDb.collection("payments").get();

@@ -2,7 +2,27 @@ import { NextResponse } from "next/server";
 import { collection, getDocs, limit, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const cacheQuery = query(collection(db, "aiAnalysisCache"), limit(100));
     const snapshot = await getDocs(cacheQuery);

@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+
+
+async function getCookieHeader() {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
 
 type AdminPageProps = {
   params: Promise<{
@@ -59,6 +66,9 @@ async function getAdminStats(): Promise<
         {
           cache:
             "no-store",
+          headers: {
+            Cookie: await getCookieHeader(),
+          },
         }
       );
 
@@ -139,7 +149,7 @@ export default async function AdminPage({
           0,
 
         note:
-          "Today آ· UTC",
+          "Today ط¢آ· UTC",
 
         href:
           `${base}/predictions`,
@@ -155,7 +165,7 @@ export default async function AdminPage({
           0,
 
         note:
-          "Today آ· UTC",
+          "Today ط¢آ· UTC",
 
         href:
           `${base}/seo`,
@@ -178,7 +188,7 @@ export default async function AdminPage({
 
         value:
           stats?.todayViews ??
-          "—",
+          "â€”",
 
         note:
           stats?.todayViews ===
@@ -201,7 +211,7 @@ export default async function AdminPage({
 
         note:
           bestMarket
-            ? `${bestMarket.action} آ· Score ${bestMarket.score}`
+            ? `${bestMarket.action} ط¢آ· Score ${bestMarket.score}`
             : "Market intelligence",
 
         href:
@@ -525,7 +535,7 @@ function KPICard({
       {content}
 
       <p className="mt-4 text-[11px] font-black text-[#D4AF37] opacity-50 transition group-hover:opacity-100">
-        View →
+        View â†’
       </p>
     </Link>
   );
@@ -575,7 +585,7 @@ function ToolCard({
         </span>
 
         <span className="text-[#D4AF37] transition group-hover:translate-x-1">
-          →
+          â†’
         </span>
       </div>
     </Link>

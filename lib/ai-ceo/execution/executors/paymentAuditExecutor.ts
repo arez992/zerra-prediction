@@ -4,19 +4,13 @@ import {
   adminDb,
 } from "@/lib/firebaseAdmin";
 
+import {
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
+
 import type {
   ExecutionHandler,
 } from "../types";
-
-function normalizeStatus(
-  value: unknown
-): string {
-  return typeof value === "string"
-    ? value
-        .trim()
-        .toLowerCase()
-    : "";
-}
 
 export const paymentAuditExecutor:
   ExecutionHandler =
@@ -43,45 +37,32 @@ export const paymentAuditExecutor:
     for (
       const payment of payments
     ) {
-      const nowPayments =
-        payment.nowpayments &&
-        typeof payment.nowpayments ===
-          "object"
-          ? (
-              payment.nowpayments as Record<
-                string,
-                unknown
-              >
-            )
-          : {};
-
       const status =
-        normalizeStatus(
-          payment.status ||
-            payment.paymentStatus ||
-            nowPayments.payment_status
+        getPaymentStatus(
+          payment
         );
 
       if (
-        status === "completed" ||
-        status === "finished" ||
-        status === "confirmed"
+        status ===
+          "completed"
       ) {
-        summary.completed += 1;
+        summary.completed +=
+          1;
       } else if (
-        status === "pending" ||
-        status === "waiting" ||
-        status === "confirming"
+        status ===
+          "pending"
       ) {
-        summary.pending += 1;
+        summary.pending +=
+          1;
       } else if (
-        status === "failed" ||
-        status === "expired" ||
-        status === "refunded"
+        status ===
+          "failed"
       ) {
-        summary.failed += 1;
+        summary.failed +=
+          1;
       } else {
-        summary.unknown += 1;
+        summary.unknown +=
+          1;
       }
     }
 

@@ -97,11 +97,42 @@ export function evaluatePredictionAutoPublishPolicy(
       input.confidence
     );
 
+  const learningRestrictions =
+    input.learningPolicy
+      ?.restrictions;
+
+  const learningAllowsAutoPublish =
+    learningRestrictions
+      ?.autoPublishAllowed !==
+    false;
+
+  const learningConfidenceIncrease =
+    Math.max(
+      0,
+      Number(
+        learningRestrictions
+          ?.minimumConfidenceIncrease ||
+        0
+      ),
+      Number(
+        learningRestrictions
+          ?.confidencePenalty ||
+        0
+      )
+    );
+
+  const effectiveAutoPublishConfidence =
+    Math.min(
+      100,
+      AUTO_PUBLISH_CONFIDENCE +
+        learningConfidenceIncrease
+    );
+
   const confidencePassed =
     confidence !==
       null &&
     confidence >
-      AUTO_PUBLISH_CONFIDENCE;
+      effectiveAutoPublishConfidence;
 
   const riskPassed =
     input.risk ===
@@ -144,22 +175,19 @@ export function evaluatePredictionAutoPublishPolicy(
     qualityGatePassed,
     preMatchPassed,
     predictionAvailable,
-    learningAllowsAutoPublish:
-      true,
+    learningAllowsAutoPublish,
   };
 
   const thresholds = {
     baseAutoPublishConfidence:
       AUTO_PUBLISH_CONFIDENCE,
 
-    effectiveAutoPublishConfidence:
-      AUTO_PUBLISH_CONFIDENCE,
+    effectiveAutoPublishConfidence,
 
     reviewMinimumConfidence:
       AUTO_PUBLISH_CONFIDENCE,
 
-    learningConfidenceIncrease:
-      0,
+    learningConfidenceIncrease,
   };
 
   const learning = {
@@ -184,18 +212,134 @@ export function evaluatePredictionAutoPublishPolicy(
       null,
 
     autoPublishAllowed:
-      true,
+      learningAllowsAutoPublish,
 
     confidencePenalty:
-      0,
+      Number(
+        learningRestrictions
+          ?.confidencePenalty ||
+        0
+      ),
 
     minimumConfidenceIncrease:
-      0,
+      Number(
+        learningRestrictions
+          ?.minimumConfidenceIncrease ||
+        0
+      ),
   };
 
+  const hardGatePassed =
+    qualificationPassed &&
+    consistencyPassed &&
+    generationPassed &&
+    qualityGatePassed &&
+    preMatchPassed &&
+    predictionAvailable;
+
   if (
-    confidencePassed &&
-    riskPassed
+    !hardGatePassed ||
+    !riskPassed
+  ) {
+    const reasons:
+      string[] = [];
+
+    if (
+      !qualificationPassed
+    ) {
+      reasons.push(
+        "Primary market is not qualified."
+      );
+    }
+
+    if (
+      !consistencyPassed
+    ) {
+      reasons.push(
+        "Prediction consistency validation did not pass."
+      );
+    }
+
+    if (
+      !generationPassed ||
+      !qualityGatePassed
+    ) {
+      reasons.push(
+        "Prediction generation/data-quality gate did not pass."
+      );
+    }
+
+    if (
+      !preMatchPassed
+    ) {
+      reasons.push(
+        "Pre-match fixture status was not verified."
+      );
+    }
+
+    if (
+      !predictionAvailable
+    ) {
+      reasons.push(
+        "No canonical final prediction is available."
+      );
+    }
+
+    if (
+      !riskPassed
+    ) {
+      reasons.push(
+        `Risk ${input.risk ?? "unknown"} is not Low or Medium.`
+      );
+    }
+
+    return {
+      decision:
+        "withhold",
+
+      approvedAutomatically:
+        false,
+
+      publishAutomatically:
+        false,
+
+      reason:
+        reasons.join(
+          " "
+        ),
+
+      checks,
+      thresholds,
+      learning,
+    };
+  }
+
+  if (
+    !learningAllowsAutoPublish
+  ) {
+    return {
+      decision:
+        "review",
+
+      approvedAutomatically:
+        false,
+
+      publishAutomatically:
+        false,
+
+      reason:
+        input.learningPolicy
+          ?.reason ||
+        "Prediction learning policy currently requires human review before publication.",
+
+      checks,
+      thresholds,
+      learning,
+    };
+  }
+
+  if (
+    confidencePassed
   ) {
     return {
       decision:
@@ -208,7 +352,7 @@ export function evaluatePredictionAutoPublishPolicy(
         true,
 
       reason:
-        `AI CEO auto-published prediction because confidence ${confidence}% is greater than 68% and risk is ${input.risk}.`,
+        `AI CEO auto-published prediction because all publication gates passed, confidence ${confidence}% is greater than the effective ${effectiveAutoPublishConfidence}% threshold, and risk is ${input.risk}.`,
 
       checks,
       thresholds,
@@ -216,26 +360,31 @@ export function evaluatePredictionAutoPublishPolicy(
     };
   }
 
-  const reasons:
-    string[] = [];
-
   if (
-    !confidencePassed
+    confidence !==
+      null &&
+    confidence >
+      AUTO_PUBLISH_CONFIDENCE &&
+    effectiveAutoPublishConfidence >
+      AUTO_PUBLISH_CONFIDENCE
   ) {
-    reasons.push(
-      confidence ===
-        null
-        ? "Confidence is unavailable."
-        : `Confidence ${confidence}% is not greater than 68%.`
-    );
-  }
+    return {
+      decision:
+        "review",
 
-  if (
-    !riskPassed
-  ) {
-    reasons.push(
-      `Risk ${input.risk ?? "unknown"} is not Low or Medium.`
-    );
+      approvedAutomatically:
+        false,
+
+      publishAutomatically:
+        false,
+
+      reason:
+        `Prediction passed the base ${AUTO_PUBLISH_CONFIDENCE}% confidence threshold but did not exceed the learning-adjusted ${effectiveAutoPublishConfidence}% threshold. Human review is required.`,
+
+      checks,
+      thresholds,
+      learning,
+    };
   }
 
   return {
@@ -249,9 +398,10 @@ export function evaluatePredictionAutoPublishPolicy(
       false,
 
     reason:
-      reasons.join(
-        " "
-      ),
+      confidence ===
+        null
+        ? "Confidence is unavailable."
+        : `Confidence ${confidence}% is not greater than the required ${effectiveAutoPublishConfidence}% threshold.`,
 
     checks,
     thresholds,

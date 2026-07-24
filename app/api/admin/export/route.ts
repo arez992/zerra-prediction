@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 function csvEscape(value: any) {
   if (value === null || value === undefined) return "";
   const text = String(value).replace(/"/g, '""');
@@ -18,6 +19,25 @@ function toCsv(rows: any[], columns: string[]) {
 }
 
 export async function GET(request: NextRequest) {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const type = request.nextUrl.searchParams.get("type") || "users";
 

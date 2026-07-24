@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+import { getServerAdminUser } from "@/lib/serverAdminAuth";
 type InsightAction = "Expand" | "Test" | "Monitor" | "Pause";
 
 type CountryInsight = {
@@ -184,6 +185,25 @@ function buildInsights({
 }
 
 export async function GET() {
+
+  const admin = await getServerAdminUser();
+
+  if (!admin) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+
   try {
     const usersSnap = await adminDb.collection("users").get();
     const paymentsSnap = await adminDb.collection("payments").get();

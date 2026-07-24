@@ -1,30 +1,107 @@
-import { NextResponse } from "next/server";
-import { collection, getDocs, orderBy, query, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
+import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
+import {
+  getServerAdminUser,
+} from "@/lib/serverAdminAuth";
 
 export async function GET() {
-  try {
-    const paymentsQuery = query(
-      collection(db, "payments"),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
+  const admin =
+    await getServerAdminUser();
 
-    const snapshot = await getDocs(paymentsQuery);
-
-    const payments = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    return NextResponse.json({
-      success: true,
-      payments,
-    });
-  } catch (error: any) {
+  if (!admin) {
     return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
+      {
+        success: false,
+        error:
+          "Unauthorized admin access",
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
+    );
+  }
+
+  try {
+    const snapshot =
+      await adminDb
+        .collection(
+          "payments"
+        )
+        .orderBy(
+          "createdAt",
+          "desc"
+        )
+        .limit(
+          50
+        )
+        .get();
+
+    const payments =
+      snapshot.docs.map(
+        (
+          document
+        ) => {
+          const data =
+            document.data();
+
+          return {
+            id:
+              document.id,
+            ...data,
+            status:
+              getPaymentStatus(
+                data
+              ),
+            price:
+              getPaymentAmount(
+                data
+              ),
+          };
+        }
+      );
+
+    return NextResponse.json(
+      {
+        success:
+          true,
+        payments,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to load payments",
+      },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
     );
   }
 }
