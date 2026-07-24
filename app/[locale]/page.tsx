@@ -92,6 +92,37 @@ type PublicPredictionItem = {
     valueBet: string | null;
     reasoning: string[];
   } | null;
+
+  result?: {
+    checked: boolean;
+
+    status:
+      | "pending"
+      | "correct"
+      | "incorrect"
+      | "void";
+
+    correct:
+      boolean | null;
+
+    label:
+      string | null;
+
+    settledAt:
+      string | null;
+
+    finalStatus:
+      string | null;
+
+    homeGoals:
+      number | null;
+
+    awayGoals:
+      number | null;
+
+    finalScore:
+      string | null;
+  };
 };
 
 type PublicPredictionsResponse = {
@@ -684,15 +715,17 @@ export default async function HomePage({
         )}
       </section>
 
-      {freePredictions.length > 0 && (
-        <section className="border-y border-[#e0ebe3] bg-white">
-          <div className="mx-auto max-w-7xl px-6 py-16">
-            <SectionHeader
-              eyebrow="Daily Free Access"
-              title="Free Predictions"
-              description="Three Low Risk predictions selected automatically by ZERRA AI CEO for today's free access."
-            />
+      <section className="border-y border-[#e0ebe3] bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          <SectionHeader
+            eyebrow="Daily Free Access"
+            title="Free Predictions"
+            description="Three Low Risk predictions selected automatically by ZERRA AI CEO for today's free access."
+          />
 
+          {freePredictions.length === 0 ? (
+            <EmptyState message="Today's free predictions are not available yet." />
+          ) : (
             <div className="mt-8 grid gap-6 lg:grid-cols-3">
               {freePredictions.map(
                 (
@@ -716,9 +749,9 @@ export default async function HomePage({
                 )
               )}
             </div>
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+      </section>
 
       <section className="border-b border-[#e0ebe3] bg-[#f7faf8]">
         <div className="mx-auto max-w-7xl px-6 py-16">
@@ -1264,6 +1297,12 @@ function DailyFreePredictionCard({
           </div>
         )}
 
+      <PredictionCardResult
+        result={
+          prediction.result
+        }
+      />
+
       <div className="mt-5 flex items-center justify-between border-t border-[#e7efe9] pt-4">
         <span className="text-xs font-bold text-[#7d8b82]">
           {formatFixtureDate(
@@ -1396,6 +1435,12 @@ function FreePredictionCard({
         </p>
       </div>
 
+      <PredictionCardResult
+        result={
+          prediction.result
+        }
+      />
+
       <div className="mt-5">
         <PredictionVipAction
           locale={
@@ -1407,6 +1452,70 @@ function FreePredictionCard({
         />
       </div>
     </article>
+  );
+}
+
+function PredictionCardResult({
+  result,
+}: {
+  result?:
+    PublicPredictionItem[
+      "result"
+    ];
+}) {
+  const status =
+    result?.status ||
+    "pending";
+
+  const statusClass =
+    status ===
+    "correct"
+      ? "border-[#bfe6cf] bg-[#f3fbf6] text-[#0d6f3d]"
+      : status ===
+        "incorrect"
+        ? "border-[#f0cccc] bg-[#fff7f7] text-[#b54b4b]"
+        : status ===
+          "void"
+          ? "border-[#eadcb5] bg-[#fffaf0] text-[#8a6a17]"
+          : "border-[#dce8df] bg-[#f7faf8] text-[#66756c]";
+
+  const statusLabel =
+    status ===
+    "correct"
+      ? "Correct"
+      : status ===
+        "incorrect"
+        ? "Incorrect"
+        : status ===
+          "void"
+          ? "Void"
+          : "Pending";
+
+  return (
+    <div
+      className={`mt-5 rounded-2xl border p-4 ${statusClass}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] opacity-70">
+          Prediction Result
+        </p>
+
+        <span className="rounded-full border border-current px-3 py-1 text-[10px] font-black uppercase">
+          {statusLabel}
+        </span>
+      </div>
+
+      {result?.finalScore ? (
+        <p className="mt-3 text-sm font-black">
+          Final Score:{" "}
+          {result.finalScore}
+        </p>
+      ) : (
+        <p className="mt-3 text-xs font-bold opacity-80">
+          Waiting for the final match result.
+        </p>
+      )}
+    </div>
   );
 }
 
