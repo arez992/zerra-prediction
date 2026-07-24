@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type YesterdayGoalResultItem = {
+type YesterdayPrimaryResultItem = {
   id: string;
   fixtureId: string;
 
@@ -24,10 +24,8 @@ type YesterdayGoalResultItem = {
   fixtureDate: string | null;
 
   prediction: {
-    market:
-      | "Over 2.5 Goals"
-      | "Under 2.5 Goals";
-
+    market: string;
+    category: string | null;
     confidence: number;
   };
 
@@ -44,13 +42,13 @@ type YesterdayGoalResultItem = {
 
     awayGoals: number;
 
-    totalGoals: number;
+    label: string;
   };
 
   settledAt: string | null;
 };
 
-type YesterdayGoalResultsResponse = {
+type YesterdayPrimaryResultsResponse = {
   success: boolean;
 
   date?: {
@@ -65,10 +63,10 @@ type YesterdayGoalResultsResponse = {
     accuracyRate: number;
   };
 
-  results?: YesterdayGoalResultItem[];
+  results?: YesterdayPrimaryResultItem[];
 };
 
-type YesterdayGoalResultsData = {
+type YesterdayPrimaryResultsData = {
   date: {
     from: string;
     to: string;
@@ -81,7 +79,7 @@ type YesterdayGoalResultsData = {
     accuracyRate: number;
   };
 
-  results: YesterdayGoalResultItem[];
+  results: YesterdayPrimaryResultItem[];
 };
 
 type PageProps = {
@@ -90,8 +88,8 @@ type PageProps = {
   }>;
 };
 
-async function getYesterdayGoalResults(): Promise<
-  YesterdayGoalResultsData | null
+async function getYesterdayPrimaryResults(): Promise<
+  YesterdayPrimaryResultsData | null
 > {
   try {
     const siteUrl =
@@ -114,7 +112,7 @@ async function getYesterdayGoalResults(): Promise<
 
     const data =
       (await response.json()) as
-        YesterdayGoalResultsResponse;
+        YesterdayPrimaryResultsResponse;
 
     if (
       !data.success ||
@@ -178,7 +176,7 @@ export default async function YesterdayResultsPage({
     await params;
 
   const data =
-    await getYesterdayGoalResults();
+    await getYesterdayPrimaryResults();
 
   const homeHref =
     `/${locale}`;
@@ -211,17 +209,16 @@ export default async function YesterdayResultsPage({
               </p>
 
               <h1 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
-                Yesterday&apos;s Goal
+                Yesterday&apos;s Primary
                 Prediction Results
               </h1>
 
               <p className="mt-5 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base">
                 Review ZERRA&apos;s
-                Over/Under 2.5 goal
-                predictions against
-                the final scores of
-                yesterday&apos;s completed
-                football matches.
+                actual primary predictions
+                against the final scores
+                of yesterday&apos;s
+                completed football matches.
               </p>
             </div>
 
@@ -277,14 +274,14 @@ export default async function YesterdayResultsPage({
                 </h2>
 
                 <p className="mt-3 text-sm leading-7 text-[#66756c]">
-                  No completed goal
+                  No settled primary
                   prediction results are
                   available for yesterday.
                 </p>
               </div>
             ) : (
               <div className="mt-8 overflow-hidden rounded-[2rem] border border-[#dce8df] bg-white shadow-sm">
-                <div className="hidden grid-cols-[1.6fr_0.7fr_1fr_0.7fr_0.8fr_0.6fr] gap-4 border-b border-[#e7efe9] bg-[#f7faf8] px-6 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#839188] lg:grid">
+                <div className="hidden grid-cols-[1.6fr_0.7fr_1.15fr_0.85fr_0.8fr_0.6fr] gap-4 border-b border-[#e7efe9] bg-[#f7faf8] px-6 py-4 text-[10px] font-black uppercase tracking-[0.14em] text-[#839188] lg:grid">
                   <span>
                     Match
                   </span>
@@ -298,7 +295,7 @@ export default async function YesterdayResultsPage({
                   </span>
 
                   <span>
-                    Actual Goals
+                    Market Category
                   </span>
 
                   <span>
@@ -355,7 +352,7 @@ export default async function YesterdayResultsPage({
 function SummaryGrid({
   summary,
 }: {
-  summary: YesterdayGoalResultsData["summary"];
+  summary: YesterdayPrimaryResultsData["summary"];
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -364,7 +361,7 @@ function SummaryGrid({
         value={String(
           summary.correctPredictions
         )}
-        description="Correct goal predictions"
+        description="Correct primary predictions"
         tone="success"
       />
 
@@ -373,7 +370,7 @@ function SummaryGrid({
         value={String(
           summary.incorrectPredictions
         )}
-        description="Incorrect goal predictions"
+        description="Incorrect primary predictions"
         tone="danger"
       />
 
@@ -389,7 +386,7 @@ function SummaryGrid({
         value={String(
           summary.totalPredictions
         )}
-        description="Settled goal predictions"
+        description="Settled primary predictions"
         tone="default"
       />
     </div>
@@ -439,10 +436,10 @@ function SummaryCard({
 function ResultRow({
   item,
 }: {
-  item: YesterdayGoalResultItem;
+  item: YesterdayPrimaryResultItem;
 }) {
   return (
-    <article className="grid gap-5 bg-white px-6 py-6 transition hover:bg-[#fbfdfb] lg:grid-cols-[1.6fr_0.7fr_1fr_0.7fr_0.8fr_0.6fr] lg:items-center lg:gap-4">
+    <article className="grid gap-5 bg-white px-6 py-6 transition hover:bg-[#fbfdfb] lg:grid-cols-[1.6fr_0.7fr_1.15fr_0.85fr_0.8fr_0.6fr] lg:items-center lg:gap-4">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#139653]">
           {
@@ -512,8 +509,12 @@ function ResultRow({
       </div>
 
       <Cell
-        label="Actual Goals"
-        value={`${item.result.totalGoals} Goals`}
+        label="Market Category"
+        value={
+          item.prediction
+            .category ||
+          "Primary Market"
+        }
       />
 
       <div>
