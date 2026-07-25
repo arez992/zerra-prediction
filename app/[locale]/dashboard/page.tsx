@@ -1241,7 +1241,7 @@ function ResultRow({
   const elapsed = Number(match?.fixture?.status?.elapsed ?? 0);
   const homeGoals = match?.goals?.home;
   const awayGoals = match?.goals?.away;
-  const hasScore = Number.isFinite(Number(homeGoals)) && Number.isFinite(Number(awayGoals));
+  const hasScore = typeof homeGoals === "number" && Number.isFinite(homeGoals) && typeof awayGoals === "number" && Number.isFinite(awayGoals);
   const isLive = LIVE_STATUSES.includes(statusShort);
   const isFinished = FINISHED_STATUSES.includes(statusShort);
   const score = hasScore ? `${homeGoals} - ${awayGoals}` : "—";
