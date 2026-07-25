@@ -14,19 +14,13 @@ import {
   useVip,
 } from "@/components/providers/VipProvider";
 
-import {
-  useDashboardLightPredictions,
-} from "@/hooks/useDashboardLightPredictions";
-
 type FilterType =
   | "all"
   | "live"
   | "upcoming"
   | "finished";
 
-type SortType =
-  | "time"
-  | "risk";
+type SortType = "time";
 
 type LeagueItem = {
   key: string;
@@ -601,140 +595,14 @@ export default function DashboardPage() {
       ]
     );
 
-  const {
-    predictions,
-    loading: predictionsLoading,
-    error: predictionsError,
-  } = useDashboardLightPredictions({
-    fixtures: filteredFixtures,
-    enabled: !vipLoading,
-  });
-
-  const sortedFixtures =
-    useMemo(
-      () => {
-        const items =
-          [
-            ...filteredFixtures,
-          ];
-
-        if (
-          sortType ===
-            "risk"
-        ) {
-          items.sort(
-            (
-              first,
-              second
-            ) => {
-              const firstPrediction =
-                predictions[
-                  Number(
-                    first
-                      ?.fixture
-                      ?.id
-                  )
-                ];
-
-              const secondPrediction =
-                predictions[
-                  Number(
-                    second
-                      ?.fixture
-                      ?.id
-                  )
-                ];
-
-              return (
-                Number(
-                  firstPrediction
-                    ?.riskScore ??
-                    100
-                ) -
-                Number(
-                  secondPrediction
-                    ?.riskScore ??
-                    100
-                )
-              );
-            }
-          );
-
-          return items;
-        }
-
-        items.sort(
-          (
-            first,
-            second
-          ) =>
-            new Date(
-              first
-                ?.fixture
-                ?.date ??
-                0
-            ).getTime() -
-            new Date(
-              second
-                ?.fixture
-                ?.date ??
-                0
-            ).getTime()
-        );
-
-        return items;
-      },
-      [
-        filteredFixtures,
-        predictions,
-        sortType,
-        isVip,
-      ]
+  const sortedFixtures = useMemo(() => {
+    return [...filteredFixtures].sort((first, second) =>
+      new Date(first?.fixture?.date ?? 0).getTime() -
+      new Date(second?.fixture?.date ?? 0).getTime()
     );
+  }, [filteredFixtures]);
 
-  const loadedPredictions =
-    useMemo(
-      () =>
-        Object.values(
-          predictions
-        ).filter(
-          Boolean
-        ),
-      [
-        predictions,
-      ]
-    );
 
-  const averageRiskScore =
-    useMemo(
-      () => {
-        if (
-          loadedPredictions.length ===
-          0
-        ) {
-          return null;
-        }
-
-        return Math.round(
-          loadedPredictions.reduce(
-            (
-              total,
-              item
-            ) =>
-              total +
-              Number(
-                item?.riskScore ??
-                  0
-              ),
-            0
-          ) /
-            loadedPredictions.length
-        );
-      },
-      [
-        loadedPredictions,
-      ]
-    );
 
   const filters: {
     label: string;
@@ -1172,12 +1040,6 @@ export default function DashboardPage() {
               <option value="time">
                 Sort by Match Time
               </option>
-
-              <option
-                value="risk"
-              >
-                Sort by Risk
-              </option>
             </select>
           </div>
 
@@ -1213,15 +1075,15 @@ export default function DashboardPage() {
                   </span>
 
                   <span>
-                    Prediction
+                    Score
                   </span>
 
                   <span>
-                    Risk
+                    Status
                   </span>
 
                   <span>
-                    Access
+                    Details
                   </span>
                 </div>
 
@@ -1236,31 +1098,11 @@ export default function DashboardPage() {
                             ?.fixture
                             ?.id
                         );
-
-                      const prediction =
-                        predictions[
-                          fixtureId
-                        ];
-
-                      return (
-                        <PredictionRow
-                          key={
-                            fixtureId
-                          }
-                          match={
-                            match
-                          }
-                          locale={
-                            locale
-                          }
-                          isVip={
-                            isVip
-                          }
-                          prediction={
-                            prediction
-                          }
-                          loadingPrediction={predictionsLoading}
-                          predictionError={predictionsError}
+return (
+                        <ResultRow
+                          key={fixtureId}
+                          match={match}
+                          locale={locale}
                         />
                       );
                     }
@@ -1291,41 +1133,8 @@ export default function DashboardPage() {
           <div className="px-5 py-7">
             <div className="rounded-2xl border border-[#dce8df] bg-white p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#839188]">
-                Prediction Performance
+                Match Overview
               </p>
-
-              <div className="mt-6 flex justify-center">
-                {averageRiskScore !==
-                null ? (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#d9efe1]">
-                    <div className="text-center">
-                      <p className="text-3xl font-black text-[#139653]">
-                        {
-                          averageRiskScore
-                        }
-                        %
-                      </p>
-
-                      <p className="mt-1 text-[9px] font-black uppercase text-[#89968d]">
-                        Avg Risk Score
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#dcefe3]">
-                    <div className="px-3 text-center">
-                      <p className="text-sm font-black text-[#344b3b]">
-                        Awaiting
-                      </p>
-
-                      <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-[#89968d]">
-                        AI Data
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className="mt-6 grid gap-2.5">
                 <SideStat
                   label="Matches"
@@ -1349,9 +1158,9 @@ export default function DashboardPage() {
                 />
 
                 <SideStat
-                  label="AI Predictions"
+                  label="Finished"
                   value={
-                    loadedPredictions.length
+                    finished
                   }
                 />
               </div>
@@ -1359,26 +1168,26 @@ export default function DashboardPage() {
 
             <div className="mt-5 rounded-2xl border border-[#dce8df] bg-white p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#839188]">
-                How We Predict
+                Match Data
               </p>
 
               <div className="mt-5 grid gap-5">
                 <FeatureItem
-                  icon="AI"
-                  title="Advanced AI"
-                  description="ZERRA evaluates football data through its prediction and intelligence engine."
+                  icon="LS"
+                  title="Live Scores"
+                  description="Current and final scores are displayed directly from the football data pipeline."
                 />
 
                 <FeatureItem
-                  icon="RT"
-                  title="Real-time Data"
-                  description="Fixtures and competition information come from the live football data pipeline."
+                  icon="ST"
+                  title="Match Status"
+                  description="See upcoming, live, finished, postponed, and cancelled match states."
                 />
 
                 <FeatureItem
-                  icon="%"
-                  title="Confidence Analysis"
-                  description="Confidence reflects model evidence, reliability, uncertainty, and data quality."
+                  icon="D"
+                  title="Match Details"
+                  description="Open any fixture to view its dedicated match page and available football data."
                 />
               </div>
             </div>
@@ -1416,43 +1225,33 @@ export default function DashboardPage() {
   );
 }
 
-function PredictionRow({
+function ResultRow({
   match,
   locale,
-  isVip,
-  prediction,
-  loadingPrediction,
-  predictionError,
 }: {
   match: any;
   locale: string;
-  isVip: boolean;
-  prediction: any;
-  loadingPrediction: boolean;
-  predictionError: boolean;
 }) {
-  const fixtureId =
-    Number(
-      match
-        ?.fixture
-        ?.id
-    );
-
-  const home =
-    match
-      ?.teams
-      ?.home;
-
-  const away =
-    match
-      ?.teams
-      ?.away;
-
-  const league =
-    match
-      ?.league
-      ?.name ||
-    "Football";
+  const fixtureId = Number(match?.fixture?.id);
+  const home = match?.teams?.home;
+  const away = match?.teams?.away;
+  const league = match?.league?.name || "Football";
+  const statusShort = String(match?.fixture?.status?.short ?? "").toUpperCase();
+  const statusLong = String(match?.fixture?.status?.long ?? "");
+  const elapsed = Number(match?.fixture?.status?.elapsed ?? 0);
+  const homeGoals = match?.goals?.home;
+  const awayGoals = match?.goals?.away;
+  const hasScore = Number.isFinite(Number(homeGoals)) && Number.isFinite(Number(awayGoals));
+  const isLive = LIVE_STATUSES.includes(statusShort);
+  const isFinished = FINISHED_STATUSES.includes(statusShort);
+  const score = hasScore ? `${homeGoals} - ${awayGoals}` : "—";
+  let statusLabel = "Upcoming";
+  if (isLive) statusLabel = elapsed > 0 ? `Live · ${elapsed}'` : "Live";
+  else if (isFinished) statusLabel = "Finished";
+  else if (statusShort === "PST") statusLabel = "Postponed";
+  else if (statusShort === "CANC") statusLabel = "Cancelled";
+  else if (statusShort === "ABD") statusLabel = "Abandoned";
+  else if (!["NS","TBD"].includes(statusShort) && statusLong) statusLabel = statusLong;
 
   return (
     <Link
@@ -1460,138 +1259,31 @@ function PredictionRow({
       className="grid min-w-0 gap-4 px-5 py-4 transition hover:bg-[#fbfdfb] xl:grid-cols-[minmax(300px,1.8fr)_90px_minmax(170px,1fr)_90px_65px] xl:items-center"
     >
       <div className="min-w-0">
-        <p className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-[#139653]">
-          {league}
-        </p>
-
+        <p className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-[#139653]">{league}</p>
         <div className="mt-2 grid gap-1.5">
-          <TeamLine
-            logo={
-              home?.logo
-            }
-            name={
-              home?.name ||
-              "Home Team"
-            }
-          />
-
-          <TeamLine
-            logo={
-              away?.logo
-            }
-            name={
-              away?.name ||
-              "Away Team"
-            }
-          />
+          <TeamLine logo={home?.logo} name={home?.name || "Home Team"} />
+          <TeamLine logo={away?.logo} name={away?.name || "Away Team"} />
         </div>
       </div>
 
-      <div className="relative">
-        <DashboardLabel>
-          Time
-        </DashboardLabel>
-
-        <p className="text-sm font-black">
-          {formatMatchTime(
-            match
-              ?.fixture
-              ?.date
-          )}
-        </p>
-      </div>
-
-      <div className="min-w-0">
-        <DashboardLabel>
-          Prediction
-        </DashboardLabel>
-
-        {!isVip ? (
-          <div>
-            <p className="text-sm font-black text-[#b58a16]">
-              VIP Prediction
-            </p>
-
-            <p className="mt-1 text-[11px] text-[#8a978e]">
-              Locked for VIP
-              members
-            </p>
-          </div>
-        ) : loadingPrediction ? (
-          <p className="text-sm font-bold text-[#7d8b82]">
-            Loading AI
-            prediction...
-          </p>
-        ) : predictionError ? (
-          <div>
-            <p className="text-sm font-black leading-5 text-[#a66b00]">
-              AI prediction
-              temporarily
-              unavailable
-            </p>
-
-            <p className="mt-1 text-[10px] text-[#8a978e]">
-              Match data remains
-              available
-            </p>
-          </div>
-        ) : prediction?.prediction ? (
-          <div>
-            <p className="text-sm font-black text-[#139653]">
-              {
-                prediction.prediction
-              }
-            </p>
-
-            {prediction?.exactScore && (
-              <p className="mt-1 text-xs text-[#7d8b82]">
-                Exact score:{" "}
-                {
-                  prediction.exactScore
-                }
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm font-bold text-[#7d8b82]">
-            Prediction pending
-          </p>
-        )}
+      <div>
+        <DashboardLabel>Time</DashboardLabel>
+        <p className="text-sm font-black">{formatMatchTime(match?.fixture?.date)}</p>
       </div>
 
       <div>
-        <DashboardLabel>
-          Risk
-        </DashboardLabel>
-
-        {loadingPrediction ? (
-          <p className="text-sm font-bold text-[#7d8b82]">...</p>
-        ) : prediction ? (
-          <div>
-            <p className="text-sm font-black text-[#102117]">{prediction.risk}</p>
-            <p className="mt-1 text-[11px] text-[#7d8b82]">{Math.round(Number(prediction.riskScore ?? 0))}/100</p>
-          </div>
-        ) : (
-          <p className="text-sm font-black text-[#9aa49d]">—</p>
-        )}
+        <DashboardLabel>Score</DashboardLabel>
+        <p className="text-lg font-black text-[#102117]">{score}</p>
       </div>
 
       <div>
-        <DashboardLabel>
-          Access
-        </DashboardLabel>
+        <DashboardLabel>Status</DashboardLabel>
+        <p className={`text-sm font-black ${isLive ? "text-[#139653]" : isFinished ? "text-[#102117]" : "text-[#7d8b82]"}`}>{statusLabel}</p>
+      </div>
 
-        <span
-          className={`inline-flex rounded-full px-3 py-1.5 text-[9px] font-black uppercase ${
-            isVip
-              ? "bg-[#e8f6ed] text-[#08763b]"
-              : "bg-[#fff6d9] text-[#a57900]"
-          }`}
-        >
-          {isVip
-            ? "VIP"
-            : "Locked"}
-        </span>
+      <div>
+        <DashboardLabel>Details</DashboardLabel>
+        <span className="text-xs font-black text-[#139653]">View →</span>
       </div>
     </Link>
   );
