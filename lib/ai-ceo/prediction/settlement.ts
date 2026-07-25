@@ -522,75 +522,27 @@ async function loadUnsettledPredictions(
   eligible:
     StoredPrediction[];
 }> {
-  const publishedLimit =
-    Math.min(
-      MAX_LIMIT,
-      Math.max(
-        limit,
-        DEFAULT_LIMIT
+  const snapshot =
+    await adminDb
+      .collection(
+        COLLECTION_NAME
       )
-    );
-
-  const [
-    explicitPendingSnapshot,
-    publishedSnapshot,
-  ] =
-    await Promise.all([
-      adminDb
-        .collection(
-          COLLECTION_NAME
-        )
-        .where(
-          "resultChecked",
-          "==",
-          false
-        )
-        .limit(
-          limit
-        )
-        .get(),
-
-      adminDb
-        .collection(
-          COLLECTION_NAME
-        )
-        .where(
-          "status",
-          "==",
-          "published"
-        )
-        .orderBy("publishedAt", "desc")
-        .limit(
-          publishedLimit
-        )
-        .get(),
-    ]);
-
-  const documents =
-    new Map<
-      string,
-      QueryDocumentSnapshot<
-        DocumentData
-      >
-    >();
-
-  for (
-    const document
-    of [
-      ...explicitPendingSnapshot.docs,
-      ...publishedSnapshot.docs,
-    ]
-  ) {
-    documents.set(
-      document.id,
-      document
-    );
-  }
+      .where(
+        "status",
+        "==",
+        "published"
+      )
+      .orderBy(
+        "publishedAt",
+        "desc"
+      )
+      .limit(
+        MAX_LIMIT
+      )
+      .get();
 
   const eligible =
-    Array.from(
-      documents.values()
-    )
+    snapshot.docs
       .filter(
         (document) =>
           document
@@ -609,6 +561,15 @@ async function loadUnsettledPredictions(
           item !==
           null
       )
+      .sort(
+        (
+          left,
+          right
+        ) =>
+          left.fixtureDate.localeCompare(
+            right.fixtureDate
+          )
+      )
       .slice(
         0,
         limit
@@ -616,7 +577,7 @@ async function loadUnsettledPredictions(
 
   return {
     scanned:
-      documents.size,
+      snapshot.size,
 
     eligible,
   };
