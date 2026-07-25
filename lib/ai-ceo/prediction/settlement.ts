@@ -518,23 +518,81 @@ async function loadUnsettledPredictions(
   eligible:
     StoredPrediction[];
 }> {
-  const snapshot =
-    await adminDb
-      .collection(
-        COLLECTION_NAME
+  const publishedLimit =
+    Math.min(
+      MAX_LIMIT,
+      Math.max(
+        limit,
+        DEFAULT_LIMIT
       )
-      .where(
-        "resultChecked",
-        "==",
-        false
-      )
-      .limit(
-        limit
-      )
-      .get();
+    );
+
+  const [
+    explicitPendingSnapshot,
+    publishedSnapshot,
+  ] =
+    await Promise.all([
+      adminDb
+        .collection(
+          COLLECTION_NAME
+        )
+        .where(
+          "resultChecked",
+          "==",
+          false
+        )
+        .limit(
+          limit
+        )
+        .get(),
+
+      adminDb
+        .collection(
+          COLLECTION_NAME
+        )
+        .where(
+          "status",
+          "==",
+          "published"
+        )
+        .limit(
+          publishedLimit
+        )
+        .get(),
+    ]);
+
+  const documents =
+    new Map<
+      string,
+      QueryDocumentSnapshot<
+        DocumentData
+      >
+    >();
+
+  for (
+    const document
+    of [
+      ...explicitPendingSnapshot.docs,
+      ...publishedSnapshot.docs,
+    ]
+  ) {
+    documents.set(
+      document.id,
+      document
+    );
+  }
 
   const eligible =
-    snapshot.docs
+    Array.from(
+      documents.values()
+    )
+      .filter(
+        (document) =>
+          document
+            .data()
+            .resultChecked !==
+          true
+      )
       .map(
         toStoredPrediction
       )
@@ -545,11 +603,15 @@ async function loadUnsettledPredictions(
           StoredPrediction =>
           item !==
           null
+      )
+      .slice(
+        0,
+        limit
       );
 
   return {
     scanned:
-      snapshot.size,
+      documents.size,
 
     eligible,
   };
