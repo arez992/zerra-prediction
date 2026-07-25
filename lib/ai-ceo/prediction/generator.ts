@@ -17,6 +17,7 @@ import type {
 } from "@/lib/ai/prediction";
 
 import {
+  enrichExistingFixtureForPrediction,
   getCompleteFixtureData,
   getFixturesByDate,
 } from "@/lib/api-football/service";
@@ -1063,16 +1064,39 @@ export async function evaluatePredictionCheapScan(
     };
   }
 
-  const pipeline =
-    await buildPipelineInput(
-      fixture,
-      "basic"
+  /*
+   * Cheap scan deliberately reuses the fixture
+   * already returned by getFixturesByDate().
+   *
+   * Only bounded recent-form enrichment is added
+   * here. The helper avoids fixtureById, H2H,
+   * injuries, odds, events, lineups and direct
+   * season-statistics calls.
+   *
+   * This gives the prediction engine enough real
+   * evidence to rank candidates without weakening
+   * the enriched PROCESS/publication safety gates.
+   */
+  const cheapComplete =
+    await enrichExistingFixtureForPrediction(
+      fixtureValue as Parameters<
+        typeof enrichExistingFixtureForPrediction
+      >[0],
+      {
+        recentFixtureLimit:
+          8,
+      }
     );
 
   const engineResult =
-    await runPredictionEngine(
-      pipeline.input
-    );
+    await runPredictionEngine({
+      ...toPredictionPipelineInput(
+        cheapComplete
+      ),
+
+      source:
+        "prediction-generation-scheduler-cheap-enriched",
+    });
 
   if (
     !engineResult.success
@@ -1168,7 +1192,7 @@ export async function evaluatePredictionCheapScan(
     generationAllowed,
     finalPrediction,
     reason:
-      "Cheap scan completed using the basic prediction pipeline without enriched API-Football fixture calls or prediction persistence.",
+      "Cheap scan completed with bounded recent-form enrichment, reusing the fixtures-by-date payload and without fixtureById, H2H, injuries, odds, events, lineups, direct season-statistics calls, or prediction persistence.",
   };
 }
 

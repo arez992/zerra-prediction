@@ -40,9 +40,11 @@ export const revalidate =
  *
  * SCAN:
  * - fetch fixtures-by-date once
- * - run the local/basic prediction pipeline
+ * - structurally filter and cap at 25 nearest kickoffs
+ * - reuse that fixture payload for bounded recent-form enrichment
+ * - avoid fixtureById, H2H, injuries, odds, events, lineups,
+ *   and direct season-statistics calls during cheap evaluation
  * - do not persist a prediction
- * - do not fetch enriched fixture/team data
  * - queue only predictive candidates with:
  *   confidence > 68%, Low/Medium risk,
  *   valid consistency, and a usable pick
@@ -60,6 +62,9 @@ const MIN_CONFIDENCE =
 
 const PROCESS_BATCH_SIZE =
   10;
+
+const SCAN_CANDIDATE_LIMIT =
+  25;
 
 const UPCOMING_STATUSES =
   new Set([
@@ -85,13 +90,27 @@ type FixtureLike = {
     };
   };
 
+  league?: {
+    id?:
+      number;
+
+    season?:
+      number;
+  };
+
   teams?: {
     home?: {
+      id?:
+        number;
+
       name?:
         string;
     };
 
     away?: {
+      id?:
+        number;
+
       name?:
         string;
     };
@@ -296,6 +315,82 @@ async function runScan(
         }
       );
 
+  /*
+   * Bound enrichment cost before any prediction
+   * engine work. Only structurally complete,
+   * pre-match fixtures are considered and the
+   * nearest kickoffs are evaluated first.
+   */
+  const boundedPreMatchFixtures =
+    preMatchFixtures
+      .filter(
+        (
+          fixture
+        ) =>
+          Boolean(
+            fixture
+              .teams
+              ?.home
+              ?.id &&
+            fixture
+              .teams
+              ?.away
+              ?.id &&
+            fixture
+              .league
+              ?.id &&
+            fixture
+              .league
+              ?.season &&
+            getFixtureDate(
+              fixture
+            )
+          )
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          const firstTime =
+            Date.parse(
+              getFixtureDate(
+                first
+              ) ||
+              ""
+            );
+
+          const secondTime =
+            Date.parse(
+              getFixtureDate(
+                second
+              ) ||
+              ""
+            );
+
+          return (
+            (
+              Number.isFinite(
+                firstTime
+              )
+                ? firstTime
+                : Number.MAX_SAFE_INTEGER
+            ) -
+            (
+              Number.isFinite(
+                secondTime
+              )
+                ? secondTime
+                : Number.MAX_SAFE_INTEGER
+            )
+          );
+        }
+      )
+      .slice(
+        0,
+        SCAN_CANDIDATE_LIMIT
+      );
+
   const queueCandidates:
     Array<{
       fixtureId:
@@ -351,7 +446,7 @@ async function runScan(
 
   for (
     const fixture
-    of preMatchFixtures
+    of boundedPreMatchFixtures
   ) {
     const fixtureId =
       normalizeFixtureId(
@@ -499,6 +594,12 @@ async function runScan(
 
     preMatchFixtures:
       preMatchFixtures.length,
+
+    structuralCandidates:
+      boundedPreMatchFixtures.length,
+
+    scanCandidateLimit:
+      SCAN_CANDIDATE_LIMIT,
 
     cheapScanned:
       cheapScanResults.length,
@@ -1190,7 +1291,7 @@ export async function GET(
               true,
 
             mode:
-              "basic-local-no-persistence",
+              "bounded-recent-form-no-persistence",
 
             requiresConsistency:
               true,

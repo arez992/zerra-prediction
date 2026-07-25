@@ -59,6 +59,12 @@ const FIXTURE_DETAILS_CACHE_TTL_MS =
 const TEAM_ENRICHMENT_CACHE_TTL_MS =
   30 * 60 * 1000;
 
+const RECENT_TEAM_FIXTURES_CACHE_SECONDS =
+  60 * 60;
+
+const TEAM_SEASON_STATISTICS_CACHE_SECONDS =
+  6 * 60 * 60;
+
 const COMPLETED_STATUSES =
   new Set([
     "FT",
@@ -872,6 +878,140 @@ async function optionalFetchObject<T>(
   }
 }
 
+/*
+ * Persistent team-data cache.
+ *
+ * These caches survive ordinary Vercel serverless
+ * request boundaries, unlike the in-memory Maps
+ * below. Arguments are part of unstable_cache's
+ * generated key, so team/league/season/date/limit
+ * combinations remain isolated.
+ */
+const getCachedRecentTeamFixtures =
+  unstable_cache(
+    async (
+      teamId: number,
+      requestLimit: number
+    ) => {
+      const path =
+        apiFootballEndpoints
+          .recentTeamFixtures(
+            teamId,
+            {
+              last:
+                requestLimit,
+            }
+          );
+
+      const result =
+        await runScheduledApiRequest(
+          () =>
+            apiFootballGet<
+              APIFootballFixture
+            >(
+              path,
+              {
+                retries:
+                  0,
+              }
+            ),
+          path
+        );
+
+      return Array.isArray(
+        result.data.response
+      )
+        ? result.data.response
+        : [];
+    },
+
+    [
+      "api-football",
+      "recent-team-fixtures",
+      "v2",
+    ],
+
+    {
+      revalidate:
+        RECENT_TEAM_FIXTURES_CACHE_SECONDS,
+
+      tags: [
+        "api-football-recent-team-fixtures",
+      ],
+    }
+  );
+
+const getCachedSeasonStatistics =
+  unstable_cache(
+    async (
+      teamId: number,
+      leagueId: number,
+      season: number,
+      date: string | undefined
+    ) => {
+      const path =
+        apiFootballEndpoints
+          .teamSeasonStatistics(
+            teamId,
+            leagueId,
+            season,
+            date
+          );
+
+      const result =
+        await runScheduledApiRequest(
+          () =>
+            apiFootballGet<
+              APIFootballTeamSeasonStatistics
+            >(
+              path,
+              {
+                retries:
+                  0,
+              }
+            ),
+          path
+        );
+
+      const response =
+        result.data.response as unknown;
+
+      if (
+        Array.isArray(
+          response
+        )
+      ) {
+        const first =
+          response[0];
+
+        return first &&
+          typeof first === "object"
+            ? first as APIFootballTeamSeasonStatistics
+            : null;
+      }
+
+      return response &&
+        typeof response === "object"
+          ? response as APIFootballTeamSeasonStatistics
+          : null;
+    },
+
+    [
+      "api-football",
+      "team-season-statistics",
+      "v2",
+    ],
+
+    {
+      revalidate:
+        TEAM_SEASON_STATISTICS_CACHE_SECONDS,
+
+      tags: [
+        "api-football-team-season-statistics",
+      ],
+    }
+  );
+
 async function fetchSeasonStatistics(
   teamId: number,
   leagueId: number,
@@ -880,16 +1020,11 @@ async function fetchSeasonStatistics(
 ): Promise<
   APIFootballTeamSeasonStatistics | null
 > {
-  return optionalFetchObject<
-    APIFootballTeamSeasonStatistics
-  >(
-    apiFootballEndpoints
-      .teamSeasonStatistics(
-        teamId,
-        leagueId,
-        season,
-        date
-      )
+  return getCachedSeasonStatistics(
+    teamId,
+    leagueId,
+    season,
+    date
   );
 }
 
@@ -1043,31 +1178,15 @@ async function fetchTeamEnrichment(
     );
 
   const rawRecentHome =
-    await optionalFetchArray<
-      APIFootballFixture
-    >(
-      apiFootballEndpoints
-        .recentTeamFixtures(
-          homeTeamId,
-          {
-            last:
-              requestLimit,
-          }
-        )
+    await getCachedRecentTeamFixtures(
+      homeTeamId,
+      requestLimit
     );
 
   const rawRecentAway =
-    await optionalFetchArray<
-      APIFootballFixture
-    >(
-      apiFootballEndpoints
-        .recentTeamFixtures(
-          awayTeamId,
-          {
-            last:
-              requestLimit,
-          }
-        )
+    await getCachedRecentTeamFixtures(
+      awayTeamId,
+      requestLimit
     );
 
   const recentHome =
