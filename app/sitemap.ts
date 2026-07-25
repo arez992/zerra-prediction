@@ -137,8 +137,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const generatedAt = new Date();
 
-  const staticEntries: MetadataRoute.Sitemap =
-    [
+  const staticEntries: MetadataRoute.Sitemap = [
       {
         url: baseUrl,
         lastModified: generatedAt,
@@ -163,6 +162,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "weekly",
         priority: 0.7,
       },
+      ...["fr", "es", "ar"].flatMap((locale) => [
+        {
+          url: `${baseUrl}/${locale}`,
+          lastModified: generatedAt,
+          changeFrequency: "daily" as const,
+          priority: 0.9,
+        },
+        {
+          url: `${baseUrl}/${locale}/predictions`,
+          lastModified: generatedAt,
+          changeFrequency: "hourly" as const,
+          priority: 0.8,
+        },
+        {
+          url: `${baseUrl}/${locale}/vip`,
+          lastModified: generatedAt,
+          changeFrequency: "weekly" as const,
+          priority: 0.6,
+        },
+      ]),
     ];
 
   try {

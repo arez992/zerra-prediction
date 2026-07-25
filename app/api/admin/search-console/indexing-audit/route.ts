@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
 
@@ -15,6 +15,7 @@ const URLS = [
   `${BASE_URL}/en/predictions`,
   `${BASE_URL}/fr`,
   `${BASE_URL}/es`,
+  `${BASE_URL}/ar`,
 ];
 
 export async function GET() {
