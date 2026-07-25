@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
 
@@ -207,6 +208,26 @@ type PageProps = {
     locale: string;
   }>;
 };
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const siteUrl = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://zerraprediction.com"
+  ).replace(/\/+$/, "");
+  const canonicalUrl = `${siteUrl}/${locale}`;
+
+  return {
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      url: canonicalUrl,
+    },
+  };
+}
 
 const UPCOMING_STATUS_CODES =
   new Set([
