@@ -1,6 +1,10 @@
 import "server-only";
 
 import {
+  revalidateTag,
+} from "next/cache";
+
+import {
   FieldValue,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -1099,6 +1103,26 @@ async function settlePrediction(
    * a valid prediction settlement.
    */
   await batch.commit();
+
+  try {
+    revalidateTag(
+      "zerra-public-predictions",
+      { expire: 0 }
+    );
+    revalidateTag(
+      "zerra-free-predictions",
+      { expire: 0 }
+    );
+    revalidateTag(
+      "zerra-yesterday-primary-results",
+      { expire: 0 }
+    );
+  } catch (error) {
+    console.error(
+      "[PREDICTION_RESULT_CACHE_INVALIDATION_ERROR]",
+      error
+    );
+  }
 
   try {
     await recordSettlementLearning(
