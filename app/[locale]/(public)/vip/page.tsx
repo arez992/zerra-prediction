@@ -146,13 +146,7 @@ export default function VipPage() {
     );
 
     try {
-      const locale =
-        window.location.pathname
-          .split("/")
-          .filter(Boolean)[0] ===
-        "ku"
-          ? "ku"
-          : "en";
+      const locale = "en";
 
       const response =
         await fetch(

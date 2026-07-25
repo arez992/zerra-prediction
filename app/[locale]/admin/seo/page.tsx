@@ -33,7 +33,7 @@ type DashboardRow = {
   id: string;
   match: string;
   keyword: string;
-  language: "en" | "ku";
+  language: "en";
   canonicalPath: string;
   draftStatus: string;
   dashboardStatus: DashboardStatus;
@@ -358,10 +358,7 @@ export default function SEOQualityDashboardPage() {
     }>();
 
   const locale =
-    params?.locale ===
-      "ku"
-      ? "ku"
-      : "en";
+    ["en", "fr", "es", "ar"].includes(params?.locale ?? "") ? (params?.locale as "en" | "fr" | "es" | "ar") : "en";
 
   const base =
     `/${locale}/admin/seo`;

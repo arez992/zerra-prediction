@@ -19,9 +19,7 @@ export default function AICEODashboardPage() {
   }>();
 
   const locale =
-    params?.locale === "ku"
-      ? "ku"
-      : "en";
+    ["en", "fr", "es", "ar"].includes(params?.locale ?? "") ? (params?.locale as "en" | "fr" | "es" | "ar") : "en";
 
   const {
     recommendations,

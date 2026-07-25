@@ -18,7 +18,10 @@ export default function VipGate({
   hideFallback = false,
 }: VipGateProps) {
   const params = useParams<{ locale?: string }>();
-  const locale = params?.locale === "ku" ? "ku" : "en";
+  const routeLocale = params?.locale || "en";
+  const locale = ["en", "fr", "es", "ar"].includes(routeLocale)
+    ? routeLocale
+    : "en";
 
   const {
     hasVipAccess,

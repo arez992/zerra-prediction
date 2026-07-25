@@ -46,10 +46,8 @@ type ToolCardProps = {
 
 function normalizeLocale(
   value: string
-): "en" | "ku" {
-  return value === "ku"
-    ? "ku"
-    : "en";
+): "en" | "fr" | "es" | "ar" {
+  return ["en", "fr", "es", "ar"].includes(value) ? (value as "en" | "fr" | "es" | "ar") : "en";
 }
 
 async function getAdminStats(): Promise<

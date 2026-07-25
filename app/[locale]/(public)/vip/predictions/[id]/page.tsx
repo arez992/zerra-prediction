@@ -15,16 +15,11 @@ type PageProps = {
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const { locale } = await params;
-  const isKurdish = locale === "ku";
+  await params;
 
   return {
-    title: isKurdish
-      ? "پێشبینی VIP | ZERRA"
-      : "VIP Prediction | ZERRA",
-    description: isKurdish
-      ? "پەڕەی پارێزراوی پێشبینی و شیکاری تایبەتی ZERRA VIP."
-      : "Protected ZERRA VIP prediction and premium football analysis.",
+    title: "VIP Prediction | ZERRA",
+    description: "Protected ZERRA VIP prediction and premium football analysis.",
     robots: {
       index: false,
       follow: false,
@@ -40,7 +35,7 @@ export default async function VipPredictionPage({
 
   return (
     <VipPredictionDetail
-      locale={locale === "ku" ? "ku" : "en"}
+      locale="en"
       predictionId={id}
     />
   );
