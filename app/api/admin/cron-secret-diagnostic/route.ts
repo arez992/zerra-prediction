@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";`r`n// ZERRA_ENV_REFRESH_20260725
 
 export async function GET() {
   const admin = await getServerAdminUser();
