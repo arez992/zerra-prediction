@@ -41,6 +41,7 @@ const FINISHED_STATUSES =
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
+const MAX_SCAN_LIMIT = 1000;
 
 type FixtureLike = {
   fixture?: {
@@ -534,10 +535,10 @@ async function loadUnsettledPredictions(
       )
       .orderBy(
         "publishedAt",
-        "desc"
+        "asc"
       )
       .limit(
-        MAX_LIMIT
+        MAX_SCAN_LIMIT
       )
       .get();
 
@@ -1215,9 +1216,18 @@ export async function settlePendingPredictions(
     ]
     of groupedByDate
   ) {
+    const todayUtc =
+      new Date()
+        .toISOString()
+        .slice(0, 10);
+
     const fixtures =
       await getFixturesByDate(
-        date
+        date,
+        {
+          bypassCache:
+            date < todayUtc,
+        }
       );
 
     apiDateRequests +=
