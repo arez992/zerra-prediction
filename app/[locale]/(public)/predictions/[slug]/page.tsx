@@ -1280,7 +1280,7 @@ export default async function PredictionDetailPage(
                         className="flex gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"
                       >
                         <span className="font-black text-[#D4AF37]">
-                          âœ“
+                          ✓
                         </span>
 
                         <p className="leading-7 text-white/65">
@@ -1343,7 +1343,7 @@ export default async function PredictionDetailPage(
 
           <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D4AF37]/35 bg-gradient-to-br from-[#1B2230] via-[#111B2B] to-[#0B1422] p-7 shadow-2xl md:p-9">
             <p className="text-xs font-black uppercase tracking-[0.32em] text-[#D4AF37]">
-              ًں”’ ZERRA VIP
+              🔒 ZERRA VIP
             </p>
 
             <h2 className="mt-4 text-3xl font-black">

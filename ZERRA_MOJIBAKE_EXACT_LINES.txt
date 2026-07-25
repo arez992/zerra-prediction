@@ -1,0 +1,31 @@
+﻿app/[locale]/(public)/predictions/[slug]/page.tsx:1283	                          âœ“
+app/[locale]/(public)/predictions/[slug]/page.tsx:1346	              ًں”’ ZERRA VIP
+app/[locale]/admin/cache/page.tsx:39	        â†’ Back to Admin
+app/[locale]/admin/export/page.tsx:25	        â†’ Back to Admin
+app/[locale]/admin/health/page.tsx:61	        â†’ Back to Admin
+app/[locale]/admin/health/page.tsx:113	  if (!value) return "â€”";
+app/[locale]/admin/market-insights/page.tsx:40	        â†’ Back to Admin
+app/[locale]/admin/market-insights/page.tsx:292	            <li key={item}>âœ“ {item}</li>
+app/[locale]/admin/market-insights/page.tsx:349	  if (!value) return "â€”";
+app/[locale]/admin/market-intelligence/page.tsx:40	        â†’ Back to Admin
+app/[locale]/admin/market-intelligence/page.tsx:239	  if (!value) return "â€”";
+app/[locale]/admin/market-scanner/page.tsx:44	        â†’ Back to Admin
+app/[locale]/admin/market-scanner/page.tsx:187	                    value={market.searchPosition || "â€”"}
+app/[locale]/admin/market-scanner/page.tsx:245	                      <li key={reason}>âœ“ {reason}</li>
+app/[locale]/admin/market-scanner/page.tsx:463	  if (!value) return "â€”";
+app/[locale]/admin/notifications/page.tsx:39	        â†’ Back to Admin
+app/[locale]/admin/page.tsx:189	          "â€”",
+app/[locale]/admin/page.tsx:536	        View â†’
+app/[locale]/admin/page.tsx:586	          â†’
+app/[locale]/admin/payments/page.tsx:39	        â†’ Back to Admin
+app/[locale]/admin/payments/page.tsx:64	                <Info title="Days" value={payment.days || "â€”"} />
+app/[locale]/admin/payments/page.tsx:66	                <Info title="Payment ID" value={payment.paymentId || "â€”"} />
+app/[locale]/admin/payments/page.tsx:72	                      : "â€”"
+app/[locale]/admin/revenue/page.tsx:38	        â†’ Back to Admin
+app/[locale]/admin/security/page.tsx:39	        â†’ Back to Admin
+app/[locale]/admin/security/page.tsx:119	  if (!value) return "â€”";
+app/[locale]/admin/users/page.tsx:39	        â†’ Back to Admin
+app/[locale]/admin/users/page.tsx:64	                <Info title="Expires" value={user.vipExpireAt || "â€”"} />
+components/dashboard/FixturesList.tsx:47	            <li>Select “All Leagues”</li>
+components/dashboard/FixturesList.tsx:48	            <li>Select “All Matches”</li>
+lib/ai-ceo/seoDirector.ts:215	     * Queries in positions 8â€“20 can be practical quick wins.

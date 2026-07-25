@@ -212,7 +212,7 @@ function buildQueryOpportunities(
     }
 
     /*
-     * Queries in positions 8â€“20 can be practical quick wins.
+     * Queries in positions 8–20 can be practical quick wins.
      */
     if (
       metrics.impressions >= 15 &&

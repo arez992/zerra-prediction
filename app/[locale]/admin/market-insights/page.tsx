@@ -37,7 +37,7 @@ export default async function MarketInsightsPage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        â†’ Back to Admin
+        → Back to Admin
       </Link>
 
       <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">
@@ -289,7 +289,7 @@ function InsightBox({
       {items?.length ? (
         <ul className="mt-4 space-y-3 text-sm leading-6 text-white/70">
           {items.map((item) => (
-            <li key={item}>âœ“ {item}</li>
+            <li key={item}>✓ {item}</li>
           ))}
         </ul>
       ) : (
@@ -346,7 +346,7 @@ function SourceCard({
 }
 
 function formatDate(value?: string) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
   return new Date(value).toLocaleString("en", {
     dateStyle: "medium",

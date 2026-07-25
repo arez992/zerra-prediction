@@ -36,7 +36,7 @@ export default async function AdminCachePage() {
   return (
     <main className="mx-auto max-w-7xl px-5 py-12 text-white">
       <Link href="/en/admin" className="text-sm font-bold text-[#D4AF37]">
-        â†’ Back to Admin
+        → Back to Admin
       </Link>
 
       <h1 className="mt-6 text-5xl font-black">AI Cache</h1>
