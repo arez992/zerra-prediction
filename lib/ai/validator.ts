@@ -157,7 +157,7 @@ export function validatePrediction(
         `${homeGoals}-${awayGoals}`,
 
       checked:
-        false,
+        true,
     };
   }
 
