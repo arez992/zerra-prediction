@@ -15,8 +15,8 @@ import {
 } from "@/components/providers/VipProvider";
 
 import {
-  useDashboardPredictions,
-} from "@/hooks/useDashboardPredictions";
+  useDashboardLightPredictions,
+} from "@/hooks/useDashboardLightPredictions";
 
 type FilterType =
   | "all"
@@ -26,7 +26,7 @@ type FilterType =
 
 type SortType =
   | "time"
-  | "confidence";
+  | "risk";
 
 type LeagueItem = {
   key: string;
@@ -131,42 +131,6 @@ function normalizeLeagueKey(
       /[^a-z0-9\u00c0-\u024f]+/g,
       ""
     );
-}
-
-function getGoalPrediction(
-  prediction: any
-) {
-  if (!prediction) {
-    return null;
-  }
-
-  const over25 =
-    Number(
-      prediction.over25 ?? 0
-    );
-
-  const under25 =
-    Number(
-      prediction.under25 ?? 0
-    );
-
-  if (
-    over25 >= under25
-  ) {
-    return {
-      label:
-        "Over 2.5 Goals",
-      confidence:
-        over25,
-    };
-  }
-
-  return {
-    label:
-      "Under 2.5 Goals",
-    confidence:
-      under25,
-  };
 }
 
 export default function DashboardPage() {
@@ -637,49 +601,14 @@ export default function DashboardPage() {
       ]
     );
 
-  const fixtureIds =
-    useMemo(
-      () =>
-        filteredFixtures
-          .map(
-            (
-              match
-            ) =>
-              Number(
-                match
-                  ?.fixture
-                  ?.id
-              )
-          )
-          .filter(
-            (
-              id
-            ) =>
-              Number.isInteger(
-                id
-              ) &&
-              id >
-                0
-          ),
-      [
-        filteredFixtures,
-      ]
-    );
-
   const {
     predictions,
-    loadingIds:
-      loadingPredictionIds,
-    errorIds:
-      predictionErrorIds,
-  } =
-    useDashboardPredictions({
-      fixtureIds,
-
-      enabled:
-        !vipLoading &&
-        isVip,
-    });
+    loading: predictionsLoading,
+    error: predictionsError,
+  } = useDashboardLightPredictions({
+    fixtures: filteredFixtures,
+    enabled: !vipLoading,
+  });
 
   const sortedFixtures =
     useMemo(
@@ -691,8 +620,7 @@ export default function DashboardPage() {
 
         if (
           sortType ===
-            "confidence" &&
-          isVip
+            "risk"
         ) {
           items.sort(
             (
@@ -719,14 +647,14 @@ export default function DashboardPage() {
 
               return (
                 Number(
-                  secondPrediction
-                    ?.confidence ??
-                    0
+                  firstPrediction
+                    ?.riskScore ??
+                    100
                 ) -
                 Number(
-                  firstPrediction
-                    ?.confidence ??
-                    0
+                  secondPrediction
+                    ?.riskScore ??
+                    100
                 )
               );
             }
@@ -777,7 +705,7 @@ export default function DashboardPage() {
       ]
     );
 
-  const averageConfidence =
+  const averageRiskScore =
     useMemo(
       () => {
         if (
@@ -795,8 +723,7 @@ export default function DashboardPage() {
             ) =>
               total +
               Number(
-                item
-                  ?.confidence ??
+                item?.riskScore ??
                   0
               ),
             0
@@ -1247,12 +1174,9 @@ export default function DashboardPage() {
               </option>
 
               <option
-                value="confidence"
-                disabled={
-                  !isVip
-                }
+                value="risk"
               >
-                Sort by Confidence
+                Sort by Risk
               </option>
             </select>
           </div>
@@ -1293,7 +1217,7 @@ export default function DashboardPage() {
                   </span>
 
                   <span>
-                    Confidence
+                    Risk
                   </span>
 
                   <span>
@@ -1335,15 +1259,8 @@ export default function DashboardPage() {
                           prediction={
                             prediction
                           }
-                          goalPrediction={getGoalPrediction(
-                            prediction
-                          )}
-                          loadingPrediction={loadingPredictionIds.has(
-                            fixtureId
-                          )}
-                          predictionError={predictionErrorIds.has(
-                            fixtureId
-                          )}
+                          loadingPrediction={predictionsLoading}
+                          predictionError={predictionsError}
                         />
                       );
                     }
@@ -1378,19 +1295,19 @@ export default function DashboardPage() {
               </p>
 
               <div className="mt-6 flex justify-center">
-                {averageConfidence !==
+                {averageRiskScore !==
                 null ? (
                   <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-[#d9efe1]">
                     <div className="text-center">
                       <p className="text-3xl font-black text-[#139653]">
                         {
-                          averageConfidence
+                          averageRiskScore
                         }
                         %
                       </p>
 
                       <p className="mt-1 text-[9px] font-black uppercase text-[#89968d]">
-                        Avg Confidence
+                        Avg Risk Score
                       </p>
                     </div>
                   </div>
@@ -1504,7 +1421,6 @@ function PredictionRow({
   locale,
   isVip,
   prediction,
-  goalPrediction,
   loadingPrediction,
   predictionError,
 }: {
@@ -1512,10 +1428,6 @@ function PredictionRow({
   locale: string;
   isVip: boolean;
   prediction: any;
-  goalPrediction: {
-    label: string;
-    confidence: number;
-  } | null;
   loadingPrediction: boolean;
   predictionError: boolean;
 }) {
@@ -1623,11 +1535,11 @@ function PredictionRow({
               available
             </p>
           </div>
-        ) : goalPrediction ? (
+        ) : prediction?.prediction ? (
           <div>
             <p className="text-sm font-black text-[#139653]">
               {
-                goalPrediction.label
+                prediction.prediction
               }
             </p>
 
@@ -1649,23 +1561,18 @@ function PredictionRow({
 
       <div>
         <DashboardLabel>
-          Confidence
+          Risk
         </DashboardLabel>
 
-        {isVip &&
-        goalPrediction ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-[#139653]">
-            <span className="text-[11px] font-black">
-              {Math.round(
-                goalPrediction.confidence
-              )}
-              %
-            </span>
+        {loadingPrediction ? (
+          <p className="text-sm font-bold text-[#7d8b82]">...</p>
+        ) : prediction ? (
+          <div>
+            <p className="text-sm font-black text-[#102117]">{prediction.risk}</p>
+            <p className="mt-1 text-[11px] text-[#7d8b82]">{Math.round(Number(prediction.riskScore ?? 0))}/100</p>
           </div>
         ) : (
-          <p className="text-sm font-black text-[#9aa49d]">
-            —
-          </p>
+          <p className="text-sm font-black text-[#9aa49d]">—</p>
         )}
       </div>
 
