@@ -99,11 +99,7 @@ async function getYesterdayPrimaryResults(): Promise<
     const response =
       await fetch(
         `${siteUrl}/api/predictions/yesterday-results?limit=50`,
-        {
-          next: {
-            revalidate: 300,
-          },
-        }
+        { cache: "no-store" }
       );
 
     if (!response.ok) {
