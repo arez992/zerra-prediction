@@ -10,7 +10,7 @@ import {
 
 import { useVip } from "@/components/providers/VipProvider";
 
-type Locale = "en" | "ku";
+type Locale = "en";
 
 type VipPrediction = {
   id: string;
@@ -71,30 +71,21 @@ type VipPredictionDetailProps = {
   predictionId: string;
 };
 
-function t(
-  locale: Locale,
-  english: string,
-  kurdish: string
-) {
-  return locale === "ku" ? kurdish : english;
-}
-
 function formatDateTime(
   value: string | null,
   locale: Locale
 ) {
   if (!value) {
-    return t(locale, "Kickoff TBD", "کاتی یاری دیاری نەکراوە");
+    return "Kickoff TBD";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return t(locale, "Kickoff TBD", "کاتی یاری دیاری نەکراوە");
+    return "Kickoff TBD";
   }
 
-  return new Intl.DateTimeFormat(
-    locale === "ku" ? "ckb-IQ" : "en",
+  return new Intl.DateTimeFormat("en",
     {
       dateStyle: "medium",
       timeStyle: "short",
@@ -195,16 +186,8 @@ export default function VipPredictionDetail({
     return (
       <StateShell
         locale={locale}
-        title={t(
-          locale,
-          "Loading VIP prediction",
-          "بارکردنی پێشبینی VIP"
-        )}
-        text={t(
-          locale,
-          "Verifying your access and loading protected match intelligence.",
-          "دەستپێگەیشتنت دەپشکنرێت و شیکاری پارێزراوی یاری بار دەکرێت."
-        )}
+        title={"Loading VIP prediction"}
+        text={"Verifying your access and loading protected match intelligence."}
       />
     );
   }
@@ -215,14 +198,10 @@ export default function VipPredictionDetail({
         <StateShell
           locale={locale}
           icon="🔐"
-          title={t(locale, "Login required", "چوونەژوورەوە پێویستە")}
-          text={t(
-            locale,
-            "Sign in to verify your VIP or administrator access.",
-            "بچۆ ژوورەوە بۆ پشتڕاستکردنەوەی دەستپێگەیشتنی VIP یان ئەدمین."
-          )}
+          title={"Login required"}
+          text={"Sign in to verify your VIP or administrator access."}
           primaryHref={`/${locale}/login`}
-          primaryLabel={t(locale, "Login", "چوونەژوورەوە")}
+          primaryLabel={"Login"}
         />
       );
     }
@@ -232,18 +211,10 @@ export default function VipPredictionDetail({
         <StateShell
           locale={locale}
           icon="🔒"
-          title={t(
-            locale,
-            "Active VIP access required",
-            "ئەندامێتی چالاکی VIP پێویستە"
-          )}
-          text={t(
-            locale,
-            "Upgrade your account to unlock the final prediction, confidence, exact score, value signal, and full reasoning.",
-            "هەژمارەکەت بەرزبکەرەوە بۆ کردنەوەی پێشبینی کۆتایی، متمانە، ئەنجامی ورد، هەڵبژاردەی بەهادار و شیکاری تەواو."
-          )}
+          title={"Active VIP access required"}
+          text={"Upgrade your account to unlock the final prediction, confidence, exact score, value signal, and full reasoning."}
           primaryHref={`/${locale}/vip`}
-          primaryLabel={t(locale, "View VIP Plans", "پلانی VIP ببینە")}
+          primaryLabel={"View VIP Plans"}
         />
       );
     }
@@ -253,22 +224,10 @@ export default function VipPredictionDetail({
         <StateShell
           locale={locale}
           icon="⚽"
-          title={t(
-            locale,
-            "VIP prediction unavailable",
-            "پێشبینی VIP بەردەست نییە"
-          )}
-          text={t(
-            locale,
-            "This prediction does not exist or has not been published yet.",
-            "ئەم پێشبینییە بوونی نییە یان هێشتا بڵاونەکراوەتەوە."
-          )}
+          title={"VIP prediction unavailable"}
+          text={"This prediction does not exist or has not been published yet."}
           primaryHref={`/${locale}/predictions`}
-          primaryLabel={t(
-            locale,
-            "All Predictions",
-            "هەموو پێشبینییەکان"
-          )}
+          primaryLabel={"All Predictions"}
         />
       );
     }
@@ -277,18 +236,10 @@ export default function VipPredictionDetail({
       <StateShell
         locale={locale}
         icon="⚠️"
-        title={t(
-          locale,
-          "Unable to load prediction",
-          "نەتوانرا پێشبینییەکە بار بکرێت"
-        )}
+        title={"Unable to load prediction"}
         text={
           error ||
-          t(
-            locale,
-            "An unexpected error occurred.",
-            "هەڵەیەکی چاوەڕواننەکراو ڕوویدا."
-          )
+          "An unexpected error occurred."
         }
         onRetry={() => void loadPrediction()}
       />
@@ -300,7 +251,7 @@ export default function VipPredictionDetail({
   return (
     <main
       className="min-h-screen bg-[#07101D] px-4 py-10 text-white md:px-8"
-      dir={locale === "ku" ? "rtl" : "ltr"}
+      dir="ltr"
     >
       <div className="mx-auto max-w-7xl">
         <nav className="flex flex-wrap items-center gap-2 text-sm text-white/40">
@@ -308,7 +259,7 @@ export default function VipPredictionDetail({
             href={`/${locale}/predictions`}
             className="transition hover:text-[#D4AF37]"
           >
-            {t(locale, "Predictions", "پێشبینییەکان")}
+            {"Predictions"}
           </Link>
           <span>/</span>
           <span className="text-white/65">VIP</span>
@@ -323,7 +274,7 @@ export default function VipPredictionDetail({
                 <Badge>ZERRA VIP</Badge>
                 <Badge>{prediction.competition.name}</Badge>
                 <span className="rounded-full border border-green-400/25 bg-green-400/10 px-3 py-1 text-xs font-black uppercase text-green-200">
-                  {t(locale, "Access verified", "دەستپێگەیشتن پشتڕاستکرایەوە")}
+                  {"Access verified"}
                 </span>
               </div>
 
@@ -335,12 +286,12 @@ export default function VipPredictionDetail({
                 {formatDateTime(prediction.fixtureDate, locale)}
                 {" · "}
                 {prediction.fixtureStatus.long ||
-                  t(locale, "Scheduled", "دیاریکراو")}
+                  "Scheduled"}
               </p>
 
               <div className="mt-8 rounded-[2rem] border border-[#D4AF37]/25 bg-[#D4AF37]/10 p-6">
                 <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-                  {t(locale, "Final Prediction", "پێشبینی کۆتایی")}
+                  {"Final Prediction"}
                 </p>
                 <p className="mt-4 text-3xl font-black md:text-5xl">
                   {vip.finalPrediction || "—"}
@@ -350,28 +301,24 @@ export default function VipPredictionDetail({
 
             <aside className="border-t border-white/10 bg-black/20 p-7 xl:border-l xl:border-t-0 md:p-10">
               <p className="text-xs font-black uppercase tracking-[0.25em] text-[#D4AF37]">
-                {t(locale, "VIP Access", "دەستپێگەیشتنی VIP")}
+                {"VIP Access"}
               </p>
 
               <dl className="mt-6 grid gap-3">
                 <AccessRow
-                  label={t(locale, "Role", "ڕۆڵ")}
+                  label={"Role"}
                   value={access?.role || "VIP"}
                 />
                 <AccessRow
-                  label={t(locale, "Plan", "پلان")}
+                  label={"Plan"}
                   value={access?.plan || "VIP"}
                 />
                 <AccessRow
-                  label={t(locale, "Expires", "بەسەرچوون")}
+                  label={"Expires"}
                   value={
                     access?.expiresAt
                       ? formatDateTime(access.expiresAt, locale)
-                      : t(
-                          locale,
-                          "Administrator access",
-                          "دەستپێگەیشتنی ئەدمین"
-                        )
+                      : "Administrator access"
                   }
                 />
               </dl>
@@ -381,45 +328,45 @@ export default function VipPredictionDetail({
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label={t(locale, "Confidence", "متمانە")}
+            label={"Confidence"}
             value={formatPercent(vip.confidence)}
           />
           <MetricCard
-            label={t(locale, "Exact Score", "ئەنجامی ورد")}
+            label={"Exact Score"}
             value={vip.exactScore || "—"}
           />
           <MetricCard
-            label={t(locale, "Value Signal", "هەڵبژاردەی بەهادار")}
+            label={"Value Signal"}
             value={vip.valueBet || "—"}
           />
           <MetricCard
-            label={t(locale, "Expected Goals", "گۆڵی چاوەڕوانکراو")}
+            label={"Expected Goals"}
             value={formatNumber(vip.expectedGoals.total)}
           />
         </section>
 
         <section className="mt-8 grid gap-6 xl:grid-cols-2">
           <Panel
-            eyebrow={t(locale, "1X2 Markets", "بازاڕی 1X2")}
-            title={t(locale, "Outcome Probabilities", "ڕێژەی ئەنجامەکان")}
+            eyebrow={"1X2 Markets"}
+            title={"Outcome Probabilities"}
           >
             <ProbabilityRow
-              label={t(locale, "Home Win", "بردنەوەی ماڵەوە")}
+              label={"Home Win"}
               value={vip.markets.homeWin}
             />
             <ProbabilityRow
-              label={t(locale, "Draw", "یەکسان")}
+              label={"Draw"}
               value={vip.markets.draw}
             />
             <ProbabilityRow
-              label={t(locale, "Away Win", "بردنەوەی دەرەوە")}
+              label={"Away Win"}
               value={vip.markets.awayWin}
             />
           </Panel>
 
           <Panel
-            eyebrow={t(locale, "Goal Markets", "بازاڕی گۆڵ")}
-            title={t(locale, "Goal Probabilities", "ڕێژەی گۆڵەکان")}
+            eyebrow={"Goal Markets"}
+            title={"Goal Probabilities"}
           >
             <ProbabilityRow label="Over 2.5" value={vip.markets.over25} />
             <ProbabilityRow label="Under 2.5" value={vip.markets.under25} />
@@ -429,10 +376,10 @@ export default function VipPredictionDetail({
 
         <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl md:p-9">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-            {t(locale, "Expected Goals", "گۆڵی چاوەڕوانکراو")}
+            {"Expected Goals"}
           </p>
           <h2 className="mt-4 text-3xl font-black">
-            {t(locale, "Team Goal Projection", "پێشبینی گۆڵی تیمەکان")}
+            {"Team Goal Projection"}
           </h2>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -445,7 +392,7 @@ export default function VipPredictionDetail({
               value={formatNumber(vip.expectedGoals.away)}
             />
             <MetricCard
-              label={t(locale, "Total", "کۆی گشتی")}
+              label={"Total"}
               value={formatNumber(vip.expectedGoals.total)}
             />
           </div>
@@ -453,14 +400,10 @@ export default function VipPredictionDetail({
 
         <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/20 bg-[#101827] p-7 shadow-xl md:p-9">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-            {t(locale, "AI Reasoning", "شیکاری AI")}
+            {"AI Reasoning"}
           </p>
           <h2 className="mt-4 text-3xl font-black">
-            {t(
-              locale,
-              "Why ZERRA Selected This Prediction",
-              "بۆچی ZERRA ئەم پێشبینییەی هەڵبژارد"
-            )}
+            {"Why ZERRA Selected This Prediction"}
           </h2>
 
           {vip.reasoning.length > 0 ? (
@@ -479,21 +422,13 @@ export default function VipPredictionDetail({
             </div>
           ) : (
             <p className="mt-6 text-sm leading-7 text-white/45">
-              {t(
-                locale,
-                "No detailed reasoning is available for this prediction.",
-                "هیچ شیکارییەکی ورد بۆ ئەم پێشبینییە بەردەست نییە."
-              )}
+              {"No detailed reasoning is available for this prediction."}
             </p>
           )}
         </section>
 
         <section className="mt-8 rounded-[2rem] border border-yellow-500/15 bg-yellow-500/5 p-6 text-sm leading-7 text-yellow-100/70">
-          {t(
-            locale,
-            "No football prediction is guaranteed. ZERRA VIP provides deeper analysis and calibrated signals, not certainty.",
-            "هیچ پێشبینییەکی تۆپی پێ گەرەنتی نییە. ZERRA VIP شیکاری و نیشانەی زیاتر دەدات، نەک دڵنیایی."
-          )}
+          {"No football prediction is guaranteed. ZERRA VIP provides deeper analysis and calibrated signals, not certainty."}
         </section>
       </div>
     </main>
@@ -613,7 +548,7 @@ function StateShell({
   return (
     <main
       className="min-h-screen bg-[#07101D] px-4 py-16 text-white"
-      dir={locale === "ku" ? "rtl" : "ltr"}
+      dir="ltr"
     >
       <section className="mx-auto max-w-2xl rounded-[2rem] border border-[#D4AF37]/25 bg-[#101827] p-8 text-center shadow-2xl md:p-12">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/10 text-4xl">
@@ -644,7 +579,7 @@ function StateShell({
               onClick={onRetry}
               className="rounded-full border border-white/15 px-6 py-3 text-sm font-black text-white/75"
             >
-              {t(locale, "Try Again", "دووبارە هەوڵبدەرەوە")}
+              {"Try Again"}
             </button>
           )}
 
@@ -652,11 +587,7 @@ function StateShell({
             href={`/${locale}/predictions`}
             className="rounded-full border border-white/15 px-6 py-3 text-sm font-black text-white/75"
           >
-            {t(
-              locale,
-              "Back to Predictions",
-              "گەڕانەوە بۆ پێشبینییەکان"
-            )}
+            {"Back to Predictions"}
           </Link>
         </div>
       </section>

@@ -88,7 +88,7 @@ type PublishedSEOPage = {
     string | null;
 
   language:
-    "en" | "ku";
+    "en";
 
   fixtureId:
     string | null;
@@ -163,15 +163,9 @@ function getSiteUrl(): string {
 }
 
 function normalizeLocale(
-  value:
-    string
-):
-  | "en"
-  | "ku" {
-  return value ===
-    "ku"
-    ? "ku"
-    : "en";
+  _value: string
+): "en" {
+  return "en";
 }
 
 function normalizeText(
@@ -228,22 +222,6 @@ function serializeDate(
   }
 
   return null;
-}
-
-function getLocalizedText(
-  locale:
-    "en" | "ku",
-
-  english:
-    string,
-
-  kurdish:
-    string
-): string {
-  return locale ===
-    "ku"
-    ? kurdish
-    : english;
 }
 
 function normalizeSections(
@@ -1016,11 +994,6 @@ export default async function PredictionDetailPage(
   ) {
     notFound();
   }
-
-  const isKurdish =
-    cleanLocale ===
-    "ku";
-
   const canonicalUrl =
     `${getSiteUrl()}${page.canonicalPath}`;
 
@@ -1198,11 +1171,7 @@ export default async function PredictionDetailPage(
               1,
 
             name:
-              getLocalizedText(
-                cleanLocale,
-                "Home",
-                "سەرەکی"
-              ),
+              "Home",
 
             item:
               `${getSiteUrl()}/${cleanLocale}`,
@@ -1216,11 +1185,7 @@ export default async function PredictionDetailPage(
               2,
 
             name:
-              getLocalizedText(
-                cleanLocale,
-                "Predictions",
-                "پێشبینییەکان"
-              ),
+              "Predictions",
 
             item:
               `${getSiteUrl()}/${cleanLocale}/predictions`,
@@ -1248,11 +1213,7 @@ export default async function PredictionDetailPage(
   return (
     <main
       className="min-h-screen bg-[#07101D] text-white"
-      dir={
-        isKurdish
-          ? "rtl"
-          : "ltr"
-      }
+      dir="ltr"
     >
       <script
         type="application/ld+json"
@@ -1273,11 +1234,7 @@ export default async function PredictionDetailPage(
             href={`/${cleanLocale}`}
             className="transition hover:text-[#D4AF37]"
           >
-            {getLocalizedText(
-              cleanLocale,
-              "Home",
-              "سەرەکی"
-            )}
+            {"Home"}
           </Link>
 
           <span>/</span>
@@ -1286,11 +1243,7 @@ export default async function PredictionDetailPage(
             href={`/${cleanLocale}/predictions`}
             className="transition hover:text-[#D4AF37]"
           >
-            {getLocalizedText(
-              cleanLocale,
-              "Predictions",
-              "پێشبینییەکان"
-            )}
+            {"Predictions"}
           </Link>
 
           <span>/</span>
@@ -1304,11 +1257,7 @@ export default async function PredictionDetailPage(
           <header className="rounded-[2rem] border border-[#D4AF37]/20 bg-[#101827] p-7 shadow-2xl md:p-10">
             <div className="flex flex-wrap gap-2">
               <Badge>
-                {getLocalizedText(
-                  cleanLocale,
-                  "Published Analysis",
-                  "شیکاری بڵاوکراوە"
-                )}
+                {"Published Analysis"}
               </Badge>
 
               {page.country ? (
@@ -1366,16 +1315,8 @@ export default async function PredictionDetailPage(
           {page.publicContent
             .overview ? (
             <ContentSection
-              label={getLocalizedText(
-                cleanLocale,
-                "Public Analysis",
-                "شیکاری گشتی"
-              )}
-              title={getLocalizedText(
-                cleanLocale,
-                "Match Overview",
-                "پوختەی یاری"
-              )}
+              label={"Public Analysis"}
+              title={"Match Overview"}
               content={
                 page
                   .publicContent
@@ -1407,11 +1348,7 @@ export default async function PredictionDetailPage(
           0 ? (
             <section className="mt-8 rounded-[2rem] border border-[#D4AF37]/25 bg-[#101827] p-7 shadow-xl md:p-9">
               <p className="text-xs font-black uppercase tracking-[0.3em] text-[#D4AF37]">
-                {getLocalizedText(
-                  cleanLocale,
-                  "Key Insights",
-                  "تێبینییە سەرەکییەکان"
-                )}
+                {"Key Insights"}
               </p>
 
               <div className="mt-6 grid gap-3">
@@ -1445,11 +1382,7 @@ export default async function PredictionDetailPage(
             .aiSummary ? (
             <ContentSection
               label="ZERRA AI"
-              title={getLocalizedText(
-                cleanLocale,
-                "AI Public Insight",
-                "تێڕوانینی گشتی AI"
-              )}
+              title={"AI Public Insight"}
               content={
                 page
                   .publicContent
@@ -1466,11 +1399,7 @@ export default async function PredictionDetailPage(
               </p>
 
               <h2 className="mt-4 text-3xl font-black">
-                {getLocalizedText(
-                  cleanLocale,
-                  "Frequently Asked Questions",
-                  "پرسیارە باوەکان"
-                )}
+                {"Frequently Asked Questions"}
               </h2>
 
               <div className="mt-6 divide-y divide-white/10">
@@ -1503,30 +1432,18 @@ export default async function PredictionDetailPage(
             </p>
 
             <h2 className="mt-4 text-3xl font-black">
-              {getLocalizedText(
-                cleanLocale,
-                "Unlock the Final AI Prediction",
-                "پێشبینی کۆتایی AI بکەرەوە"
-              )}
+              {"Unlock the Final AI Prediction"}
             </h2>
 
             <p className="mt-4 leading-8 text-white/60">
-              {getLocalizedText(
-                cleanLocale,
-                "The final prediction, exact confidence, exact-score estimate, best market, and full AI reasoning are protected and reserved for VIP members.",
-                "ظ¾غژط´ط¨غŒظ†غŒ ع©غ†طھط§غŒغŒطŒ ع•غژعکغ•غŒ ظ…طھظ…ط§ظ†غ•طŒ ط¦غ•ظ†ط¬ط§ظ…غŒ طھغ•ط®ظ…غŒظ†ع©ط±ط§ظˆطŒ ط¨ط§ط´طھط±غŒظ† ط¨ط§ط²ط§ع• ظˆ ط´غŒع©ط§ط±غŒ طھغ•ظˆط§ظˆغŒ AI ط¨غ† ط¦غ•ظ†ط¯ط§ظ…ط§ظ†غŒ VIP ظ¾ط§ط±غژط²ط±ط§ظˆظ†."
-              )}
+              {"The final prediction, exact confidence, exact-score estimate, best market, and full AI reasoning are protected and reserved for VIP members."}
             </p>
 
             <Link
               href={`/${cleanLocale}/vip`}
               className="mt-6 inline-flex rounded-full bg-[#D4AF37] px-6 py-3 font-black text-black"
             >
-              {getLocalizedText(
-                cleanLocale,
-                "Explore VIP",
-                "VIP ببینە"
-              )}
+              {"Explore VIP"}
             </Link>
           </section>
 
@@ -1535,11 +1452,7 @@ export default async function PredictionDetailPage(
           0 ? (
             <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#101827] p-7 shadow-xl">
               <h2 className="text-xl font-black">
-                {getLocalizedText(
-                  cleanLocale,
-                  "Explore ZERRA",
-                  "بەشەکانی ZERRA"
-                )}
+                {"Explore ZERRA"}
               </h2>
 
               <div className="mt-5 flex flex-wrap gap-3">
