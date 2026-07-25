@@ -555,6 +555,7 @@ async function loadUnsettledPredictions(
           "==",
           "published"
         )
+        .orderBy("publishedAt", "desc")
         .limit(
           publishedLimit
         )
