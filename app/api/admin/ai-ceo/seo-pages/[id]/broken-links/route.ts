@@ -36,7 +36,7 @@ function normalizeInternalPath(value: unknown): string {
   const withoutQuery = withoutHash.split("?")[0];
   const collapsed = withoutQuery.replace(/\/+/g, "/");
 
-  if (!/^\/(en|ku)(?=\/|$)/.test(collapsed)) {
+  if (!/^\/(en|fr|es|ar)(?=\/|$)/.test(collapsed)) {
     return "";
   }
 
@@ -86,7 +86,7 @@ async function checkLink(
       finalUrl: null,
       responseTimeMs: Date.now() - startedAt,
       message:
-        "Only localized internal paths beginning with /en or /ku can be checked.",
+        "Only supported localized internal paths can be checked.",
     };
   }
 

@@ -55,56 +55,28 @@ function buildTitle(
   keyword: string,
   language: SEOPageLanguage
 ) {
-  return language === "ku"
-    ? `${keyword} | شیکاری یاری بە AI`
-    : `${keyword} | AI Match Analysis`;
+  return `${keyword} | AI Match Analysis`;
 }
 
 function buildMetaDescription(
   keyword: string,
   language: SEOPageLanguage
 ) {
-  return language === "ku"
-    ? `شیکاری گشتی یاری ${keyword}، داتای بەردەست، هۆکارەکانی ڕیسک و تێڕوانینی AI، بەبێ ئاشکراکردنی پێشبینی VIP.`
-    : `Explore public match analysis for ${keyword}, including available facts, risk factors, and AI-assisted insights without revealing the VIP prediction.`;
+  return `Explore public match analysis for ${keyword}, including available facts, risk factors, and AI-assisted insights without revealing the VIP prediction.`;
 }
 
 function buildIntro(
   keyword: string,
   language: SEOPageLanguage
 ) {
-  return language === "ku"
-    ? `ئەم پەڕەیە شیکاری گشتی بۆ ${keyword} پیشان دەدات. پێشبینی کۆتایی و وردەکارییە premium ـەکان تەنها بۆ VIP پارێزراون.`
-    : `This page provides a public analysis of ${keyword}. The final prediction and premium match intelligence remain reserved for VIP members.`;
+  return `This page provides a public analysis of ${keyword}. The final prediction and premium match intelligence remain reserved for VIP members.`;
 }
 
 function buildSections(
   keyword: string,
   language: SEOPageLanguage
 ): SEOPageSection[] {
-  return language === "ku"
-    ? [
-        {
-          heading: "کورتەی یاری",
-          content: `کورتەیەکی گشتی دەربارەی ${keyword} بەبێ ئاشکراکردنی پێشبینی کۆتایی.`,
-        },
-        {
-          heading: "داتای بەردەست",
-          content:
-            "تەنها داتای پشتڕاستکراو لەم بەشەدا پیشان دەدرێت.",
-        },
-        {
-          heading: "تێڕوانینی گشتی AI",
-          content:
-            "کورتە شیکارییەکی ناڕوونکەرەوە کە پێشبینی VIP ئاشکرا ناکات.",
-        },
-        {
-          heading: "هۆکارەکانی ڕیسک",
-          content:
-            "ڕوونکردنەوەی ئەو هۆکارانەی دەتوانن ڕەوتی یاری بگۆڕن، بەبێ گەرەنتیکردنی ئەنجام.",
-        },
-      ]
-    : [
+  return [
         {
           heading: "Match Overview",
           content: `A public overview of ${keyword} without revealing the final prediction.`,
@@ -131,21 +103,7 @@ function buildFAQ(
   keyword: string,
   language: SEOPageLanguage
 ): SEOFAQItem[] {
-  return language === "ku"
-    ? [
-        {
-          question: `ئەم پەڕەیە چی دەربارەی ${keyword} پیشان دەدات؟`,
-          answer:
-            "داتای گشتی، کورتە شیکاری و هۆکارەکانی ڕیسک پیشان دەدات، بەڵام پێشبینی کۆتایی VIP ئاشکرا ناکات.",
-        },
-        {
-          question:
-            "ئایا پێشبینی کۆتایی لەم پەڕەیەدا هەیە؟",
-          answer:
-            "نەخێر. پێشبینی کۆتایی و وردەکارییە premium ـەکان تەنها بۆ ئەندامانی VIP پارێزراون.",
-        },
-      ]
-    : [
+  return [
         {
           question: `What does this page show about ${keyword}?`,
           answer:
@@ -164,26 +122,7 @@ function buildPublicContent(
   keyword: string,
   language: SEOPageLanguage
 ): SEOPublicContent {
-  return language === "ku"
-    ? {
-        overview: `کورتەیەکی گشتی بۆ ${keyword}.`,
-        recentForm:
-          "داتای فۆڕمی نوێ لە template mode ـدا بەردەست نییە.",
-        headToHead:
-          "داتای head-to-head لە template mode ـدا بەردەست نییە.",
-        homeAwayStats:
-          "ئاماری home/away لە template mode ـدا بەردەست نییە.",
-        injuries:
-          "داتای برینداری یان lineup لە template mode ـدا بەردەست نییە.",
-        aiSummary:
-          "ئەم کورتە شیکارییە هیچ پێشبینی کۆتایی یان بازاڕی VIP ئاشکرا ناکات.",
-        riskLevel: "Medium",
-        keyInsights: [
-          "پێش بڕیاردان داتای نوێی یاری پشکنین بکە.",
-          "پێشبینییە وەرزشییەکان هەمیشە نادڵنیاییان هەیە.",
-        ],
-      }
-    : {
+  return {
         overview: `A general public overview of ${keyword}.`,
         recentForm:
           "Recent-form data is unavailable in template mode.",
@@ -206,20 +145,7 @@ function buildPublicContent(
 function buildVIPContent(
   language: SEOPageLanguage
 ): SEOVIPContent {
-  return language === "ku"
-    ? {
-        finalPrediction:
-          "لە template mode ـدا بەردەست نییە.",
-        confidence: 0,
-        exactScore: "Unavailable",
-        bestMarket:
-          "لە template mode ـدا بەردەست نییە.",
-        alternativeMarkets: [],
-        valuePick: "Unavailable",
-        reasoning:
-          "بۆ دروستکردنی شیکاری VIP، fixture ID و داتای پشتڕاستکراوی یاری پێویستە.",
-      }
-    : {
+  return {
         finalPrediction:
           "Unavailable in template mode.",
         confidence: 0,
@@ -236,7 +162,7 @@ function buildVIPContent(
 function buildInternalLinks(
   language: SEOPageLanguage
 ) {
-  const base = language === "ku" ? "/ku" : "/en";
+  const base = "/en";
 
   return [
     `${base}/predictions`,
@@ -303,9 +229,7 @@ export async function createSEOPageDraft(
   }
 
   const canonicalPath =
-    language === "ku"
-      ? `/ku/predictions/${slug}`
-      : `/en/predictions/${slug}`;
+    `/en/predictions/${slug}`;
 
   let title = buildTitle(keyword, language);
   let metaDescription = buildMetaDescription(

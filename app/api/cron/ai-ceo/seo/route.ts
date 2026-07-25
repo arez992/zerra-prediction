@@ -561,17 +561,7 @@ export async function GET(
           )
       );
 
-    const language:
-      SEOPageDraftItem["language"] =
-      request
-        .nextUrl
-        .searchParams
-        .get(
-          "language"
-        ) ===
-      "ku"
-        ? "ku"
-        : "en";
+    const language: SEOPageDraftItem["language"] = "en";
 
 
     const requestedFixtureId =

@@ -5,7 +5,7 @@ export type SEOPageStatus =
   | "rejected"
   | "failed";
 
-export type SEOPageLanguage = "en" | "ku";
+export type SEOPageLanguage = "en";
 
 export type SEORiskLevel =
   | "Low"

@@ -171,10 +171,7 @@ export default function SEOPageEditPage() {
   const currentCanonicalPath = useMemo(() => {
     if (!form) return "";
 
-    const language =
-      draft?.language === "ku" ? "ku" : "en";
-
-    return `/${language}/predictions/${cleanSlug(
+    return `/en/predictions/${cleanSlug(
       form.slug
     )}`;
   }, [form, draft]);

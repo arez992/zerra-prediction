@@ -18,7 +18,7 @@ export type SEOPageSchema = {
   name: string;
   description: string;
   url: string;
-  inLanguage: "en" | "ku";
+  inLanguage: "en";
   mainEntityOfPage: {
     "@type": "WebPage";
     "@id": string;
@@ -105,7 +105,7 @@ export function buildSEOPageSchema(
       draft.metaDescription || draft.intro
     ),
     url: canonicalPath,
-    inLanguage: draft.language === "ku" ? "ku" : "en",
+    inLanguage: "en",
     mainEntityOfPage: {
       "@type": "WebPage",
       "@id": canonicalPath,
@@ -220,9 +220,7 @@ export function validateSEOPageSchema(
     createCheck({
       id: "language",
       label: "Language",
-      passed:
-        schema.inLanguage === "en" ||
-        schema.inLanguage === "ku",
+      passed: schema.inLanguage === "en",
       detail: `Language: ${schema.inLanguage}.`,
     })
   );

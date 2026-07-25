@@ -343,13 +343,9 @@ export async function PATCH(
       );
     }
 
-    const language =
-      currentData.language === "ku" ? "ku" : "en";
+    const language = "en" as const;
 
-    const canonicalPath =
-      language === "ku"
-        ? `/ku/predictions/${slug}`
-        : `/en/predictions/${slug}`;
+    const canonicalPath = `/en/predictions/${slug}`;
 
     const duplicateSnapshot = await adminDb
       .collection("seoPageDrafts")

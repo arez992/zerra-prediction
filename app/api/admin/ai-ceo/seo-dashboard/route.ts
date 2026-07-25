@@ -29,7 +29,7 @@ type DashboardRow = {
   id: string;
   match: string;
   keyword: string;
-  language: "en" | "ku";
+  language: "en";
   canonicalPath: string;
   draftStatus: string;
   dashboardStatus: DashboardStatus;
@@ -764,10 +764,7 @@ export async function GET(
             draft.data.keyword
           ),
 
-          language:
-            draft.data.language === "ku"
-              ? "ku"
-              : "en",
+          language: "en",
 
           canonicalPath:
             normalizeText(
