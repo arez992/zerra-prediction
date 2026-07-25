@@ -169,6 +169,9 @@ export async function getSearchConsoleAccountAudit() {
   );
 
   return {
+    runtimeIdentity: {
+      serviceAccountEmail: serviceAccountEmail || null,
+    },
     configuredProperty: {
       type: configuredPropertyType,
       matchesExpected: configuredMatchesExpected,
