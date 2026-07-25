@@ -855,11 +855,11 @@ export async function runSEOLearningMeasurement(
     await collectAICEOData();
 
   if (
-    snapshot.searchConsole
-      .connected !== true
+    snapshot.searchConsole.connected !== true ||
+    snapshot.searchConsole.usableForDecisions !== true
   ) {
     throw new Error(
-      "Search Console is unavailable. SEO learning measurement was stopped to avoid recording API failure as zero search performance."
+      "Search Console is unavailable or stale. SEO learning measurement was stopped to avoid recording unreliable search performance."
     );
   }
 

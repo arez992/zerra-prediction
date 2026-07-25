@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { collectAICEOData } from "@/lib/ai-ceo/dataCollector";
 import {
   getSearchPages,
   getSearchQueries,
@@ -396,7 +397,7 @@ function shortenPage(value: string) {
 }
 
 export async function generateSEODirectorReport(): Promise<SEODirectorReport> {
-  const [queries, pages] = await Promise.all([
+  const [queries, pages, snapshot] = await Promise.all([
     getSearchQueries(250).catch((error) => {
       console.error(
         "SEO Director query collection failed:",
@@ -414,17 +415,25 @@ export async function generateSEODirectorReport(): Promise<SEODirectorReport> {
 
       return null;
     }),
+
+    collectAICEOData(),
   ]);
 
   const connected =
     queries !== null &&
-    pages !== null;
+    pages !== null &&
+    snapshot.searchConsole.connected === true &&
+    snapshot.searchConsole.usableForDecisions === true;
 
   const normalizedQueries =
-    (queries || []) as SearchQueryItem[];
+    connected
+      ? ((queries || []) as SearchQueryItem[])
+      : [];
 
   const normalizedPages =
-    (pages || []) as SearchPageItem[];
+    connected
+      ? ((pages || []) as SearchPageItem[])
+      : [];
 
   const totals = calculateTotals(normalizedQueries);
 

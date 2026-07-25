@@ -190,8 +190,8 @@ export const growthExecutor:
     }
 
     if (
-      snapshot.searchConsole
-        .connected !== true
+      snapshot.searchConsole.connected !== true ||
+      snapshot.searchConsole.usableForDecisions !== true
     ) {
       missingSources.push(
         "search-console"

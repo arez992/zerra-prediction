@@ -177,6 +177,7 @@ export function generateCEODecisions(
    * Search CTR opportunity
    */
   if (
+    searchConsole.usableForDecisions &&
     searchConsole.totals.impressions >= 50 &&
     searchConsole.totals.ctr < 2
   ) {
@@ -266,6 +267,7 @@ export function generateCEODecisions(
    * Expand validated search queries
    */
   if (
+    searchConsole.usableForDecisions &&
     searchConsole.queries.length > 0 &&
     searchConsole.totals.clicks > 0
   ) {

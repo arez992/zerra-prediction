@@ -336,14 +336,14 @@ export const seoExecutor:
       await collectAICEOData();
 
     if (
-      snapshot.searchConsole
-        .connected !== true
+      snapshot.searchConsole.connected !== true ||
+      snapshot.searchConsole.usableForDecisions !== true
     ) {
       return {
         success: false,
         completed: false,
         message:
-          `SEO analysis could not be completed for ${executionType} because Search Console data is unavailable.`,
+          `SEO analysis could not be completed for ${executionType} because Search Console data is unavailable or stale.`,
         data: {
           recommendationId,
           executionType,

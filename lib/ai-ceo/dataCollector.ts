@@ -21,6 +21,7 @@ import {
   getSearchCountries,
   getSearchPages,
   getSearchQueries,
+  getSearchFreshness,
 } from "@/lib/google/search-console";
 
 type InternalCountryStats = {
@@ -71,6 +72,11 @@ export type AICEODataSnapshot = {
 
   searchConsole: {
     connected: boolean;
+    dataThrough: string | null;
+    firstIncompleteDate: string | null;
+    freshnessStatus: "fresh" | "stale" | "unknown";
+    ageDays: number | null;
+    usableForDecisions: boolean;
 
     totals: {
       clicks: number;
@@ -179,6 +185,7 @@ async function collectAICEODataUncached():
     searchCountries,
     searchQueries,
     searchPages,
+    searchFreshness,
   ] =
     await Promise.all([
       adminDb
@@ -251,6 +258,10 @@ async function collectAICEODataUncached():
           return null;
         }
       ),
+          getSearchFreshness().catch((error) => {
+        console.error("AI CEO Search Console freshness failed:", error);
+        return null;
+      }),
     ]);
 
   const users =
@@ -525,6 +536,38 @@ async function collectAICEODataUncached():
     searchQueries !== null &&
     searchPages !== null;
 
+  const searchDataThrough =
+    searchFreshness?.dataThrough || null;
+
+  const searchFirstIncompleteDate =
+    searchFreshness?.firstIncompleteDate || null;
+
+  let searchAgeDays: number | null = null;
+
+  if (searchDataThrough) {
+    const dataDate = new Date(`${searchDataThrough}T00:00:00Z`);
+    if (!Number.isNaN(dataDate.getTime())) {
+      searchAgeDays = Math.max(
+        0,
+        Math.floor((Date.now() - dataDate.getTime()) / 86400000)
+      );
+    }
+  }
+
+  const searchFreshnessStatus:
+    | "fresh"
+    | "stale"
+    | "unknown" =
+    searchAgeDays === null
+      ? "unknown"
+      : searchAgeDays <= 3
+        ? "fresh"
+        : "stale";
+
+  const searchUsableForDecisions =
+    searchConsoleConnected &&
+    searchFreshnessStatus === "fresh";
+
   const safeSearchCountries =
     searchCountries || [];
 
@@ -721,6 +764,21 @@ async function collectAICEODataUncached():
       connected:
         searchConsoleConnected,
 
+      dataThrough:
+        searchDataThrough,
+
+      firstIncompleteDate:
+        searchFirstIncompleteDate,
+
+      freshnessStatus:
+        searchFreshnessStatus,
+
+      ageDays:
+        searchAgeDays,
+
+      usableForDecisions:
+        searchUsableForDecisions,
+
       totals: {
         clicks:
           searchClicks,
@@ -764,7 +822,7 @@ const getCachedAICEOData =
 
     [
       "zerra-ai-ceo-data-snapshot",
-      "v3",
+      "v4",
     ],
 
     {
