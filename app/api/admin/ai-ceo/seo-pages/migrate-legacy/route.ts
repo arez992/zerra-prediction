@@ -219,7 +219,7 @@ function isPremiumFAQ(
 
 function buildSafeFAQ(
   keyword: string,
-  language: "en" | "ku",
+  language: "en",
   currentFAQ: SEOFAQItem[]
 ): SEOFAQItem[] {
   const safeExisting = currentFAQ.filter(
@@ -227,21 +227,7 @@ function buildSafeFAQ(
   );
 
   const fallback =
-    language === "ku"
-      ? [
-          {
-            question: `ئەم پەڕەیە چی دەربارەی ${keyword} پیشان دەدات؟`,
-            answer:
-              "داتای گشتی، شیکارییەکی کورتی AI و هۆکارەکانی ڕیسک پیشان دەدات، بەڵام پێشبینی کۆتایی VIP ئاشکرا ناکات.",
-          },
-          {
-            question:
-              "ئایا پێشبینی کۆتایی لەم پەڕەیەدا پیشان دەدرێت؟",
-            answer:
-              "نەخێر. پێشبینی کۆتایی و وردەکارییە premium ـەکان تەنها بۆ ئەندامانی VIP پارێزراون.",
-          },
-        ]
-      : [
+    [
           {
             question: `What does this page show about ${keyword}?`,
             answer:
@@ -312,8 +298,7 @@ function findSectionContent(
 function buildPublicContent(
   data: DocumentData
 ): SEOPublicContent {
-  const language: "en" | "ku" =
-    data.language === "ku" ? "ku" : "en";
+  const language = "en" as const;
 
   const keyword =
     normalizeText(data.keyword, 200) ||
@@ -334,9 +319,7 @@ function buildPublicContent(
       /کورتە/i,
     ]) ||
     intro ||
-    (language === "ku"
-      ? `کورتەیەکی گشتی بۆ ${keyword}.`
-      : `A public overview of ${keyword}.`);
+    (`A public overview of ${keyword}.`);
 
   const recentForm =
     findSectionContent(sections, [
@@ -344,9 +327,7 @@ function buildPublicContent(
       /\bform\b/i,
       /فۆڕم/i,
     ]) ||
-    (language === "ku"
-      ? "داتای فۆڕمی نوێ لەم legacy draft ـەدا بەردەست نییە."
-      : "Recent-form data is unavailable in this legacy draft.");
+    ("Recent-form data is unavailable in this legacy draft.");
 
   const headToHead =
     findSectionContent(sections, [
@@ -354,9 +335,7 @@ function buildPublicContent(
       /\bh2h\b/i,
       /ڕووبەڕووبوونەوە/i,
     ]) ||
-    (language === "ku"
-      ? "داتای head-to-head لەم legacy draft ـەدا بەردەست نییە."
-      : "Head-to-head data is unavailable in this legacy draft.");
+    ("Head-to-head data is unavailable in this legacy draft.");
 
   const homeAwayStats =
     findSectionContent(sections, [
@@ -366,9 +345,7 @@ function buildPublicContent(
       /داتا و ئامار/i,
       /ئاماری ماڵەوە/i,
     ]) ||
-    (language === "ku"
-      ? "ئاماری home/away لەم legacy draft ـەدا بەردەست نییە."
-      : "Home and away statistics are unavailable in this legacy draft.");
+    ("Home and away statistics are unavailable in this legacy draft.");
 
   const injuries =
     findSectionContent(sections, [
@@ -378,9 +355,7 @@ function buildPublicContent(
       /بریندار/i,
       /بەردەستبوون/i,
     ]) ||
-    (language === "ku"
-      ? "داتای برینداری یان lineup لەم legacy draft ـەدا بەردەست نییە."
-      : "Injury and lineup information is unavailable in this legacy draft.");
+    ("Injury and lineup information is unavailable in this legacy draft.");
 
   const aiSummary =
     findSectionContent(sections, [
@@ -390,9 +365,7 @@ function buildPublicContent(
       /شیکاری ai/i,
       /تێڕوانینی گشتی ai/i,
     ]) ||
-    (language === "ku"
-      ? "ئەم کورتە شیکارییە هیچ پێشبینی کۆتایی، ڕێژەی متمانە یان بازاڕی VIP ئاشکرا ناکات."
-      : "This general AI-assisted summary does not reveal the final prediction, confidence score, or VIP market selection.");
+    ("This general AI-assisted summary does not reveal the final prediction, confidence score, or VIP market selection.");
 
   return {
     overview,
@@ -403,12 +376,7 @@ function buildPublicContent(
     aiSummary,
     riskLevel: "Medium",
     keyInsights:
-      language === "ku"
-        ? [
-            "پێش بڕیاردان داتای نوێی یاری پشکنین بکە.",
-            "پێشبینییە وەرزشییەکان هەمیشە نادڵنیاییان هەیە.",
-          ]
-        : [
+      [
             "Review the latest verified match data before making decisions.",
             "Football predictions always involve uncertainty.",
           ],
@@ -417,29 +385,23 @@ function buildPublicContent(
 
 function buildSafeTitle(
   keyword: string,
-  language: "en" | "ku"
+  language: "en"
 ): string {
-  return language === "ku"
-    ? `${keyword} | شیکاری یاری بە AI`
-    : `${keyword} | AI Match Analysis`;
+  return `${keyword} | AI Match Analysis`;
 }
 
 function buildSafeMetaDescription(
   keyword: string,
-  language: "en" | "ku"
+  language: "en"
 ): string {
-  return language === "ku"
-    ? `شیکاری گشتی یاری ${keyword}، داتای بەردەست، هۆکارەکانی ڕیسک و تێڕوانینی AI، بەبێ ئاشکراکردنی پێشبینی VIP.`
-    : `Explore public match analysis for ${keyword}, including available facts, risk factors, and AI-assisted insights without revealing the VIP prediction.`;
+  return `Explore public match analysis for ${keyword}, including available facts, risk factors, and AI-assisted insights without revealing the VIP prediction.`;
 }
 
 function buildSafeIntro(
   keyword: string,
-  language: "en" | "ku"
+  language: "en"
 ): string {
-  return language === "ku"
-    ? `ئەم پەڕەیە شیکاری گشتی بۆ ${keyword} پیشان دەدات. پێشبینی کۆتایی و وردەکارییە premium ـەکان تەنها بۆ VIP پارێزراون.`
-    : `This page provides a public analysis of ${keyword}. The final prediction and premium match intelligence remain reserved for VIP members.`;
+  return `This page provides a public analysis of ${keyword}. The final prediction and premium match intelligence remain reserved for VIP members.`;
 }
 
 function getMigrationReasons(
@@ -718,10 +680,7 @@ export async function POST(
     for (const candidate of candidates) {
       const { id, data } = candidate;
 
-      const language: "en" | "ku" =
-        data.language === "ku"
-          ? "ku"
-          : "en";
+      const language = "en" as const;
 
       const keyword =
         normalizeText(

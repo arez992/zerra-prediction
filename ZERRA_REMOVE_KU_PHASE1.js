@@ -1,0 +1,9 @@
+﻿const fs=require("fs");
+function rw(p,fn){let s=fs.readFileSync(p,"utf8");const n=fn(s);if(n===s)throw new Error("No change: "+p);fs.writeFileSync(p,n,"utf8");console.log("PATCHED:",p)}
+rw("middleware.ts",s=>{const a=`  const { pathname } = request.nextUrl;\n\n  if (!hasLocale(pathname)) {`;if(!s.includes(a))throw new Error("middleware anchor");return s.replace(a,`  const { pathname } = request.nextUrl;\n\n  if (pathname === "/ku" || pathname.startsWith("/ku/")) {\n    const url = request.nextUrl.clone();\n    url.pathname = pathname.replace(/^\\/ku(?=\\/|$)/, "/en");\n    return NextResponse.redirect(url, 308);\n  }\n\n  if (!hasLocale(pathname)) {`)});
+rw("app/robots.ts",s=>s.replace(/\n\s*"\/ku\/admin\/",|\n\s*"\/ku\/dashboard\/",|\n\s*"\/ku\/preview\/",|\n\s*"\/ku\/login",/g,""));
+rw("components/admin/ceo/SEOPageDraftsCard.tsx",s=>{s=s.replace(`    language: "en" | "ku";`,`    language: "en";`);s=s.replace(`  const [language, setLanguage] =\n    useState<"en" | "ku">("en");`,`  const language = "en" as const;`);s=s.replace(/[\r\n]+\s*<select[\s\S]*?<option value="ku">Kurdish<\/option>[\s\S]*?<\/select>/m,"");return s});
+rw("app/api/admin/ai-ceo/seo-pages/route.ts",s=>s.replace(`    const language =\n      body.language === "ku" ? "ku" : "en";`,`    const language = "en" as const;`));
+rw("lib/ai-ceo/internalLinkValidation.ts",s=>{s=s.replace(`/^\\/(en|ku)(?=\\/|$)/`,`/^\\/(en|fr|es|ar)(?=\\/|$)/`);s=s.replace(`/^\\/(en|ku)(?=\\/|$)/`,`/^\\/(en|fr|es|ar)(?=\\/|$)/`);s=s.replace(`Link is missing an /en or /ku locale prefix.`,`Link is missing a supported locale prefix (/en, /fr, /es, or /ar).`);return s});
+rw("lib/ai-ceo/seoContentWriter.ts",s=>s.replace(/  const languageInstruction =[\s\S]*?: "Write in professional, natural English\.";/m,`  const languageInstruction =\n    "Write in professional, natural English.";`));
+console.log("KU_ACTIVE_SUPPORT_DISABLED");
