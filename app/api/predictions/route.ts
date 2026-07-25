@@ -663,7 +663,7 @@ const getCachedPublicPredictionPool =
     },
     [
       "zerra-public-predictions-pool",
-      "v2",
+      "v3",
     ],
     {
       revalidate:
@@ -727,7 +727,7 @@ const getCachedFreePredictionPool =
     },
     [
       "zerra-free-predictions-pool",
-      "v2",
+      "v3",
     ],
     {
       revalidate:

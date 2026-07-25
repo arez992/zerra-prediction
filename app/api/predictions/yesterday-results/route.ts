@@ -493,7 +493,7 @@ const getCachedSettledPredictions =
 
     [
       "zerra-yesterday-primary-results",
-      "v1",
+      "v2",
     ],
 
     {
