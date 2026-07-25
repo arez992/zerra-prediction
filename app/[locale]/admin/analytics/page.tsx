@@ -145,8 +145,18 @@ export default async function AdminAnalyticsPage() {
 
         <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           <Stat
-            title="Active Users"
+            title="30-Day Active Users"
             value={googleAnalytics?.totalActiveUsers ?? 0}
+          />
+
+          <Stat
+            title="Realtime Users"
+            value={googleAnalytics?.realtime?.activeUsers ?? 0}
+          />
+
+          <Stat
+            title="Today Active Users"
+            value={googleAnalytics?.today?.activeUsers ?? 0}
           />
 
           <Stat
@@ -283,7 +293,13 @@ export default async function AdminAnalyticsPage() {
         </div>
 
         <p className="mt-5 text-sm text-white/40">
-          Search Console last checked: {formatDate(searchConsole?.checkedAt)}
+          Search Console data through:{" "}
+          {searchConsole?.freshness?.dataThrough || "Unknown"}{" "}
+          · Last checked:{" "}
+          {formatDate(searchConsole?.checkedAt)}
+          {searchConsole?.freshness?.firstIncompleteDate
+            ? " · Incomplete from " + searchConsole.freshness.firstIncompleteDate
+            : ""}
         </p>
       </section>
 

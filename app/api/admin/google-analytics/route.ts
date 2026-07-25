@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getUsersByCountry } from "@/lib/google/analytics";
+import {
+  getRealtimeOverview,
+  getTodayOverview,
+  getUsersByCountry,
+} from "@/lib/google/analytics";
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +23,12 @@ export async function GET() {
       );
     }
 
-    const report = await getUsersByCountry();
+    const [report, realtime, today] =
+      await Promise.all([
+        getUsersByCountry(),
+        getRealtimeOverview(),
+        getTodayOverview(),
+      ]);
 
     const countries =
       report.rows?.map((row) => ({
@@ -39,6 +48,12 @@ export async function GET() {
         countries,
         totalActiveUsers,
         rowCount: report.rowCount || countries.length,
+        realtime,
+        today,
+        period: {
+          startDate: "30daysAgo",
+          endDate: "today",
+        },
         checkedAt: new Date().toISOString(),
       },
     });

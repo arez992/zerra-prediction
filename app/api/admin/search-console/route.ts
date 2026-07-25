@@ -5,6 +5,7 @@ import {
   getSearchDevices,
   getSearchPages,
   getSearchQueries,
+  getSearchFreshness,
 } from "@/lib/google/search-console";
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
 
@@ -25,13 +26,23 @@ export async function GET() {
       );
     }
 
-    const [queries, countries, pages, devices, daily] = await Promise.all([
+    const [
+      queries,
+      countries,
+      pages,
+      devices,
+      dailyFinal,
+      freshness,
+    ] = await Promise.all([
       getSearchQueries(100),
       getSearchCountries(100),
       getSearchPages(100),
       getSearchDevices(),
       getDailySearchPerformance(100),
+      getSearchFreshness(),
     ]);
+
+    const daily = freshness.rows;
 
     const totals = daily.reduce(
       (acc, item) => {
@@ -136,6 +147,13 @@ export async function GET() {
         pages,
         devices,
         daily,
+        dailyFinal,
+        freshness: {
+          dataThrough: freshness.dataThrough,
+          firstIncompleteDate: freshness.firstIncompleteDate,
+          includesFreshData: freshness.includesFreshData,
+          dataState: freshness.dataState,
+        },
         checkedAt: new Date().toISOString(),
       },
     });

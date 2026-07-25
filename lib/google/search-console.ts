@@ -59,6 +59,7 @@ type SearchConsoleOptions = {
   >;
   rowLimit?: number;
   startRow?: number;
+  dataState?: "final" | "all";
 };
 
 function formatDate(date: Date) {
@@ -99,7 +100,7 @@ export async function runSearchConsoleReport(
         dimensions: options.dimensions || ["query"],
         rowLimit: Math.min(options.rowLimit || 1000, 25000),
         startRow: options.startRow || 0,
-        dataState: "final",
+        dataState: options.dataState || "final",
       },
     });
 
@@ -188,6 +189,45 @@ export async function getSearchDevices() {
   );
 }
 
+export async function getSearchFreshness() {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(start.getDate() - 27);
+
+  const report = await runSearchConsoleReport({
+    startDate: formatDate(start),
+    endDate: formatDate(end),
+    dimensions: ["date"],
+    rowLimit: 100,
+    dataState: "all",
+  });
+
+  const rows =
+    report.rows?.map((row) => ({
+      date: row.keys?.[0] || "Unknown",
+      clicks: row.clicks || 0,
+      impressions: row.impressions || 0,
+      ctr: Number(((row.ctr || 0) * 100).toFixed(2)),
+      position: Number((row.position || 0).toFixed(2)),
+    })) || [];
+
+  const dataThrough =
+    rows.length > 0
+      ? [...rows].map((item) => item.date).sort().at(-1) || null
+      : null;
+
+  const metadata = report.metadata as
+    | { first_incomplete_date?: string }
+    | undefined;
+
+  return {
+    rows,
+    dataThrough,
+    firstIncompleteDate: metadata?.first_incomplete_date || null,
+    includesFreshData: true,
+    dataState: "all" as const,
+  };
+}
 export async function getDailySearchPerformance(
   rowLimit = 100
 ) {

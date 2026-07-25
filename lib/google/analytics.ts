@@ -45,6 +45,30 @@ export async function runAnalyticsReport(options: {
   return response;
 }
 
+export async function getRealtimeOverview() {
+  if (!propertyId) throw new Error("GA4_PROPERTY_ID is missing");
+  const [response] = await client.runRealtimeReport({
+    property: `properties/${propertyId}`,
+    metrics: [{ name: "activeUsers" }, { name: "eventCount" }],
+  });
+  return {
+    activeUsers: Number(response.rows?.[0]?.metricValues?.[0]?.value || 0),
+    eventCount: Number(response.rows?.[0]?.metricValues?.[1]?.value || 0),
+  };
+}
+
+export async function getTodayOverview() {
+  const response = await runAnalyticsReport({
+    metrics: ["activeUsers", "sessions", "eventCount"],
+    startDate: "today",
+    endDate: "today",
+  });
+  return {
+    activeUsers: Number(response.rows?.[0]?.metricValues?.[0]?.value || 0),
+    sessions: Number(response.rows?.[0]?.metricValues?.[1]?.value || 0),
+    eventCount: Number(response.rows?.[0]?.metricValues?.[2]?.value || 0),
+  };
+}
 export async function getUsersByCountry() {
   return runAnalyticsReport({
     dimensions: ["country"],
