@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
 
 import {
+  getFixtureById,
   getFixturesByDate,
 } from "@/lib/api-football/service";
 
@@ -268,11 +269,10 @@ async function resolveLiveFixtureResults(
     }
 
     const fixtureDate =
-      prediction.fixtureDate
-        .slice(
-          0,
-          10
-        );
+      prediction.fixtureDate.slice(
+        0,
+        10
+      );
 
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(
@@ -297,20 +297,15 @@ async function resolveLiveFixtureResults(
     );
   }
 
-  if (
-    pendingByDate.size ===
-      0
-  ) {
-    return predictions;
-  }
-
-  const liveResults =
+  const liveFixtures =
     new Map<
       string,
       {
         status: string;
-        homeGoals: number;
-        awayGoals: number;
+        statusLong: string;
+        fixtureDate: string | null;
+        homeGoals: number | null;
+        awayGoals: number | null;
       }
     >();
 
@@ -321,20 +316,20 @@ async function resolveLiveFixtureResults(
     ]
     of pendingByDate
   ) {
+    const wantedIds =
+      new Set(
+        datePredictions.map(
+          (
+            prediction
+          ) =>
+            prediction.fixtureId
+        )
+      );
+
     try {
       const fixtures =
         await getFixturesByDate(
           date
-        );
-
-      const wantedIds =
-        new Set(
-          datePredictions.map(
-            (
-              prediction
-            ) =>
-              prediction.fixtureId
-          )
         );
 
       for (
@@ -343,8 +338,7 @@ async function resolveLiveFixtureResults(
       ) {
         const fixtureId =
           String(
-            fixture.fixture
-              ?.id ??
+            fixture.fixture?.id ??
               ""
           ).trim();
 
@@ -357,42 +351,44 @@ async function resolveLiveFixtureResults(
           continue;
         }
 
-        const status =
-          String(
-            fixture.fixture
-              ?.status
-              ?.short ??
-              ""
-          )
-            .trim()
-            .toUpperCase();
-
-        const homeGoals =
-          fixture.goals
-            ?.home;
-
-        const awayGoals =
-          fixture.goals
-            ?.away;
-
-        if (
-          !finishedStatuses.has(
-            status
-          ) ||
-          typeof homeGoals !==
-            "number" ||
-          typeof awayGoals !==
-            "number"
-        ) {
-          continue;
-        }
-
-        liveResults.set(
+        liveFixtures.set(
           fixtureId,
           {
-            status,
-            homeGoals,
-            awayGoals,
+            status:
+              String(
+                fixture.fixture
+                  ?.status
+                  ?.short ??
+                  ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            statusLong:
+              String(
+                fixture.fixture
+                  ?.status
+                  ?.long ??
+                  ""
+              ).trim(),
+
+            fixtureDate:
+              typeof fixture.fixture
+                ?.date === "string"
+                ? fixture.fixture.date
+                : null,
+
+            homeGoals:
+              typeof fixture.goals
+                ?.home === "number"
+                ? fixture.goals.home
+                : null,
+
+            awayGoals:
+              typeof fixture.goals
+                ?.away === "number"
+                ? fixture.goals.away
+                : null,
           }
         );
       }
@@ -400,18 +396,117 @@ async function resolveLiveFixtureResults(
       error
     ) {
       console.error(
-        "[PREDICTION_LIVE_RESULT_FALLBACK_ERROR]",
+        "[PREDICTION_DATE_LOOKUP_ERROR]",
         {
           date,
           error:
-            error instanceof
-              Error
+            error instanceof Error
               ? error.message
-              : "Unable to load fixture results.",
+              : "Unable to load fixtures by date.",
         }
       );
     }
   }
+
+  const missingPredictions =
+    predictions.filter(
+      (
+        prediction
+      ) =>
+        !prediction.result.checked &&
+        prediction.fixtureId &&
+        !liveFixtures.has(
+          prediction.fixtureId
+        )
+    );
+
+  await Promise.all(
+    missingPredictions.map(
+      async (
+        prediction
+      ) => {
+        try {
+          const fixture =
+            await getFixtureById(
+              prediction.fixtureId
+            );
+
+          if (
+            !fixture
+          ) {
+            return;
+          }
+
+          const fixtureId =
+            String(
+              fixture.fixture?.id ??
+                ""
+            ).trim();
+
+          if (
+            !fixtureId
+          ) {
+            return;
+          }
+
+          liveFixtures.set(
+            fixtureId,
+            {
+              status:
+                String(
+                  fixture.fixture
+                    ?.status
+                    ?.short ??
+                    ""
+                )
+                  .trim()
+                  .toUpperCase(),
+
+              statusLong:
+                String(
+                  fixture.fixture
+                    ?.status
+                    ?.long ??
+                    ""
+                ).trim(),
+
+              fixtureDate:
+                typeof fixture.fixture
+                  ?.date === "string"
+                  ? fixture.fixture.date
+                  : null,
+
+              homeGoals:
+                typeof fixture.goals
+                  ?.home === "number"
+                  ? fixture.goals.home
+                  : null,
+
+              awayGoals:
+                typeof fixture.goals
+                  ?.away === "number"
+                  ? fixture.goals.away
+                  : null,
+            }
+          );
+        } catch (
+          error
+        ) {
+          console.error(
+            "[PREDICTION_FIXTURE_ID_FALLBACK_ERROR]",
+            {
+              fixtureId:
+                prediction.fixtureId,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Unable to load fixture by ID.",
+            }
+          );
+        }
+      }
+    )
+  );
 
   return predictions.map(
     (
@@ -424,7 +519,7 @@ async function resolveLiveFixtureResults(
       }
 
       const live =
-        liveResults.get(
+        liveFixtures.get(
           prediction.fixtureId
         );
 
@@ -434,44 +529,66 @@ async function resolveLiveFixtureResults(
         return prediction;
       }
 
+      const isFinished =
+        finishedStatuses.has(
+          live.status
+        ) &&
+        typeof live.homeGoals ===
+          "number" &&
+        typeof live.awayGoals ===
+          "number";
+
       return {
         ...prediction,
 
+        fixtureDate:
+          live.fixtureDate ||
+          prediction.fixtureDate,
+
         fixtureStatus: {
           short:
-            live.status,
+            live.status ||
+            prediction
+              .fixtureStatus
+              .short,
 
           long:
-            "Match Finished",
+            live.statusLong ||
+            prediction
+              .fixtureStatus
+              .long,
         },
 
-        result: {
-          ...prediction.result,
+        result:
+          isFinished
+            ? {
+                ...prediction.result,
 
-          checked:
-            true,
+                checked:
+                  true,
 
-          status:
-            "finished",
+                status:
+                  "finished",
 
-          correct:
-            null,
+                correct:
+                  null,
 
-          label:
-            "Final match result",
+                label:
+                  "Final match result",
 
-          finalStatus:
-            live.status,
+                finalStatus:
+                  live.status,
 
-          homeGoals:
-            live.homeGoals,
+                homeGoals:
+                  live.homeGoals,
 
-          awayGoals:
-            live.awayGoals,
+                awayGoals:
+                  live.awayGoals,
 
-          finalScore:
-            `${live.homeGoals}-${live.awayGoals}`,
-        },
+                finalScore:
+                  `${live.homeGoals}-${live.awayGoals}`,
+              }
+            : prediction.result,
       };
     }
   );

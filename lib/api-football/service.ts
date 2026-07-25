@@ -1113,6 +1113,82 @@ export async function getFixturesByDate(
   );
 }
 
+async function fetchFixtureById(
+  fixtureIdInput:
+    string | number
+): Promise<
+  APIFootballFixture | null
+> {
+  const fixtureId =
+    normalizeFixtureId(
+      fixtureIdInput
+    );
+
+  const result =
+    await runScheduledApiRequest(
+      () =>
+        apiFootballGet<
+          APIFootballFixture
+        >(
+          apiFootballEndpoints
+            .fixtureById(
+              fixtureId
+            ),
+          {
+            retries:
+              1,
+          }
+        ),
+      apiFootballEndpoints
+        .fixtureById(
+          fixtureId
+        )
+    );
+
+  return (
+    result.data
+      .response?.[0] ||
+    null
+  );
+}
+
+const getCachedFixtureById =
+  unstable_cache(
+    async (
+      fixtureId: string
+    ) =>
+      fetchFixtureById(
+        fixtureId
+      ),
+    [
+      "api-football",
+      "fixture-by-id",
+      "v1",
+    ],
+    {
+      revalidate:
+        5 * 60,
+      tags: [
+        "api-football-fixture-by-id",
+      ],
+    }
+  );
+
+export async function getFixtureById(
+  fixtureIdInput:
+    string | number
+): Promise<
+  APIFootballFixture | null
+> {
+  const fixtureId =
+    normalizeFixtureId(
+      fixtureIdInput
+    );
+
+  return getCachedFixtureById(
+    fixtureId
+  );
+}
 async function fetchTeamEnrichment(
   input: {
     fixture: APIFootballFixture;
