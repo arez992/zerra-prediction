@@ -149,11 +149,9 @@ export function createOrderId(): string {
 }
 
 export function normalizeLocale(
-  value: unknown
-): "en" | "ku" {
-  return value === "ku"
-    ? "ku"
-    : "en";
+  _value: unknown
+): "en" {
+  return "en";
 }
 
 export async function createNowPaymentsInvoice(input: {
@@ -161,7 +159,7 @@ export async function createNowPaymentsInvoice(input: {
   plan: PurchasableVipPlan;
   price: number;
   email: string | null;
-  locale: "en" | "ku";
+  locale: "en";
 }) {
   const apiKey =
     process.env.NOWPAYMENTS_API_KEY;

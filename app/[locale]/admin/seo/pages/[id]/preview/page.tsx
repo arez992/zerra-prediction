@@ -1044,8 +1044,7 @@ export default function SEOPagePreviewPage() {
           <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-white/55">
             Readability is estimated from sentence
             length and content structure. It works for
-            English and Kurdish without relying on an
-            English-only reading formula.
+            English content without relying on a traditional reading formula.
           </div>
         </div>
 
