@@ -15,6 +15,15 @@ import {
   adminDb,
 } from "@/lib/firebaseAdmin";
 
+import {
+  getFixtureById,
+  getFixturesByDate,
+} from "@/lib/api-football/service";
+
+import {
+  validatePrediction,
+} from "@/lib/ai/validator";
+
 export const runtime =
   "nodejs";
 
@@ -572,6 +581,214 @@ function toPublicPrediction(
   };
 }
 
+async function toPublicPredictionWithLiveGrade(
+  id: string,
+  data: DocumentData
+) {
+  const item =
+    toPublicPrediction(
+      id,
+      data
+    );
+
+  if (
+    item.result.checked ||
+    !item.fixtureId
+  ) {
+    return item;
+  }
+
+  let fixture:
+    Awaited<
+      ReturnType<
+        typeof getFixtureById
+      >
+    > =
+      null;
+
+  const storedDate =
+    getFixtureDateKey(
+      data.fixtureDate
+    );
+
+  if (
+    storedDate
+  ) {
+    try {
+      const fixtures =
+        await getFixturesByDate(
+          storedDate
+        );
+
+      fixture =
+        fixtures.find(
+          (
+            candidate
+          ) =>
+            String(
+              candidate.fixture?.id ??
+              ""
+            ) ===
+            item.fixtureId
+        ) ||
+        null;
+    } catch (
+      error
+    ) {
+      console.error(
+        "[PUBLIC_PREDICTION_DATE_RESULT_ERROR]",
+        {
+          fixtureId:
+            item.fixtureId,
+          storedDate,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Fixture date lookup failed.",
+        }
+      );
+    }
+  }
+
+  if (
+    !fixture
+  ) {
+    try {
+      fixture =
+        await getFixtureById(
+          item.fixtureId
+        );
+    } catch (
+      error
+    ) {
+      console.error(
+        "[PUBLIC_PREDICTION_ID_RESULT_ERROR]",
+        {
+          fixtureId:
+            item.fixtureId,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Fixture ID lookup failed.",
+        }
+      );
+    }
+  }
+
+  if (
+    !fixture
+  ) {
+    return item;
+  }
+
+  const liveStatus =
+    normalizeText(
+      fixture.fixture
+        ?.status
+        ?.short
+    ).toUpperCase();
+
+  const liveStatusLong =
+    normalizeText(
+      fixture.fixture
+        ?.status
+        ?.long
+    );
+
+  const liveFixtureDate =
+    normalizeText(
+      fixture.fixture
+        ?.date
+    ) ||
+    item.fixtureDate;
+
+  const withLiveFixture = {
+    ...item,
+
+    fixtureDate:
+      liveFixtureDate,
+
+    fixtureStatus: {
+      short:
+        liveStatus ||
+        item.fixtureStatus.short,
+
+      long:
+        liveStatusLong ||
+        item.fixtureStatus.long,
+    },
+  };
+
+  if (
+    ![
+      "FT",
+      "AET",
+      "PEN",
+    ].includes(
+      liveStatus
+    )
+  ) {
+    return withLiveFixture;
+  }
+
+  const validation =
+    validatePrediction(
+      data.prediction,
+      fixture
+    );
+
+  const homeGoals =
+    normalizeNumber(
+      fixture.goals?.home
+    );
+
+  const awayGoals =
+    normalizeNumber(
+      fixture.goals?.away
+    );
+
+  if (
+    homeGoals === null ||
+    awayGoals === null
+  ) {
+    return withLiveFixture;
+  }
+
+  return {
+    ...withLiveFixture,
+
+    result: {
+      checked:
+        true,
+
+      status:
+        validation.correct === true
+          ? "correct"
+          : validation.correct === false
+            ? "incorrect"
+            : "void",
+
+      correct:
+        validation.correct,
+
+      label:
+        validation.result,
+
+      settledAt:
+        item.result.settledAt,
+
+      finalStatus:
+        liveStatus,
+
+      homeGoals,
+
+      awayGoals,
+
+      finalScore:
+        `${homeGoals}-${awayGoals}`,
+    },
+  };
+}
 const getCachedPublicPredictionPool =
   unstable_cache(
     async () => {
@@ -623,7 +840,8 @@ const getCachedPublicPredictionPool =
           ...settledSnapshot.docs,
         ];
 
-      return Array.from(
+      const documentsForPublic =
+        Array.from(
         new Map(
           documents.map(
             (
@@ -650,16 +868,19 @@ const getCachedPublicPredictionPool =
         .slice(
           0,
           MAX_LIMIT
-        )
-        .map(
+        );
+
+      return Promise.all(
+        documentsForPublic.map(
           (
             document
           ) =>
-            toPublicPrediction(
+            toPublicPredictionWithLiveGrade(
               document.id,
               document.data()
             )
-        );
+        )
+      );
     },
     [
       "zerra-public-predictions-pool",
