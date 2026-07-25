@@ -1347,6 +1347,12 @@ function ResultBadge({
       "status"
     ];
 }) {
+  if (
+    status === "finished"
+  ) {
+    return null;
+  }
+
   const config =
     status ===
     "correct"
@@ -1371,8 +1377,7 @@ function ResultBadge({
                 "Void",
               className:
                 "border-[#eadcb5] bg-[#fff9e8] text-[#8a6a17]",
-            }
-          : status === "finished" ? { label: "Finished", className: "border-[#bfe6cf] bg-[#eaf7ef] text-[#0d6f3d]", } : { label: "Pending", className: "border-[#dce8df] bg-[#f3f7f4] text-[#66756c]", };
+            } : { label: "Pending", className: "border-[#dce8df] bg-[#f3f7f4] text-[#66756c]", };
 
   return (
     <span
