@@ -107,6 +107,82 @@ export async function runSearchConsoleReport(
   return response.data;
 }
 
+export async function getSearchConsoleAccountAudit() {
+  const searchConsole = getSearchConsoleClient();
+  const normalizedConfigured = defaultSiteUrl.trim();
+  const expectedDomain = "zerraprediction.com";
+  const configuredPropertyType = normalizedConfigured.startsWith("sc-domain:")
+    ? "domain"
+    : /^https?:\/\//i.test(normalizedConfigured)
+      ? "url-prefix"
+      : "other";
+
+  const configuredMatchesExpected =
+    normalizedConfigured === `sc-domain:${expectedDomain}` ||
+    normalizedConfigured === `https://${expectedDomain}` ||
+    normalizedConfigured === `https://${expectedDomain}/`;
+
+  const configuredContainsVercel =
+    /vercel\.app/i.test(normalizedConfigured);
+
+  const sitesResponse = await searchConsole.sites.list();
+  const siteEntries = sitesResponse.data.siteEntry || [];
+
+  const properties = await Promise.all(
+    siteEntries.map(async (site) => {
+      const siteUrl = site.siteUrl || "";
+      let sitemaps: Array<{
+        path: string;
+        errors: number;
+        warnings: number;
+        lastSubmitted: string | null;
+      }> = [];
+      let sitemapReadError: string | null = null;
+
+      try {
+        const sitemapResponse = await searchConsole.sitemaps.list({
+          siteUrl,
+        });
+        sitemaps = (sitemapResponse.data.sitemap || []).map((item) => ({
+          path: item.path || "",
+          errors: Number(item.errors || 0),
+          warnings: Number(item.warnings || 0),
+          lastSubmitted: item.lastSubmitted || null,
+        }));
+      } catch (error) {
+        sitemapReadError =
+          error instanceof Error ? error.message : "Unknown sitemap read error";
+      }
+
+      return {
+        siteUrl,
+        permissionLevel: site.permissionLevel || "unknown",
+        isZerraDomain:
+          siteUrl === `sc-domain:${expectedDomain}` ||
+          siteUrl === `https://${expectedDomain}` ||
+          siteUrl === `https://${expectedDomain}/`,
+        isVercelProperty: /vercel\.app/i.test(siteUrl),
+        sitemaps,
+        sitemapReadError,
+      };
+    })
+  );
+
+  return {
+    configuredProperty: {
+      type: configuredPropertyType,
+      matchesExpected: configuredMatchesExpected,
+      containsVercel: configuredContainsVercel,
+    },
+    properties,
+    summary: {
+      totalProperties: properties.length,
+      zerraProperties: properties.filter((item) => item.isZerraDomain).length,
+      vercelProperties: properties.filter((item) => item.isVercelProperty).length,
+    },
+  };
+}
+
 export async function getSearchQueries(
   rowLimit = 100
 ) {

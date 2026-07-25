@@ -6,6 +6,7 @@ import {
   getSearchPages,
   getSearchQueries,
   getSearchFreshness,
+  getSearchConsoleAccountAudit,
 } from "@/lib/google/search-console";
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
 
@@ -33,6 +34,7 @@ export async function GET() {
       devices,
       dailyFinal,
       freshness,
+      accountAudit,
     ] = await Promise.all([
       getSearchQueries(100),
       getSearchCountries(100),
@@ -40,6 +42,7 @@ export async function GET() {
       getSearchDevices(),
       getDailySearchPerformance(100),
       getSearchFreshness(),
+      getSearchConsoleAccountAudit(),
     ]);
 
     const daily = freshness.rows;
@@ -154,6 +157,7 @@ export async function GET() {
           includesFreshData: freshness.includesFreshData,
           dataState: freshness.dataState,
         },
+        accountAudit,
         checkedAt: new Date().toISOString(),
       },
     });
