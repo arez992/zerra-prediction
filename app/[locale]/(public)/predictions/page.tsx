@@ -3,6 +3,10 @@ import type { Metadata } from "next";
 
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
 
+import {
+  getFixturesByDate,
+} from "@/lib/api-football/service";
+
 export const revalidate =
   60;
 
@@ -67,7 +71,8 @@ type PublicPredictionItem = {
       | "pending"
       | "correct"
       | "incorrect"
-      | "void";
+      | "void"
+      | "finished";
 
     correct:
       boolean | null;
@@ -234,6 +239,243 @@ async function getPublishedPredictions(): Promise<{
   }
 }
 
+async function resolveLiveFixtureResults(
+  predictions: PublicPredictionItem[]
+): Promise<PublicPredictionItem[]> {
+  const finishedStatuses =
+    new Set([
+      "FT",
+      "AET",
+      "PEN",
+    ]);
+
+  const pendingByDate =
+    new Map<
+      string,
+      PublicPredictionItem[]
+    >();
+
+  for (
+    const prediction
+    of predictions
+  ) {
+    if (
+      prediction.result.checked ||
+      !prediction.fixtureId ||
+      !prediction.fixtureDate
+    ) {
+      continue;
+    }
+
+    const fixtureDate =
+      prediction.fixtureDate
+        .slice(
+          0,
+          10
+        );
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        fixtureDate
+      )
+    ) {
+      continue;
+    }
+
+    const group =
+      pendingByDate.get(
+        fixtureDate
+      ) || [];
+
+    group.push(
+      prediction
+    );
+
+    pendingByDate.set(
+      fixtureDate,
+      group
+    );
+  }
+
+  if (
+    pendingByDate.size ===
+      0
+  ) {
+    return predictions;
+  }
+
+  const liveResults =
+    new Map<
+      string,
+      {
+        status: string;
+        homeGoals: number;
+        awayGoals: number;
+      }
+    >();
+
+  for (
+    const [
+      date,
+      datePredictions,
+    ]
+    of pendingByDate
+  ) {
+    try {
+      const fixtures =
+        await getFixturesByDate(
+          date
+        );
+
+      const wantedIds =
+        new Set(
+          datePredictions.map(
+            (
+              prediction
+            ) =>
+              prediction.fixtureId
+          )
+        );
+
+      for (
+        const fixture
+        of fixtures
+      ) {
+        const fixtureId =
+          String(
+            fixture.fixture
+              ?.id ??
+              ""
+          ).trim();
+
+        if (
+          !fixtureId ||
+          !wantedIds.has(
+            fixtureId
+          )
+        ) {
+          continue;
+        }
+
+        const status =
+          String(
+            fixture.fixture
+              ?.status
+              ?.short ??
+              ""
+          )
+            .trim()
+            .toUpperCase();
+
+        const homeGoals =
+          fixture.goals
+            ?.home;
+
+        const awayGoals =
+          fixture.goals
+            ?.away;
+
+        if (
+          !finishedStatuses.has(
+            status
+          ) ||
+          typeof homeGoals !==
+            "number" ||
+          typeof awayGoals !==
+            "number"
+        ) {
+          continue;
+        }
+
+        liveResults.set(
+          fixtureId,
+          {
+            status,
+            homeGoals,
+            awayGoals,
+          }
+        );
+      }
+    } catch (
+      error
+    ) {
+      console.error(
+        "[PREDICTION_LIVE_RESULT_FALLBACK_ERROR]",
+        {
+          date,
+          error:
+            error instanceof
+              Error
+              ? error.message
+              : "Unable to load fixture results.",
+        }
+      );
+    }
+  }
+
+  return predictions.map(
+    (
+      prediction
+    ) => {
+      if (
+        prediction.result.checked
+      ) {
+        return prediction;
+      }
+
+      const live =
+        liveResults.get(
+          prediction.fixtureId
+        );
+
+      if (
+        !live
+      ) {
+        return prediction;
+      }
+
+      return {
+        ...prediction,
+
+        fixtureStatus: {
+          short:
+            live.status,
+
+          long:
+            "Match Finished",
+        },
+
+        result: {
+          ...prediction.result,
+
+          checked:
+            true,
+
+          status:
+            "finished",
+
+          correct:
+            null,
+
+          label:
+            "Final match result",
+
+          finalStatus:
+            live.status,
+
+          homeGoals:
+            live.homeGoals,
+
+          awayGoals:
+            live.awayGoals,
+
+          finalScore:
+            `${live.homeGoals}-${live.awayGoals}`,
+        },
+      };
+    }
+  );
+}
 function formatFixtureDate(
   value:
     string | null
@@ -295,20 +537,25 @@ export default async function PredictionsPage({
   } =
     await getPublishedPredictions();
 
+  const resolvedPredictions =
+    await resolveLiveFixtureResults(
+      predictions
+    );
+
   const featured =
-    predictions[0] ||
+    resolvedPredictions[0] ||
     null;
 
   const remaining =
-    predictions.slice(
+    resolvedPredictions.slice(
       1
     );
 
   const totalPublished =
-    predictions.length;
+    resolvedPredictions.length;
 
   const pendingCount =
-    predictions.filter(
+    resolvedPredictions.filter(
       (
         item
       ) =>
@@ -317,7 +564,7 @@ export default async function PredictionsPage({
     ).length;
 
   const correctCount =
-    predictions.filter(
+    resolvedPredictions.filter(
       (
         item
       ) =>
@@ -326,7 +573,7 @@ export default async function PredictionsPage({
     ).length;
 
   const incorrectCount =
-    predictions.filter(
+    resolvedPredictions.filter(
       (
         item
       ) =>
@@ -335,7 +582,7 @@ export default async function PredictionsPage({
     ).length;
 
   const lowRiskCount =
-    predictions.filter(
+    resolvedPredictions.filter(
       (
         item
       ) =>
@@ -346,7 +593,7 @@ export default async function PredictionsPage({
     ).length;
 
   const mediumRiskCount =
-    predictions.filter(
+    resolvedPredictions.filter(
       (
         item
       ) =>
@@ -357,7 +604,7 @@ export default async function PredictionsPage({
     ).length;
 
   const highRiskCount =
-    predictions.filter(
+    resolvedPredictions.filter(
       (
         item
       ) =>
@@ -510,7 +757,7 @@ export default async function PredictionsPage({
 
                   <p className="text-sm text-[#758179]">
                     {
-                      predictions.length
+                      resolvedPredictions.length
                     }{" "}
                     published prediction
                     {predictions.length ===
@@ -1008,12 +1255,7 @@ function ResultBadge({
               className:
                 "border-[#eadcb5] bg-[#fff9e8] text-[#8a6a17]",
             }
-          : {
-              label:
-                "Pending",
-              className:
-                "border-[#dce8df] bg-[#f3f7f4] text-[#66756c]",
-            };
+          : status === "finished" ? { label: "Finished", className: "border-[#bfe6cf] bg-[#eaf7ef] text-[#0d6f3d]", } : { label: "Pending", className: "border-[#dce8df] bg-[#f3f7f4] text-[#66756c]", };
 
   return (
     <span
