@@ -53,11 +53,11 @@ function normalizePath(value: unknown): string {
 }
 
 function stripLocalePrefix(path: string): string {
-  return path.replace(/^\/(en|ku)(?=\/|$)/, "") || "/";
+  return path.replace(/^\/(en|fr|es|ar)(?=\/|$)/, "") || "/";
 }
 
 function hasSupportedLocale(path: string): boolean {
-  return /^\/(en|ku)(?=\/|$)/.test(path);
+  return /^\/(en|fr|es|ar)(?=\/|$)/.test(path);
 }
 
 function isAllowedRoute(path: string): boolean {
@@ -151,7 +151,7 @@ export function validateInternalLinks(
       !hasSupportedLocale(normalizedLink)
     ) {
       issues.push(
-        "Link is missing an /en or /ku locale prefix."
+        "Link is missing a supported locale prefix (/en, /fr, /es, or /ar)."
       );
     }
 

@@ -47,7 +47,7 @@ type Props = {
   onRefresh: () => void;
   onCreate: (input: {
     keyword: string;
-    language: "en" | "ku";
+    language: "en";
     country?: string;
     fixtureId?: string;
     fixtureDate?: string;
@@ -72,8 +72,7 @@ export default function SEOPageDraftsCard({
   const locale = params?.locale || "en";
 
   const [keyword, setKeyword] = useState("");
-  const [language, setLanguage] =
-    useState<"en" | "ku">("en");
+  const language = "en" as const;
   const [country, setCountry] = useState("");
 
   const [selectedDate, setSelectedDate] =
@@ -348,21 +347,7 @@ export default function SEOPageDraftsCard({
           className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-[#D4AF37]/50 disabled:opacity-50"
         />
 
-        <select
-          value={language}
-          disabled={creating}
-          onChange={(event) =>
-            setLanguage(
-              event.target.value === "ku"
-                ? "ku"
-                : "en"
-            )
-          }
-          className="rounded-2xl border border-white/10 bg-[#0B1220] px-4 py-3 text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
-        >
-          <option value="en">English</option>
-          <option value="ku">Kurdish</option>
-        </select>
+
 
         <input
           type="text"

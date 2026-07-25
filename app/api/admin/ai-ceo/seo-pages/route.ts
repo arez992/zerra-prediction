@@ -234,8 +234,7 @@ export async function POST(
       body.keyword || ""
     ).trim();
 
-    const language =
-      body.language === "ku" ? "ku" : "en";
+    const language = "en" as const;
 
     const country = body.country
       ? String(body.country).trim()

@@ -560,9 +560,7 @@ export async function generateFixtureSEOContent(input: {
     DEFAULT_MODEL;
 
   const languageInstruction =
-    input.language === "ku"
-      ? "Write in clear Sorani Kurdish. Keep team, league, and player names exactly as supplied."
-      : "Write in professional, natural English.";
+    "Write in professional, natural English.";
 
   const prompt = `
 You are the ZERRA SEO Content Writer for a football-only prediction platform.

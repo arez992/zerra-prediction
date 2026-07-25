@@ -21,6 +21,12 @@ function isAllowedDuringMaintenance(pathname: string) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname === "/ku" || pathname.startsWith("/ku/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.replace(/^\/ku(?=\/|$)/, "/en");
+    return NextResponse.redirect(url, 308);
+  }
+
   if (!hasLocale(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = `/en${pathname}`;
