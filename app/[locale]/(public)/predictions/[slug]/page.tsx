@@ -1267,7 +1267,7 @@ export default async function PredictionDetailPage(
     <div className="min-w-0 space-y-6">
       <header className="rounded-[1.75rem] border border-[#dfe8e2] bg-white p-5 shadow-sm md:p-7">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>Published Analysis</Badge>
+          <Badge>{hasFinalReport ? "Post-Match Report" : "Published Analysis"}</Badge>
           {page.country ? <Badge>{page.country}</Badge> : null}
           {hasFinalReport ? <Badge>Final Result</Badge> : null}
         </div>
@@ -1296,7 +1296,7 @@ export default async function PredictionDetailPage(
         <p className="mt-4 max-w-4xl text-base leading-7 text-[#5f6d65]">{page.intro}</p>
       </header>
 
-      {page.publicContent.overview ? (
+      {!hasFinalReport && page.publicContent.overview ? (
         <section className="rounded-[1.5rem] border border-[#dfe8e2] bg-white p-5 shadow-sm md:p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -1316,6 +1316,7 @@ export default async function PredictionDetailPage(
         {previousMeetings.length > 0 ? <a href="#h2h" className="whitespace-nowrap rounded-xl px-4 py-2 hover:bg-[#f5f8f6]">Head-to-Head</a> : null}
       </div>
 
+      {!hasFinalReport ? (
       <section id="overview" className="grid gap-5 md:grid-cols-2">
         {page.sections.filter((section) => section.heading.toLowerCase() !== "match overview").map((section,index) => (
           <div key={`${section.heading}-${index}`} className="rounded-[1.5rem] border border-[#dfe8e2] bg-white p-5 shadow-sm md:p-6">
@@ -1324,6 +1325,7 @@ export default async function PredictionDetailPage(
           </div>
         ))}
       </section>
+      ) : null}
 
       {hasFinalReport && postMatchReport && postMatchFacts ? (
         <section id="details" className="rounded-[1.5rem] border border-[#dfe8e2] bg-white p-5 shadow-sm md:p-6">
@@ -1351,7 +1353,7 @@ export default async function PredictionDetailPage(
         </section>
       ) : null}
 
-      {page.publicContent.keyInsights.length > 0 ? (
+      {!hasFinalReport && page.publicContent.keyInsights.length > 0 ? (
         <section id="insights" className="rounded-[1.5rem] border border-[#dfe8e2] bg-white p-5 shadow-sm md:p-6">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#159447]">Key Insights</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
