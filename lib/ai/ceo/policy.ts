@@ -33,7 +33,7 @@ const BLOCKED_AUTO_APPROVAL_ACTIONS: CEOActionKey[] = [
   "retrainAi",
 ];
 
-async function getAutoApprovalSetting(): Promise<boolean> {
+export async function getAutoApprovalSetting(): Promise<boolean> {
   try {
     const snapshot = await adminDb
       .collection("settings")
@@ -45,6 +45,15 @@ async function getAutoApprovalSetting(): Promise<boolean> {
     console.error("[AI_CEO_POLICY_SETTINGS_ERROR]", error);
     return false;
   }
+}
+
+export async function setAutoApprovalSetting(enabled: boolean): Promise<boolean> {
+  await adminDb.collection("settings").doc("site").set({
+    aiCeoAutoApprovalEnabled: enabled,
+    aiCeoAutoApprovalUpdatedAt: new Date().toISOString(),
+  }, { merge: true });
+
+  return enabled;
 }
 
 function getEnabledActions(

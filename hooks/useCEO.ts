@@ -354,7 +354,7 @@ export function useCEO() {
     [loadCEOData]
   );
 
-  const controlAutopilot = useCallback(async (action: "start" | "pause" | "stop" | "kill") => {
+  const controlAutopilot = useCallback(async (action: "start" | "pause" | "stop" | "kill" | "auto-approval-on" | "auto-approval-off") => {
     try {
       setAutopilotBusy(true);
       setError("");

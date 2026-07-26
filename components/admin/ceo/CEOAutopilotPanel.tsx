@@ -3,7 +3,7 @@
 type Props = {
   autopilot: any;
   busy: boolean;
-  onControl: (action: "start" | "pause" | "stop" | "kill") => void;
+  onControl: (action: "start" | "pause" | "stop" | "kill" | "auto-approval-on" | "auto-approval-off") => void;
   onRunNow: () => void;
 };
 
@@ -14,6 +14,7 @@ export default function CEOAutopilotPanel({ autopilot, busy, onControl, onRunNow
   const status = config?.status || "unknown";
   const killSwitch = config?.kill_switch === true;
   const running = status === "running" && !killSwitch;
+  const autoApprovalEnabled = autopilot?.autoApprovalEnabled === true;
 
   return (
     <section className="mt-6 rounded-[2rem] border border-emerald-400/20 bg-[#101827] p-6 shadow-xl">
@@ -50,6 +51,16 @@ export default function CEOAutopilotPanel({ autopilot, busy, onControl, onRunNow
             <p className={`mt-1 text-sm font-black ${guard?.allowAiCall ? "text-emerald-300" : "text-amber-300"}`}>{guard?.allowAiCall ? "AI ALLOWED" : "AI LIMITED"}</p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Low-Risk Auto Approval</p>
+          <p className="mt-2 text-sm text-white/55">Only policy-eligible low-risk actions can auto-approve. High/Critical risk and protected actions remain Owner-only.</p>
+        </div>
+        <button type="button" disabled={busy} onClick={() => onControl(autoApprovalEnabled ? "auto-approval-off" : "auto-approval-on")} className={`rounded-full px-5 py-3 text-sm font-black ${autoApprovalEnabled ? "border border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border border-white/15 text-white/60"} disabled:opacity-40`}>
+          LOW-RISK AUTO APPROVAL: {autoApprovalEnabled ? "ON" : "OFF"}
+        </button>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">

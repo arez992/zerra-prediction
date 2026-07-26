@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireServerAdmin } from "@/lib/serverAdminAuth";
+import { getAutoApprovalSetting, setAutoApprovalSetting } from "@/lib/ai/ceo/policy";
 import { evaluateAutopilotCostGuard } from "@/lib/ai-ceo/autopilot/costGuard";
 import {
   activateKillSwitch,
@@ -21,10 +22,11 @@ export async function GET() {
   try {
     await requireServerAdmin();
 
-    const [config, usage, guard] = await Promise.all([
+    const [config, usage, guard, autoApprovalEnabled] = await Promise.all([
       getAutopilotConfig(),
       getTodayAutopilotUsage(),
       evaluateAutopilotCostGuard(),
+      getAutoApprovalSetting(),
     ]);
 
     return NextResponse.json({
@@ -32,6 +34,7 @@ export async function GET() {
       config,
       usage,
       guard,
+      autoApprovalEnabled,
       checkedAt: new Date().toISOString(),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -49,7 +52,13 @@ export async function POST(request: NextRequest) {
 
     let config;
 
-    if (action === "start") {
+    if (action === "auto-approval-on") {
+      await setAutoApprovalSetting(true);
+      config = await getAutopilotConfig();
+    } else if (action === "auto-approval-off") {
+      await setAutoApprovalSetting(false);
+      config = await getAutopilotConfig();
+    } else if (action === "start") {
       config = await setAutopilotStatus("running", actor);
     } else if (action === "pause") {
       config = await setAutopilotStatus("paused", actor);
@@ -68,6 +77,7 @@ export async function POST(request: NextRequest) {
       action,
       config,
       usage,
+      autoApprovalEnabled: await getAutoApprovalSetting(),
       message: `AI CEO Autopilot ${action} completed.`,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

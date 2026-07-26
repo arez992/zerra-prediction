@@ -555,6 +555,7 @@ export type AICEOAutopilotResponse = {
     status: string; kill_switch: boolean; max_cycles_per_day: number; max_ai_calls_per_day: number;
   };
   usage?: { cycles: number; aiCalls: number };
+  autoApprovalEnabled?: boolean;
   guard?: { allowed: boolean; allowAiCall: boolean; reason: string | null };
   result?: unknown;
   message?: string;
@@ -565,7 +566,7 @@ export async function fetchAICEOAutopilot(): Promise<AICEOAutopilotResponse> {
   return fetchCEOResource<AICEOAutopilotResponse>("/api/admin/ai-ceo/autopilot", "Unable to load AI CEO Autopilot.");
 }
 
-export async function controlAICEOAutopilot(action: "start" | "pause" | "stop" | "kill"): Promise<AICEOAutopilotResponse> {
+export async function controlAICEOAutopilot(action: "start" | "pause" | "stop" | "kill" | "auto-approval-on" | "auto-approval-off"): Promise<AICEOAutopilotResponse> {
   const response = await fetch("/api/admin/ai-ceo/autopilot", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
   const data = await parseJSON<AICEOAutopilotResponse>(response);
   if (!response.ok || !data.success) throw new Error(data.error || "AI CEO Autopilot action failed.");
