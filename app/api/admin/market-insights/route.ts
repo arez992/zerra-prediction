@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import {
+  getPaymentAmount,
+  getPaymentStatus,
+} from "@/lib/paymentRecords";
 
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
 type InsightAction = "Expand" | "Test" | "Monitor" | "Pause";
@@ -33,12 +37,23 @@ type CountryInsight = {
   score: number;
 };
 
-function normalizeCountry(value: unknown) {
-  if (typeof value !== "string" || !value.trim()) {
-    return "Unknown";
-  }
+const countryCodeMap: Record<string, string> = {
+  irq: "Iraq", deu: "Germany", usa: "United States", gbr: "United Kingdom",
+  fra: "France", esp: "Spain", ita: "Italy", tur: "Turkey", sau: "Saudi Arabia",
+  are: "United Arab Emirates", nga: "Nigeria", zaf: "South Africa", ind: "India",
+  bra: "Brazil", can: "Canada", aus: "Australia", nld: "Netherlands",
+  bel: "Belgium", prt: "Portugal", pol: "Poland", che: "Switzerland", aut: "Austria",
+};
 
-  return value.trim();
+function normalizeCountry(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return "Unknown";
+  const clean = value.trim();
+  const lower = clean.toLowerCase();
+  if (countryCodeMap[lower]) return countryCodeMap[lower];
+  if (lower === "united states of america") return "United States";
+  if (lower === "uk" || lower === "great britain") return "United Kingdom";
+  if (lower === "(not set)" || lower === "not set") return "Unknown";
+  return clean;
 }
 
 function getAction(score: number): InsightAction {
@@ -283,16 +298,14 @@ export async function GET() {
 
       const stats = ensureCountry(country);
 
-      if (payment.status === "completed") {
+      const paymentStatus = getPaymentStatus(payment);
+
+      if (paymentStatus === "completed") {
         stats.completedPayments += 1;
-        stats.revenue += Number(payment.price || 0);
-      } else if (payment.status === "pending") {
+        stats.revenue += getPaymentAmount(payment);
+      } else if (paymentStatus === "pending") {
         stats.pendingPayments += 1;
-      } else if (
-        payment.status === "failed" ||
-        payment.paymentStatus === "failed" ||
-        payment.paymentStatus === "expired"
-      ) {
+      } else if (paymentStatus === "failed") {
         stats.failedPayments += 1;
       }
     }
