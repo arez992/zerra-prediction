@@ -707,8 +707,23 @@ export async function POST() {
         continue;
       }
 
+      const { decisionHistory, ...decisionWithoutHistory } = decision;
+
+      const persistedDecisionHistory = {
+        historyScore: decisionHistory.historyScore,
+        recommendedAction:
+          decisionHistory.summary?.recommendedAction || "insufficient-history",
+        totalMatches:
+          decisionHistory.summary?.totalMatches || 0,
+        strongestMatch:
+          decisionHistory.summary?.strongestMatch || null,
+        skipped: !decisionHistory.evaluated,
+        skipReason: decisionHistory.reason,
+      };
+
       const recommendation = {
-        ...decision,
+        ...decisionWithoutHistory,
+        decisionHistory: persistedDecisionHistory,
         executionPayload: {
           ...(
             decision.executionPayload ||
