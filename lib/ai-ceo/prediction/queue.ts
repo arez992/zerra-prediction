@@ -829,3 +829,46 @@ export async function getPredictionQueueStats(
       failed,
   };
 }
+
+const SCAN_LEDGER_COLLECTION = "predictionScanLedger";
+
+export async function getPredictionScannedFixtureIds(date: string): Promise<Set<string>> {
+  const snapshot = await adminDb.collection(SCAN_LEDGER_COLLECTION).where("date", "==", date).where("status", "==", "scanned").get();
+  return new Set(snapshot.docs.map((doc) => normalizeText(doc.data().fixtureId)).filter(Boolean));
+}
+
+export async function claimPredictionScan(date: string, fixtureId: string): Promise<string | null> {
+  const ref = adminDb.collection(SCAN_LEDGER_COLLECTION).doc(`${date}-${fixtureId}`);
+  const claimToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return adminDb.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.exists ? snapshot.data() || {} : {};
+    const startedAtMs = typeof data.processingStartedAt?.toMillis === "function" ? data.processingStartedAt.toMillis() : 0;
+    const leaseActive = data.status === "processing" && startedAtMs > Date.now() - 30 * 60 * 1000;
+    if (data.status === "scanned" || leaseActive) return null;
+    transaction.set(ref, { fixtureId, date, status: "processing", claimToken, processingStartedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return claimToken;
+  });
+}
+
+export async function completePredictionScan(date: string, fixtureId: string, claimToken: string, metadata: { selected: boolean; reason: string }): Promise<boolean> {
+  const ref = adminDb.collection(SCAN_LEDGER_COLLECTION).doc(`${date}-${fixtureId}`);
+  return adminDb.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) return false;
+    const data = snapshot.data() || {};
+    if (data.status !== "processing" || data.claimToken !== claimToken) return false;
+    transaction.set(ref, { status: "scanned", selected: metadata.selected, reason: metadata.reason, claimToken: null, scannedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return true;
+  });
+}
+
+export async function releasePredictionScanClaim(date: string, fixtureId: string, claimToken: string): Promise<void> {
+  const ref = adminDb.collection(SCAN_LEDGER_COLLECTION).doc(`${date}-${fixtureId}`);
+  await adminDb.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) return;
+    const data = snapshot.data() || {};
+    if (data.status === "processing" && data.claimToken === claimToken) transaction.delete(ref);
+  });
+}

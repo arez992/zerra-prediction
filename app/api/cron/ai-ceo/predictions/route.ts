@@ -18,12 +18,20 @@ import {
 } from "@/lib/api-football/service";
 
 import {
+  ensurePredictionScanSession,
+} from "@/lib/ai-ceo/prediction/scanSession";
+
+import {
   claimPredictionQueueItem,
+  claimPredictionScan,
   completePredictionQueueItem,
+  completePredictionScan,
   enqueuePredictionCandidates,
   failPredictionQueueItem,
   getPendingPredictionQueue,
   getPredictionQueueStats,
+  getPredictionScannedFixtureIds,
+  releasePredictionScanClaim,
 } from "@/lib/ai-ceo/prediction/queue";
 
 export const runtime =
@@ -267,10 +275,40 @@ async function runScan(
   date:
     string
 ) {
+  const scanSession =
+    await ensurePredictionScanSession(date);
+
+  if (!scanSession.active) {
+    const queueStats =
+      await getPredictionQueueStats(date);
+
+    return {
+    mode:
+      "scan" as const,
+      scanSession,
+      sessionExpired: true,
+      fixturesFound: 0,
+      preMatchFixtures: 0,
+      structuralCandidates: 0,
+      scanCandidateLimit: SCAN_CANDIDATE_LIMIT,
+      cheapScanned: 0,
+      cheapScanSelected: 0,
+      cheapScanRejected: 0,
+      cheapScanFailed: 0,
+      fixturesQueued: 0,
+      queueResult: { requested: 0, queued: 0 },
+      queueStats,
+      cheapScanResults: [],
+    };
+  }
+
   const fixtures =
     await getFixturesByDate(
       date
     );
+
+  const alreadyScannedFixtureIds =
+    await getPredictionScannedFixtureIds(date);
 
   const preMatchFixtures =
     (
@@ -306,6 +344,7 @@ async function runScan(
 
           return Boolean(
             fixtureId &&
+            !alreadyScannedFixtureIds.has(fixtureId) &&
             homeTeam &&
             awayTeam &&
             isPreMatchFixture(
@@ -444,7 +483,10 @@ async function runScan(
   let cheapScanFailed =
     0;
 
-  for (
+  const selectedScanClaims =
+    new Map<string, string>();
+
+for (
     const fixture
     of boundedPreMatchFixtures
   ) {
@@ -471,7 +513,15 @@ async function runScan(
           ?.name
       );
 
+    let scanClaimToken: string | null = null;
+
     try {
+      scanClaimToken = await claimPredictionScan(date, fixtureId);
+
+      if (!scanClaimToken) {
+        continue;
+      }
+
       const scan =
         await evaluatePredictionCheapScan(
           fixture
@@ -519,6 +569,10 @@ async function runScan(
       if (
         !selected
       ) {
+        await completePredictionScan(date, fixtureId, scanClaimToken, {
+          selected: false,
+          reason: "Rejected by cheap scan before enriched processing.",
+        });
         continue;
       }
 
@@ -543,9 +597,15 @@ async function runScan(
         consistencyValid:
           scan.consistencyValid,
       });
+
+      selectedScanClaims.set(fixtureId, scanClaimToken);
     } catch (
       error
     ) {
+      if (scanClaimToken) {
+        await releasePredictionScanClaim(date, fixtureId, scanClaimToken);
+      }
+
       cheapScanFailed +=
         1;
 
@@ -575,10 +635,26 @@ async function runScan(
     }
   }
 
-  const queueResult =
-    await enqueuePredictionCandidates(
-      queueCandidates
-    );
+  let queueResult;
+
+  try {
+    queueResult = await enqueuePredictionCandidates(queueCandidates);
+
+    for (const candidate of queueCandidates) {
+      const claimToken = selectedScanClaims.get(candidate.fixtureId);
+      if (claimToken) {
+        await completePredictionScan(date, candidate.fixtureId, claimToken, {
+          selected: true,
+          reason: "Selected by cheap scan for enriched processing.",
+        });
+      }
+    }
+  } catch (error) {
+    for (const [fixtureId, claimToken] of selectedScanClaims) {
+      await releasePredictionScanClaim(date, fixtureId, claimToken).catch(() => undefined);
+    }
+    throw error;
+  }
 
   const queueStats =
     await getPredictionQueueStats(
@@ -588,6 +664,11 @@ async function runScan(
   return {
     mode:
       "scan" as const,
+
+    scanSession,
+
+    sessionExpired:
+      false,
 
     fixturesFound:
       fixtures.length,
