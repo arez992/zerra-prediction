@@ -20,6 +20,10 @@ import {
   applySEOAutonomousLifecycle,
 } from "@/lib/ai-ceo/seoLifecycle";
 
+import {
+  runPublishedSeoPostMatchLifecycle,
+} from "@/lib/post-match/lifecycle";
+
 import type {
   SEOPageDraftItem,
 } from "@/lib/ai-ceo/client";
@@ -939,6 +943,18 @@ export async function GET(
       }
     }
 
+    let postMatchLifecycle: Awaited<ReturnType<typeof runPublishedSeoPostMatchLifecycle>> | null = null;
+    let postMatchLifecycleError: string | null = null;
+
+    if (!requestedFixtureId) {
+      try {
+        postMatchLifecycle = await runPublishedSeoPostMatchLifecycle();
+      } catch (error) {
+        postMatchLifecycleError = error instanceof Error ? error.message : "Post-match lifecycle failed.";
+        console.error("[POST_MATCH_LIFECYCLE_ERROR]", postMatchLifecycleError);
+      }
+    }
+
     return NextResponse.json(
       {
         success:
@@ -953,6 +969,10 @@ export async function GET(
         generatedAt:
           new Date()
             .toISOString(),
+
+        postMatchLifecycle,
+
+        postMatchLifecycleError,
 
         safeguards: {
           cronAuthenticated:
