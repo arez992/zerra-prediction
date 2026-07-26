@@ -1,6 +1,7 @@
 import {
   NextRequest,
   NextResponse,
+  after,
 } from "next/server";
 import {
   FieldValue,
@@ -9,6 +10,7 @@ import {
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import { requireServerAdmin } from "@/lib/serverAdminAuth";
+import { syncPublishedPredictionToSEO } from "@/lib/ai-ceo/predictionSeoSync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -268,8 +270,23 @@ export async function POST(
     const updatedSnapshot =
       await predictionRef.get();
 
+    const fixtureIdForSEO = String(
+      transactionResult.prediction.fixtureId ||
+      updatedSnapshot?.data()?.fixtureId ||
+      predictionId.replace(/^fixture-/, "")
+    ).trim();
+
     if (!updatedSnapshot.exists) {
-      return NextResponse.json(
+      if (/^\d+$/.test(fixtureIdForSEO)) {
+      after(async () => {
+        await syncPublishedPredictionToSEO(
+          fixtureIdForSEO,
+          "human-prediction-publish"
+        );
+      });
+    }
+
+    return NextResponse.json(
         {
           success: false,
           error:

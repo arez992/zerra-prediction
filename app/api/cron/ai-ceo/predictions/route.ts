@@ -34,6 +34,8 @@ import {
   releasePredictionScanClaim,
 } from "@/lib/ai-ceo/prediction/queue";
 
+import { syncPublishedPredictionToSEO } from "@/lib/ai-ceo/predictionSeoSync";
+
 export const runtime =
   "nodejs";
 
@@ -1099,155 +1101,29 @@ async function runProcess(
 }
 
 function scheduleImmediateSEOForPublishedFixtures(
-  request:
-    NextRequest,
-  result:
-    Awaited<
-      ReturnType<
-        typeof runProcess
-      >
-    >
+  _request: NextRequest,
+  result: Awaited<ReturnType<typeof runProcess>>
 ): void {
-  const publishedFixtureIds =
-    result.results
-      .filter(
-        (
-          item
-        ) =>
-          item.status ===
-            "completed" &&
-          item.publicationDecision ===
-            "auto-publish" &&
-          item.finalStatus ===
-            "published"
+  const publishedFixtureIds = result.results
+    .filter((item) =>
+      item.status === "completed" &&
+      item.publicationDecision === "auto-publish" &&
+      item.finalStatus === "published"
+    )
+    .map((item) => item.fixtureId);
+
+  if (publishedFixtureIds.length === 0) return;
+
+  after(async () => {
+    await Promise.allSettled(
+      publishedFixtureIds.map((fixtureId) =>
+        syncPublishedPredictionToSEO(
+          fixtureId,
+          "ai-ceo-prediction-auto-publish"
+        )
       )
-      .map(
-        (
-          item
-        ) =>
-          item.fixtureId
-      );
-
-  if (
-    publishedFixtureIds.length ===
-    0
-  ) {
-    return;
-  }
-
-  const cronSecret =
-    process.env
-      .CRON_SECRET;
-
-  if (
-    !cronSecret
-  ) {
-    console.error(
-      "[AI_CEO_IMMEDIATE_SEO_TRIGGER_ERROR]",
-      "CRON_SECRET is missing."
     );
-
-    return;
-  }
-
-  /*
-   * Next.js after() lets the prediction route return
-   * its response first. SEO is then triggered in the
-   * post-response phase, so SEO generation no longer
-   * makes mode=process wait and time out.
-   *
-   * Each published fixture gets its own SEO request.
-   * That prevents one large SEO batch from holding a
-   * single serverless function open too long.
-   */
-  after(
-    async () => {
-      const tasks =
-        publishedFixtureIds.map(
-          async (
-            fixtureId
-          ) => {
-            const url =
-              new URL(
-                "/api/cron/ai-ceo/seo",
-                request.nextUrl.origin
-              );
-
-            url.searchParams.set(
-              "fixtureId",
-              fixtureId
-            );
-
-            url.searchParams.set(
-              "language",
-              "en"
-            );
-
-            url.searchParams.set(
-              "limit",
-              "1"
-            );
-
-            try {
-              const response =
-                await fetch(
-                  url,
-                  {
-                    method:
-                      "GET",
-
-                    headers: {
-                      Authorization:
-                        `Bearer ${cronSecret}`,
-                    },
-
-                    cache:
-                      "no-store",
-                  }
-                );
-
-              if (
-                !response.ok
-              ) {
-                console.error(
-                  "[AI_CEO_IMMEDIATE_SEO_TRIGGER_HTTP_ERROR]",
-                  {
-                    fixtureId,
-
-                    status:
-                      response.status,
-
-                    statusText:
-                      response.statusText,
-                  }
-                );
-              }
-            } catch (
-              error
-            ) {
-              console.error(
-                "[AI_CEO_IMMEDIATE_SEO_TRIGGER_ERROR]",
-                {
-                  fixtureId,
-
-                  error:
-                    error instanceof
-                      Error
-                      ? error.message
-                      : String(
-                          error
-                        ),
-                }
-              );
-            }
-          }
-        );
-
-      await Promise.allSettled(
-        tasks
-      );
-    }
-  );
+  });
 }
 
 export async function GET(
