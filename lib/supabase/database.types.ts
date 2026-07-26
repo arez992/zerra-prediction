@@ -80,7 +80,7 @@ export type Database = {
       };
       ai_ceo_autopilot_config: {
         Row: {
-          id: string; status: string; kill_switch: boolean; cycle_minutes: number; max_cycles_per_day: number; max_ai_calls_per_day: number; min_ai_gap_minutes: number; skip_unchanged: boolean; auto_execute_low_risk: boolean; last_snapshot_fingerprint: string | null; last_cycle_at: string | null; last_ai_call_at: string | null; started_at: string | null; started_by: string | null; updated_at: string;
+          id: string; status: string; kill_switch: boolean; cycle_minutes: number; max_cycles_per_day: number; max_ai_calls_per_day: number; min_ai_gap_minutes: number; skip_unchanged: boolean; auto_execute_low_risk: boolean; last_snapshot_fingerprint: string | null; last_cycle_at: string | null; last_ai_call_at: string | null; started_at: string | null; started_by: string | null; run_lock_owner: string | null; run_lock_expires_at: string | null; updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["ai_ceo_autopilot_config"]["Row"]> & { id?: string };
         Update: Partial<Database["public"]["Tables"]["ai_ceo_autopilot_config"]["Row"]>;
@@ -98,7 +98,16 @@ export type Database = {
       };
     };
     Views: {};
-    Functions: {};
+    Functions: {
+      claim_ai_ceo_autopilot_lease: {
+        Args: { p_owner: string; p_lease_seconds?: number };
+        Returns: boolean;
+      };
+      release_ai_ceo_autopilot_lease: {
+        Args: { p_owner: string };
+        Returns: boolean;
+      };
+    };
     Enums: {};
     CompositeTypes: {};
   };

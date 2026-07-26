@@ -32,6 +32,7 @@ type ActorIdentity = {
 type DecisionDocument = CEODecision & {
   status?: string;
   policy?: CEOPolicyResult;
+  approvalMode?: CEOApprovalMode;
 };
 
 const ACTION_LABELS: Record<CEOActionKey, string> = {
@@ -124,6 +125,17 @@ async function executeQueuedDecisionTask(input: {
   const runId =
     randomUUID();
 
+  const approvalMode: CEOApprovalMode =
+    input.decision.approvalMode === "auto_low_risk"
+      ? "auto_low_risk"
+      : "manual";
+
+  const ownerApproved = approvalMode === "manual";
+
+  const approvalLabel = ownerApproved
+    ? "owner-approved"
+    : "policy-auto-approved low-risk";
+
   const ceoDelegation: AIDelegation = {
     id:
       `${runId}-ceo-to-director`,
@@ -150,8 +162,8 @@ async function executeQueuedDecisionTask(input: {
         input.decisionId,
       sourceTaskId:
         input.taskId,
-      ownerApproved:
-        true,
+      ownerApproved,
+      approvalMode,
     },
     createdAt:
       new Date().toISOString(),
@@ -166,7 +178,7 @@ async function executeQueuedDecisionTask(input: {
     requestedBy:
       actorName(input.actor),
     instruction:
-      `Execute owner-approved AI CEO action ${input.actionKey} through ${route.directorId}.`,
+      `Execute ${approvalLabel} AI CEO action ${input.actionKey} through ${route.directorId}.`,
     metadata: {
       source:
         "ceo-decision-workflow",
@@ -178,8 +190,8 @@ async function executeQueuedDecisionTask(input: {
         input.actionKey,
       executionType:
         route.executionType,
-      ownerApproved:
-        true,
+      ownerApproved,
+      approvalMode,
     },
   };
 
@@ -196,8 +208,8 @@ async function executeQueuedDecisionTask(input: {
             input.decisionId,
           taskId:
             input.taskId,
-          ownerApproved:
-            true,
+          ownerApproved,
+          approvalMode,
         },
       }
     );

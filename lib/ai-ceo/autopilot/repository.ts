@@ -161,3 +161,31 @@ export async function updateAutopilotRuntimeState(input: {
 
   if (error) throw error;
 }
+
+export async function claimAutopilotLease(
+  owner: string,
+  leaseSeconds = 600
+) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.rpc(
+    "claim_ai_ceo_autopilot_lease",
+    {
+      p_owner: owner,
+      p_lease_seconds: leaseSeconds,
+    }
+  );
+
+  if (error) throw error;
+  return data === true;
+}
+
+export async function releaseAutopilotLease(owner: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.rpc(
+    "release_ai_ceo_autopilot_lease",
+    { p_owner: owner }
+  );
+
+  if (error) throw error;
+  return data === true;
+}
