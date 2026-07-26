@@ -3,14 +3,14 @@ import "server-only";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { getPostMatchReport } from "@/lib/post-match/repository";
 
-const REPORT_CACHE_SECONDS = 24 * 60 * 60;
+const REPORT_CACHE_SECONDS = 15 * 60;
 
 export async function getCachedPostMatchReport(fixtureId: string, locale = "en") {
   const key = `post-match-report:${fixtureId}:${locale}`;
 
   return unstable_cache(
     () => getPostMatchReport(fixtureId, locale),
-    ["post-match-report", fixtureId, locale],
+    ["post-match-report-v2", fixtureId, locale],
     {
       revalidate: REPORT_CACHE_SECONDS,
       tags: [key],
