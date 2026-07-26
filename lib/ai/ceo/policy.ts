@@ -80,9 +80,9 @@ export async function evaluateCEODecisionPolicy(
     );
   }
 
-  if (decision.confidence < 90) {
+  if (decision.confidence < 75) {
     reasons.push(
-      "Decision confidence is below the 90% auto-approval threshold."
+      "Decision confidence is below the 75% auto-approval threshold."
     );
   }
 
@@ -133,7 +133,7 @@ export async function evaluateCEODecisionPolicy(
   const eligibleForAutoApproval =
     globalAutoApprovalEnabled &&
     autoApprovalRequested &&
-    decision.confidence >= 90 &&
+    decision.confidence >= 75 &&
     decision.overallHealth !== "Critical" &&
     severeRisks.length === 0 &&
     enabledActions.length > 0 &&
