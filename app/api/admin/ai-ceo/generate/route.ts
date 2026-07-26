@@ -118,6 +118,36 @@ function buildHistoryTags(
   );
 }
 
+function sanitizeFirestorePayload(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+  if (value === null || value === undefined) return value ?? null;
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (depth >= 8) return "[truncated]";
+  if (Array.isArray(value)) return value.slice(0, 50).map((item) => sanitizeFirestorePayload(item, depth + 1, seen));
+  if (typeof value !== "object") return String(value);
+  const objectValue = value as object;
+  if (seen.has(objectValue)) return "[cycle]";
+  seen.add(objectValue);
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 100)) {
+    result[key] = sanitizeFirestorePayload(item, depth + 1, seen);
+  }
+  seen.delete(objectValue);
+  return result;
+}
+
+function compactStrongestMatch(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  return {
+    similarityScore: typeof source.similarityScore === "number" ? source.similarityScore : null,
+    title: typeof source.title === "string" ? source.title : null,
+    outcome: typeof source.outcome === "string" ? source.outcome : null,
+    roi: typeof source.roi === "number" ? source.roi : null,
+    impactScore: typeof source.impactScore === "number" ? source.impactScore : null,
+  };
+}
+
 function emptyHistoryContext(
   reason: string
 ): DecisionHistoryContext {
@@ -707,7 +737,7 @@ export async function POST() {
         continue;
       }
 
-      const { decisionHistory, ...decisionWithoutHistory } = decision;
+      const { decisionHistory, executionPayload: rawExecutionPayload, ...decisionWithoutHistory } = decision;
 
       const persistedDecisionHistory = {
         historyScore: decisionHistory.historyScore,
@@ -716,7 +746,7 @@ export async function POST() {
         totalMatches:
           decisionHistory.summary?.totalMatches || 0,
         strongestMatch:
-          decisionHistory.summary?.strongestMatch || null,
+          compactStrongestMatch(decisionHistory.summary?.strongestMatch),
         skipped: !decisionHistory.evaluated,
         skipReason: decisionHistory.reason,
       };
@@ -724,41 +754,23 @@ export async function POST() {
       const recommendation = {
         ...decisionWithoutHistory,
         decisionHistory: persistedDecisionHistory,
-        executionPayload: {
-          ...(
-            decision.executionPayload ||
-            {}
-          ),
+        executionPayload: sanitizeFirestorePayload({
+          ...(rawExecutionPayload || {}),
           similarDecisionContext: {
-            evaluated:
-              decision.decisionHistory
-                .evaluated,
-            historyScore:
-              decision.decisionHistory
-                .historyScore,
+            evaluated: decisionHistory.evaluated,
+            historyScore: decisionHistory.historyScore,
             recommendedAction:
-              decision.decisionHistory
-                .summary
-                ?.recommendedAction ||
+              decisionHistory.summary?.recommendedAction ||
               "insufficient-history",
             totalMatches:
-              decision.decisionHistory
-                .summary
-                ?.totalMatches ||
-              0,
-            strongestMatch:
-              decision.decisionHistory
-                .summary
-                ?.strongestMatch ||
-              null,
-            generatedAt:
-              decision.decisionHistory
-                .generatedAt,
-            reason:
-              decision.decisionHistory
-                .reason,
+              decisionHistory.summary?.totalMatches || 0,
+            strongestMatch: compactStrongestMatch(
+              decisionHistory.summary?.strongestMatch
+            ),
+            generatedAt: decisionHistory.generatedAt,
+            reason: decisionHistory.reason,
           },
-        },
+        }) as Record<string, unknown>,
         status: "pending" as const,
 
         createdBy:
