@@ -332,6 +332,17 @@ export default async function AdminPage({
 
       {
         title:
+          "Market Scanner",
+
+        description:
+          "Scan country opportunities using Google Analytics, Search Console, users, payments, revenue, and sponsor signals.",
+
+        href:
+          `${base}/market-scanner`,
+      },
+
+      {
+        title:
           "Market Intelligence",
 
         description:

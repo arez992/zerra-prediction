@@ -175,6 +175,17 @@ export default async function AdminLayout({
 
           {
             label:
+              "Market Scanner",
+
+            href:
+              `${base}/market-scanner`,
+
+            description:
+              "Google + business market scan",
+          },
+
+          {
+            label:
               "Market Intelligence",
 
             href:
