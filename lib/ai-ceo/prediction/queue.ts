@@ -554,10 +554,10 @@ export async function claimPredictionQueueItem(
         snapshot.data() ||
         {};
 
-      if (
-        data.status !==
-        "pending"
-      ) {
+      const processingStartedAtMs = typeof data.processingStartedAt?.toMillis === "function" ? data.processingStartedAt.toMillis() : 0;
+      const staleProcessing = data.status === "processing" && processingStartedAtMs > 0 && processingStartedAtMs <= Date.now() - 30 * 60 * 1000;
+
+      if (data.status !== "pending" && !staleProcessing) {
         return false;
       }
 

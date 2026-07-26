@@ -1527,10 +1527,14 @@ export async function generatePredictionsForDate(
       await predictionRef
         .get();
 
+    const existingStatus = existing.exists ? String(existing.data()?.status || "").trim().toLowerCase() : "";
+
+    const recoverableExisting = aiCEOAutonomous && existing.exists && ["draft", "review", "failed"].includes(existingStatus);
+
     if (
       existing.exists &&
-      options.overwrite !==
-        true
+      options.overwrite !== true &&
+      !recoverableExisting
     ) {
       existingPredictions +=
         1;
@@ -2410,8 +2414,8 @@ export async function generatePredictionsForDate(
         documentData,
         {
           merge:
-            options.overwrite ===
-            true,
+            options.overwrite === true ||
+            recoverableExisting,
         }
       );
 

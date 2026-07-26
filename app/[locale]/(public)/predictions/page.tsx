@@ -151,7 +151,15 @@ export async function generateMetadata({
 }
 
 function getTodayUTC(): string {
-  return new Date().toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Baghdad",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 async function getPublishedPredictions(): Promise<{
@@ -244,359 +252,6 @@ async function getPublishedPredictions(): Promise<{
   }
 }
 
-async function resolveLiveFixtureResults(
-  predictions: PublicPredictionItem[]
-): Promise<PublicPredictionItem[]> {
-  const finishedStatuses =
-    new Set([
-      "FT",
-      "AET",
-      "PEN",
-    ]);
-
-  const pendingByDate =
-    new Map<
-      string,
-      PublicPredictionItem[]
-    >();
-
-  for (
-    const prediction
-    of predictions
-  ) {
-    if (
-      prediction.result.checked ||
-      !prediction.fixtureId ||
-      !prediction.fixtureDate
-    ) {
-      continue;
-    }
-
-    const fixtureDate =
-      prediction.fixtureDate.slice(
-        0,
-        10
-      );
-
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(
-        fixtureDate
-      )
-    ) {
-      continue;
-    }
-
-    const group =
-      pendingByDate.get(
-        fixtureDate
-      ) || [];
-
-    group.push(
-      prediction
-    );
-
-    pendingByDate.set(
-      fixtureDate,
-      group
-    );
-  }
-
-  const liveFixtures =
-    new Map<
-      string,
-      {
-        status: string;
-        statusLong: string;
-        fixtureDate: string | null;
-        homeGoals: number | null;
-        awayGoals: number | null;
-      }
-    >();
-
-  for (
-    const [
-      date,
-      datePredictions,
-    ]
-    of pendingByDate
-  ) {
-    const wantedIds =
-      new Set(
-        datePredictions.map(
-          (
-            prediction
-          ) =>
-            prediction.fixtureId
-        )
-      );
-
-    try {
-      const fixtures =
-        await getFixturesByDate(
-          date
-        );
-
-      for (
-        const fixture
-        of fixtures
-      ) {
-        const fixtureId =
-          String(
-            fixture.fixture?.id ??
-              ""
-          ).trim();
-
-        if (
-          !fixtureId ||
-          !wantedIds.has(
-            fixtureId
-          )
-        ) {
-          continue;
-        }
-
-        liveFixtures.set(
-          fixtureId,
-          {
-            status:
-              String(
-                fixture.fixture
-                  ?.status
-                  ?.short ??
-                  ""
-              )
-                .trim()
-                .toUpperCase(),
-
-            statusLong:
-              String(
-                fixture.fixture
-                  ?.status
-                  ?.long ??
-                  ""
-              ).trim(),
-
-            fixtureDate:
-              typeof fixture.fixture
-                ?.date === "string"
-                ? fixture.fixture.date
-                : null,
-
-            homeGoals:
-              typeof fixture.goals
-                ?.home === "number"
-                ? fixture.goals.home
-                : null,
-
-            awayGoals:
-              typeof fixture.goals
-                ?.away === "number"
-                ? fixture.goals.away
-                : null,
-          }
-        );
-      }
-    } catch (
-      error
-    ) {
-      console.error(
-        "[PREDICTION_DATE_LOOKUP_ERROR]",
-        {
-          date,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Unable to load fixtures by date.",
-        }
-      );
-    }
-  }
-
-  const missingPredictions =
-    predictions.filter(
-      (
-        prediction
-      ) =>
-        !prediction.result.checked &&
-        prediction.fixtureId &&
-        !liveFixtures.has(
-          prediction.fixtureId
-        )
-    );
-
-  await Promise.all(
-    missingPredictions.map(
-      async (
-        prediction
-      ) => {
-        try {
-          const fixture =
-            await getFixtureById(
-              prediction.fixtureId
-            );
-
-          if (
-            !fixture
-          ) {
-            return;
-          }
-
-          const fixtureId =
-            String(
-              fixture.fixture?.id ??
-                ""
-            ).trim();
-
-          if (
-            !fixtureId
-          ) {
-            return;
-          }
-
-          liveFixtures.set(
-            fixtureId,
-            {
-              status:
-                String(
-                  fixture.fixture
-                    ?.status
-                    ?.short ??
-                    ""
-                )
-                  .trim()
-                  .toUpperCase(),
-
-              statusLong:
-                String(
-                  fixture.fixture
-                    ?.status
-                    ?.long ??
-                    ""
-                ).trim(),
-
-              fixtureDate:
-                typeof fixture.fixture
-                  ?.date === "string"
-                  ? fixture.fixture.date
-                  : null,
-
-              homeGoals:
-                typeof fixture.goals
-                  ?.home === "number"
-                  ? fixture.goals.home
-                  : null,
-
-              awayGoals:
-                typeof fixture.goals
-                  ?.away === "number"
-                  ? fixture.goals.away
-                  : null,
-            }
-          );
-        } catch (
-          error
-        ) {
-          console.error(
-            "[PREDICTION_FIXTURE_ID_FALLBACK_ERROR]",
-            {
-              fixtureId:
-                prediction.fixtureId,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Unable to load fixture by ID.",
-            }
-          );
-        }
-      }
-    )
-  );
-
-  return predictions.map(
-    (
-      prediction
-    ) => {
-      if (
-        prediction.result.checked
-      ) {
-        return prediction;
-      }
-
-      const live =
-        liveFixtures.get(
-          prediction.fixtureId
-        );
-
-      if (
-        !live
-      ) {
-        return prediction;
-      }
-
-      const isFinished =
-        finishedStatuses.has(
-          live.status
-        ) &&
-        typeof live.homeGoals ===
-          "number" &&
-        typeof live.awayGoals ===
-          "number";
-
-      return {
-        ...prediction,
-
-        fixtureDate:
-          live.fixtureDate ||
-          prediction.fixtureDate,
-
-        fixtureStatus: {
-          short:
-            live.status ||
-            prediction
-              .fixtureStatus
-              .short,
-
-          long:
-            live.statusLong ||
-            prediction
-              .fixtureStatus
-              .long,
-        },
-
-        result:
-          isFinished
-            ? {
-                ...prediction.result,
-
-                checked:
-                  true,
-
-                status:
-                  "finished",
-
-                correct:
-                  null,
-
-                label:
-                  "Final match result",
-
-                finalStatus:
-                  live.status,
-
-                homeGoals:
-                  live.homeGoals,
-
-                awayGoals:
-                  live.awayGoals,
-
-                finalScore:
-                  `${live.homeGoals}-${live.awayGoals}`,
-              }
-            : prediction.result,
-      };
-    }
-  );
-}
 function formatFixtureDate(
   value:
     string | null
@@ -658,10 +313,7 @@ export default async function PredictionsPage({
   } =
     await getPublishedPredictions();
 
-  const resolvedPredictions =
-    await resolveLiveFixtureResults(
-      predictions
-    );
+  const resolvedPredictions = predictions;
 
   const featured =
     resolvedPredictions[0] ||
@@ -748,14 +400,14 @@ export default async function PredictionsPage({
           </h1>
 
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base md:leading-8">
-            Human-reviewed public football analysis from the ZERRA AI
+            Quality-gated public football analysis from the ZERRA AI
             workflow. The strongest qualified market pick, confidence level,
             and premium AI reasoning remain protected for VIP members.
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <HeaderBadge
-              label="Human Reviewed"
+              label="AI Quality Gated"
             />
 
             <HeaderBadge
