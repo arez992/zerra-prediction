@@ -150,6 +150,10 @@ export async function generateMetadata({
   };
 }
 
+function getTodayUTC(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 async function getPublishedPredictions(): Promise<{
   predictions:
     PublicPredictionItem[];
@@ -165,7 +169,7 @@ async function getPublishedPredictions(): Promise<{
 
     const response =
       await fetch(
-        `${siteUrl}/api/predictions?limit=50`,
+        `${siteUrl}/api/predictions?date=${getTodayUTC()}&limit=50`,
         {
           next: {
             revalidate:
@@ -740,7 +744,7 @@ export default async function PredictionsPage({
           </div>
 
           <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
-            Published Football Analysis
+            Today's Football Predictions
           </h1>
 
           <p className="mx-auto mt-6 max-w-3xl text-sm leading-7 text-[#66756c] md:text-base md:leading-8">
@@ -825,7 +829,7 @@ export default async function PredictionsPage({
             </div>
 
             <p className="mt-5 text-[10px] font-black uppercase tracking-[0.18em] text-[#139653]">
-              No Published Predictions
+              No Predictions Today
             </p>
 
             <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black">

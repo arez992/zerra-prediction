@@ -1101,10 +1101,16 @@ export async function GET(
       await getCachedPublicPredictionPool();
 
     const predictions =
-      predictionPool.slice(
-        0,
-        limit
-      );
+      predictionPool
+        .filter(
+          (item) =>
+            !date ||
+            getFixtureDateKey(item.fixtureDate) === date
+        )
+        .slice(
+          0,
+          limit
+        );
 
     return NextResponse.json(
       {
