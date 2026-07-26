@@ -11,6 +11,7 @@ import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
 import CEOShadowHistoryCard from "@/components/admin/ceo/CEOShadowHistoryCard";
 import CEOAutopilotPanel from "@/components/admin/ceo/CEOAutopilotPanel";
+import CEOOwnerApprovalQueue from "@/components/admin/ceo/CEOOwnerApprovalQueue";
 
 import { useCEO } from "@/hooks/useCEO";
 
@@ -112,6 +113,10 @@ export default function AICEODashboardPage() {
           <CEOStats
             stats={stats}
           />
+        </section>
+
+        <section className="mt-10">
+          <CEOOwnerApprovalQueue />
         </section>
 
         <section className="mt-10">
