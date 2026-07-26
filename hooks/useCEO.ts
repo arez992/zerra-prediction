@@ -13,6 +13,9 @@ import {
   generateCEORecommendations,
   generateSEORecommendations,
   rejectCEORecommendation,
+  fetchAICEOAutopilot,
+  controlAICEOAutopilot,
+  runAICEOAutopilotNow,
   type CEOMemoryItem,
   type CEORecommendation,
   type CEORecommendationStats,
@@ -76,6 +79,16 @@ export function useCEO() {
   const [message, setMessage] = useState("");
   const [checkedAt, setCheckedAt] =
     useState<string | null>(null);
+
+  const [autopilot, setAutopilot] = useState<any>(null);
+  const [autopilotBusy, setAutopilotBusy] = useState(false);
+
+  const loadAutopilot = useCallback(async () => {
+    try {
+      const response = await fetchAICEOAutopilot();
+      setAutopilot(response);
+    } catch {}
+  }, []);
 
   const loadCEOData = useCallback(async () => {
     try {
@@ -341,8 +354,37 @@ export function useCEO() {
     [loadCEOData]
   );
 
+  const controlAutopilot = useCallback(async (action: "start" | "pause" | "stop" | "kill") => {
+    try {
+      setAutopilotBusy(true);
+      setError("");
+      const response = await controlAICEOAutopilot(action);
+      setMessage(response.message || `Autopilot ${action} completed.`);
+      await loadAutopilot();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Autopilot action failed.");
+    } finally {
+      setAutopilotBusy(false);
+    }
+  }, [loadAutopilot]);
+
+  const runAutopilotNow = useCallback(async () => {
+    try {
+      setAutopilotBusy(true);
+      setError("");
+      await runAICEOAutopilotNow();
+      setMessage("Autopilot cycle completed.");
+      await loadAutopilot();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Autopilot cycle failed.");
+    } finally {
+      setAutopilotBusy(false);
+    }
+  }, [loadAutopilot]);
+
   useEffect(() => {
     void loadCEOData();
+    void loadAutopilot();
   }, [loadCEOData]);
 
   return {
@@ -377,5 +419,11 @@ export function useCEO() {
     approve,
     reject,
     execute,
+
+    autopilot,
+    autopilotBusy,
+    loadAutopilot,
+    controlAutopilot,
+    runAutopilotNow,
   };
 }

@@ -10,6 +10,7 @@ import CEORecommendationList from "@/components/admin/ceo/CEORecommendationList"
 import CEOMemoryCard from "@/components/admin/ceo/CEOMemoryCard";
 import CEOTaskCard from "@/components/admin/ceo/CEOTaskCard";
 import CEOShadowHistoryCard from "@/components/admin/ceo/CEOShadowHistoryCard";
+import CEOAutopilotPanel from "@/components/admin/ceo/CEOAutopilotPanel";
 
 import { useCEO } from "@/hooks/useCEO";
 
@@ -37,6 +38,10 @@ export default function AICEODashboardPage() {
     approve,
     reject,
     execute,
+    autopilot,
+    autopilotBusy,
+    controlAutopilot,
+    runAutopilotNow,
   } = useCEO();
 
   return (
@@ -82,6 +87,13 @@ export default function AICEODashboardPage() {
             {message}
           </div>
         )}
+
+        <CEOAutopilotPanel
+          autopilot={autopilot}
+          busy={autopilotBusy}
+          onControl={(action) => void controlAutopilot(action)}
+          onRunNow={() => void runAutopilotNow()}
+        />
 
         <section className="mt-8">
           <CEOHeader

@@ -548,3 +548,33 @@ export function executeCEORecommendation(
     { id }
   );
 }
+
+export type AICEOAutopilotResponse = {
+  success: boolean;
+  config?: {
+    status: string; kill_switch: boolean; max_cycles_per_day: number; max_ai_calls_per_day: number;
+  };
+  usage?: { cycles: number; aiCalls: number };
+  guard?: { allowed: boolean; allowAiCall: boolean; reason: string | null };
+  result?: unknown;
+  message?: string;
+  error?: string;
+};
+
+export async function fetchAICEOAutopilot(): Promise<AICEOAutopilotResponse> {
+  return fetchCEOResource<AICEOAutopilotResponse>("/api/admin/ai-ceo/autopilot", "Unable to load AI CEO Autopilot.");
+}
+
+export async function controlAICEOAutopilot(action: "start" | "pause" | "stop" | "kill"): Promise<AICEOAutopilotResponse> {
+  const response = await fetch("/api/admin/ai-ceo/autopilot", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+  const data = await parseJSON<AICEOAutopilotResponse>(response);
+  if (!response.ok || !data.success) throw new Error(data.error || "AI CEO Autopilot action failed.");
+  return data;
+}
+
+export async function runAICEOAutopilotNow(): Promise<AICEOAutopilotResponse> {
+  const response = await fetch("/api/admin/ai-ceo/autopilot/run", { method: "POST", credentials: "include" });
+  const data = await parseJSON<AICEOAutopilotResponse>(response);
+  if (!response.ok || !data.success) throw new Error(data.error || "Unable to run AI CEO Autopilot.");
+  return data;
+}
