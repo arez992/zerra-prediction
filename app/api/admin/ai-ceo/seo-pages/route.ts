@@ -8,6 +8,7 @@ import {
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import { requireServerAdmin } from "@/lib/serverAdminAuth";
+import { getZerraDayWindow, ZERRA_TIME_ZONE } from "@/lib/zerra-time";
 import {
   createSEOPageDraft,
   listSEOPageDrafts,
@@ -25,7 +26,7 @@ type DailyQuota = {
   used: number;
   remaining: number;
   window: {
-    timezone: "UTC";
+    timezone: string;
     date: string;
     startsAt: string;
     endsAt: string;
@@ -51,23 +52,12 @@ function getDailyDraftLimit(): number {
   );
 }
 
-function getUTCDailyWindow(referenceDate = new Date()) {
-  const year = referenceDate.getUTCFullYear();
-  const month = referenceDate.getUTCMonth();
-  const day = referenceDate.getUTCDate();
-
-  const startsAt = new Date(
-    Date.UTC(year, month, day, 0, 0, 0, 0)
-  );
-
-  const endsAt = new Date(
-    Date.UTC(year, month, day + 1, 0, 0, 0, 0)
-  );
-
+function getUTCDailyWindow() {
+  const window = getZerraDayWindow();
   return {
-    date: startsAt.toISOString().slice(0, 10),
-    startsAt,
-    endsAt,
+    date: window.dateKey,
+    startsAt: window.start,
+    endsAt: window.end,
   };
 }
 
@@ -98,7 +88,7 @@ async function getDailyQuota(): Promise<DailyQuota> {
     used,
     remaining,
     window: {
-      timezone: "UTC",
+      timezone: ZERRA_TIME_ZONE,
       date: window.date,
       startsAt: window.startsAt.toISOString(),
       endsAt: window.endsAt.toISOString(),

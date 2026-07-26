@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import PredictionVipAction from "@/components/predictions/PredictionVipAction";
+import { getZerraToday, formatZerraDateTime } from "@/lib/zerra-time";
 
 export const dynamic =
   "force-dynamic";
@@ -356,9 +357,7 @@ async function getFixtures(): Promise<
 }
 
 function getTodayUTC(): string {
-  return new Date()
-    .toISOString()
-    .slice(0, 10);
+  return getZerraToday();
 }
 
 async function getFreePredictions(): Promise<
@@ -500,34 +499,9 @@ async function getYesterdayPrimaryResults(): Promise<
   }
 }
 
-function formatFixtureDate(
-  value?: string | null
-): string {
-  if (!value) {
-    return "Kickoff TBD";
-  }
-
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return "Kickoff TBD";
-  }
-
-  return new Intl.DateTimeFormat(
-    "en",
-    {
-      dateStyle:
-        "medium",
-
-      timeStyle:
-        "short",
-    }
-  ).format(date);
+function formatFixtureDate(value?: string | null): string {
+  if (!value) return "Kickoff TBD";
+  return formatZerraDateTime(value) || "Kickoff TBD";
 }
 
 export default async function HomePage({

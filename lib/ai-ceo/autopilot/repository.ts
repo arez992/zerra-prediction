@@ -2,6 +2,7 @@ import "server-only";
 
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { getZerraDayWindow } from "@/lib/zerra-time";
 
 export type AutopilotStatus = "running" | "paused" | "stopped";
 
@@ -115,17 +116,13 @@ export async function completeAutopilotRun(
 
 export async function getTodayAutopilotUsage() {
   const supabase = getSupabaseAdmin();
-  const now = new Date();
-  const start = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate()
-  )).toISOString();
+  const { start } = getZerraDayWindow();
+  const startIso = start.toISOString();
 
   const { data, error } = await supabase
     .from("ai_ceo_autopilot_runs")
     .select("ai_call_used,status,started_at")
-    .gte("started_at", start);
+    .gte("started_at", startIso);
 
   if (error) throw error;
 

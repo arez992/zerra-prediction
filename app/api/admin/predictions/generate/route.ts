@@ -1,3 +1,4 @@
+import { getZerraToday } from "@/lib/zerra-time";
 import {
   NextRequest,
   NextResponse,
@@ -58,12 +59,7 @@ type GeneratePredictionsBody = {
 };
 
 function getTodayUTC(): string {
-  return new Date()
-    .toISOString()
-    .slice(
-      0,
-      10
-    );
+  return getZerraToday();
 }
 
 function normalizeDate(

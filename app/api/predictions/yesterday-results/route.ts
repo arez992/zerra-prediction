@@ -15,6 +15,8 @@ import {
   adminDb,
 } from "@/lib/firebaseAdmin";
 
+import { getZerraDayWindow, getZerraYesterday } from "@/lib/zerra-time";
+
 export const runtime =
   "nodejs";
 
@@ -170,34 +172,7 @@ function getObject(
 }
 
 function getYesterdayRange() {
-  const now =
-    new Date();
-
-  const todayStart =
-    new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate()
-      )
-    );
-
-  const yesterdayStart =
-    new Date(
-      todayStart
-    );
-
-  yesterdayStart.setUTCDate(
-    yesterdayStart.getUTCDate() -
-      1
-  );
-
-  return {
-    start:
-      yesterdayStart,
-    end:
-      todayStart,
-  };
+  return getZerraDayWindow(getZerraYesterday());
 }
 
 function getCanonicalPrediction(

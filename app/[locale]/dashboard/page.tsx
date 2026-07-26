@@ -14,6 +14,8 @@ import {
   useVip,
 } from "@/components/providers/VipProvider";
 
+import { getZerraToday, getZerraTomorrow, ZERRA_TIME_ZONE } from "@/lib/zerra-time";
+
 type FilterType =
   | "all"
   | "live"
@@ -43,48 +45,12 @@ const FINISHED_STATUSES = [
   "PEN",
 ];
 
-function formatDateValue(
-  date: Date
-): string {
-  const year =
-    date.getFullYear();
-
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(
-      2,
-      "0"
-    );
-
-  const day =
-    String(
-      date.getDate()
-    ).padStart(
-      2,
-      "0"
-    );
-
-  return `${year}-${month}-${day}`;
-}
-
 function getToday() {
-  return formatDateValue(
-    new Date()
-  );
+  return getZerraToday();
 }
 
 function getTomorrow() {
-  const date =
-    new Date();
-
-  date.setDate(
-    date.getDate() + 1
-  );
-
-  return formatDateValue(
-    date
-  );
+  return getZerraTomorrow();
 }
 
 function formatMatchTime(
@@ -105,15 +71,13 @@ function formatMatchTime(
     return "TBD";
   }
 
-  return new Intl.DateTimeFormat(
-    "en",
-    {
+  return new Intl.DateTimeFormat("en", {
+      timeZone: ZERRA_TIME_ZONE,
       hour:
         "2-digit",
       minute:
         "2-digit",
-    }
-  ).format(date);
+        }).format(date);
 }
 
 function normalizeLeagueKey(

@@ -6,6 +6,7 @@ import {
 } from "@/lib/paymentRecords";
 
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
+import { isSameZerraDay, isSameZerraMonth } from "@/lib/zerra-time";
 function toDate(value: any) {
   if (!value) return null;
   if (typeof value?.toDate === "function") return value.toDate();
@@ -14,26 +15,11 @@ function toDate(value: any) {
 }
 
 function isToday(date: Date | null) {
-  if (!date) return false;
-
-  const now = new Date();
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
+  return date ? isSameZerraDay(date) : false;
 }
 
 function isThisMonth(date: Date | null) {
-  if (!date) return false;
-
-  const now = new Date();
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth()
-  );
+  return date ? isSameZerraMonth(date) : false;
 }
 
 export async function GET() {

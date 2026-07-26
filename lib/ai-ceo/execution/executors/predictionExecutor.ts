@@ -1,3 +1,4 @@
+import { getZerraToday } from "@/lib/zerra-time";
 import "server-only";
 
 import {
@@ -11,9 +12,7 @@ import type {
 } from "../types";
 
 function getTodayUTC(): string {
-  return new Date()
-    .toISOString()
-    .slice(0, 10);
+  return getZerraToday();
 }
 
 function normalizeDate(

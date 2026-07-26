@@ -24,6 +24,7 @@ import {
 } from "@/lib/google/analytics";
 
 import { getServerAdminUser } from "@/lib/serverAdminAuth";
+import { getZerraDayWindow, ZERRA_TIME_ZONE } from "@/lib/zerra-time";
 export const runtime =
   "nodejs";
 
@@ -286,40 +287,7 @@ function toDate(
 }
 
 function getTodayUTCWindow() {
-  const now =
-    new Date();
-
-  const start =
-    new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        0,
-        0,
-        0,
-        0
-      )
-    );
-
-  const end =
-    new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() +
-          1,
-        0,
-        0,
-        0,
-        0
-      )
-    );
-
-  return {
-    start,
-    end,
-  };
+  return getZerraDayWindow();
 }
 
 function isInsideWindow(

@@ -1,3 +1,4 @@
+import { getZerraToday } from "@/lib/zerra-time";
 import {
   NextRequest,
   NextResponse,
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function getTodayUTC(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getZerraToday();
 }
 
 function getErrorStatus(message: string): number {
