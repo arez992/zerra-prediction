@@ -130,8 +130,8 @@ export async function runCompetitorScanner(source = "cron") {
             if (!coverage.prediction) gaps.push({ type: "prediction_missing", priority: 85, reason: `${observation.competitor} covers this fixture but ZERRA has no prediction.` });
             if (!coverage.seo) gaps.push({ type: "seo_missing", priority: coverage.prediction ? 80 : 70, reason: `${observation.competitor} covers this fixture but ZERRA has no SEO page.` });
             for (const gap of gaps) {
-              const existing = await supabase.from("competitor_gaps").select("id").eq("observation_id", observationId).eq("gap_type", gap.type).eq("status","open").limit(1).maybeSingle();
-              if (existing.error || existing.data) continue;
+              const existing = await supabase.from("competitor_gaps").select("id").eq("competitor", observation.competitor).eq("fixture_id", fixtureId).eq("gap_type", gap.type).eq("status","open").limit(1).maybeSingle();
+              if (existing.error) { errors.push(`${observation.competitor}: ${existing.error.message}`); continue; } if (existing.data) { await supabase.from("competitor_gaps").update({ observation_id: observationId, topic: observation.title, country: resolvedCountry, language: observation.language, zerra_prediction_exists: coverage.prediction, zerra_seo_exists: coverage.seo, priority: gap.priority, reason: gap.reason, metadata: { sourceUrl: observation.url } }).eq("id", existing.data.id); continue; }
               const inserted = await supabase.from("competitor_gaps").insert({ observation_id: observationId, competitor: observation.competitor, gap_type: gap.type, fixture_id: fixtureId, topic: observation.title, country: resolvedCountry, language: observation.language, zerra_prediction_exists: coverage.prediction, zerra_seo_exists: coverage.seo, priority: gap.priority, status: "open", reason: gap.reason, metadata: { sourceUrl: observation.url } });
               if (!inserted.error) gapsFound += 1;
             }
@@ -140,7 +140,7 @@ export async function runCompetitorScanner(source = "cron") {
         }
       } catch (error) { errors.push(`${sourceConfig.competitor}: ${error instanceof Error ? error.message : "scan failed"}`); }
     }
-    await supabase.from("competitor_scan_runs").update({ status: errors.length ? "partial" : "completed", competitors_scanned: competitorsScanned, observations_found: observationsFound, gaps_found: gapsFound, error: errors.length ? errors.slice(0,10).join(" | ") : null, metadata: { sources: SOURCES.map((item) => item.competitor) }, completed_at: new Date().toISOString() }).eq("id", runId);
+    await supabase.from("competitor_scan_runs").update({ status: errors.length ? "partial" : "completed", competitors_scanned: competitorsScanned, observations_found: observationsFound, gaps_found: gapsFound, error: errors.length ? errors.slice(0,10).join(" | ") : null, metadata: { scannerVersion: "4D-3", maxObservationsPerSource: MAX_OBSERVATIONS_PER_SOURCE, concurrency: OBSERVATION_CONCURRENCY, sources: SOURCES.map((item) => item.competitor) }, completed_at: new Date().toISOString() }).eq("id", runId);
     return { success: true, runId, competitorsScanned, observationsFound, gapsFound, errors };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Competitor scanner failed.";
