@@ -96,6 +96,36 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["ai_ceo_autopilot_runs"]["Row"]>;
         Relationships: [];
       };
+      competitor_scan_runs: {
+        Row: {
+          id: string; source: string; status: string; competitors_scanned: number; observations_found: number; gaps_found: number; error: string | null; metadata: Json; started_at: string; completed_at: string | null;
+        };
+        Insert: {
+          id?: string; source?: string; status?: string; competitors_scanned?: number; observations_found?: number; gaps_found?: number; error?: string | null; metadata?: Json; started_at?: string; completed_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["competitor_scan_runs"]["Row"]>;
+        Relationships: [];
+      };
+      competitor_observations: {
+        Row: {
+          id: string; competitor: string; url: string; content_type: string; title: string | null; fixture_id: string | null; home_team: string | null; away_team: string | null; topic: string | null; country: string | null; language: string | null; source: string; published_at: string | null; first_detected_at: string; last_detected_at: string; raw_metadata: Json; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; competitor: string; url: string; content_type?: string; title?: string | null; fixture_id?: string | null; home_team?: string | null; away_team?: string | null; topic?: string | null; country?: string | null; language?: string | null; source?: string; published_at?: string | null; first_detected_at?: string; last_detected_at?: string; raw_metadata?: Json; created_at?: string; updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["competitor_observations"]["Row"]>;
+        Relationships: [];
+      };
+      competitor_gaps: {
+        Row: {
+          id: string; observation_id: string | null; competitor: string; gap_type: string; fixture_id: string | null; topic: string | null; country: string | null; language: string | null; zerra_prediction_exists: boolean; zerra_seo_exists: boolean; priority: number; status: string; reason: string | null; detected_at: string; resolved_at: string | null; metadata: Json;
+        };
+        Insert: {
+          id?: string; observation_id?: string | null; competitor: string; gap_type: string; fixture_id?: string | null; topic?: string | null; country?: string | null; language?: string | null; zerra_prediction_exists?: boolean; zerra_seo_exists?: boolean; priority?: number; status?: string; reason?: string | null; detected_at?: string; resolved_at?: string | null; metadata?: Json;
+        };
+        Update: Partial<Database["public"]["Tables"]["competitor_gaps"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {};
     Functions: {

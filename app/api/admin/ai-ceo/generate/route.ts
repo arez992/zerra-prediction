@@ -451,8 +451,10 @@ function convertSnapshotToCEOMetrics(
     },
 
     competitors: {
-      monitored: 0,
-      notableChanges: [],
+      monitored: snapshot.competitors.trackedCompetitors,
+      notableChanges: snapshot.competitors.notableGaps.map((gap) =>
+        `${gap.competitor}: ${gap.gapType} priority ${gap.priority}`
+      ),
     },
 
     custom: {

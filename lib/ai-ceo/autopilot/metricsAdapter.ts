@@ -42,7 +42,10 @@ export function convertAutopilotSnapshotToCEOMetrics(snapshot: AICEODataSnapshot
       recentErrors: snapshot.internal.failedPayments,
     },
     costs: { total: null, apiFootball: null, openAi: null, infrastructure: null },
-    competitors: { monitored: 0, notableChanges: [] },
+    competitors: {
+      monitored: snapshot.competitors.trackedCompetitors,
+      notableChanges: snapshot.competitors.notableGaps.map((gap) => `${gap.competitor}: ${gap.gapType} priority ${gap.priority}`),
+    },
     custom: {
       totalPayments: snapshot.internal.totalPayments,
       failedPayments: snapshot.internal.failedPayments,

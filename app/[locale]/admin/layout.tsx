@@ -175,6 +175,17 @@ export default async function AdminLayout({
 
           {
             label:
+              "Competitor Intelligence",
+
+            href:
+              `${base}/competitor-intelligence`,
+
+            description:
+              "Competitor gaps + AI CEO feed",
+          },
+
+          {
+            label:
               "Market Scanner",
 
             href:

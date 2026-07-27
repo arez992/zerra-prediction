@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getCompetitorCEOContext, type CompetitorCEOContext } from "@/lib/ai-ceo/competitor/repository";
+
 import {
   unstable_cache,
 } from "next/cache";
@@ -48,6 +50,8 @@ type SearchCountry = {
 };
 
 export type AICEODataSnapshot = {
+  competitors: CompetitorCEOContext;
+
   generatedAt: string;
 
   internal: {
@@ -186,6 +190,7 @@ async function collectAICEODataUncached():
     searchQueries,
     searchPages,
     searchFreshness,
+    competitorContext,
   ] =
     await Promise.all([
       adminDb
@@ -262,6 +267,7 @@ async function collectAICEODataUncached():
         console.error("AI CEO Search Console freshness failed:", error);
         return null;
       }),
+      getCompetitorCEOContext(),
     ]);
 
   const users =
@@ -681,6 +687,8 @@ async function collectAICEODataUncached():
       new Date()
         .toISOString(),
 
+    competitors: competitorContext,
+
     internal: {
       totalUsers,
 
@@ -822,7 +830,7 @@ const getCachedAICEOData =
 
     [
       "zerra-ai-ceo-data-snapshot",
-      "v4",
+      "v5",
     ],
 
     {

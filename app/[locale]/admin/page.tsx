@@ -332,6 +332,23 @@ export default async function AdminPage({
 
       {
         title:
+          "Competitor Intelligence",
+
+        description:
+          "Monitor competitor prediction and SEO coverage, identify ZERRA gaps, countries, languages, and opportunities used by AI CEO.",
+
+        href:
+          `${base}/competitor-intelligence`,
+
+        badge:
+          "AI Intelligence",
+
+        emphasized:
+          true,
+      },
+
+      {
+        title:
           "Market Scanner",
 
         description:
