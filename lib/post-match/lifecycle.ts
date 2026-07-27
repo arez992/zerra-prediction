@@ -32,6 +32,104 @@ function serializeDate(value: unknown): string | null {
   return null;
 }
 
+export async function runPublishedSeoPostMatchForFixture(
+  fixtureId: string
+): Promise<PostMatchLifecycleSummary> {
+  const summary: PostMatchLifecycleSummary = {
+    scanned: 0,
+    generated: 0,
+    upToDate: 0,
+    notFinished: 0,
+    failed: 0,
+  };
+
+  const normalizedFixtureId = normalizeText(fixtureId);
+
+  if (!normalizedFixtureId) {
+    return summary;
+  }
+
+  /*
+   * Query by fixtureId only so this immediate settlement bridge
+   * does not require a new composite Firestore index.
+   *
+   * Published status is filtered in memory below.
+   */
+  const snapshot = await adminDb
+    .collection("seoPageDrafts")
+    .where("fixtureId", "==", normalizedFixtureId)
+    .limit(10)
+    .get();
+
+  const seen = new Set<string>();
+
+  const candidates = snapshot.docs
+    .map((document) => {
+      const data = document.data() || {};
+
+      return {
+        status: normalizeText(data.status),
+        slug: normalizeText(data.slug),
+        language: normalizeText(data.language) || "en",
+      };
+    })
+    .filter(
+      (item) =>
+        item.status === "published" &&
+        item.slug
+    )
+    .filter((item) => {
+      const key = `${item.language}:${item.slug}`;
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+
+  for (const candidate of candidates) {
+    summary.scanned += 1;
+
+    try {
+      const result = await runPostMatchReportEngine({
+        fixtureId: normalizedFixtureId,
+        slug: candidate.slug,
+        locale: candidate.language,
+      });
+
+      if (result.generated) {
+        summary.generated += 1;
+      } else {
+        summary.upToDate += 1;
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
+      if (message.includes("is not finished")) {
+        summary.notFinished += 1;
+        continue;
+      }
+
+      summary.failed += 1;
+
+      console.error(
+        "[POST_MATCH_FIXTURE_REFRESH_ERROR]",
+        {
+          fixtureId: normalizedFixtureId,
+          slug: candidate.slug,
+          error: message,
+        }
+      );
+    }
+  }
+
+  return summary;
+}
 export async function runPublishedSeoPostMatchLifecycle(): Promise<PostMatchLifecycleSummary> {
   const summary: PostMatchLifecycleSummary = {
     scanned: 0,

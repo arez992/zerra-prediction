@@ -1066,6 +1066,59 @@ async function settlePrediction(
    */
   await batch.commit();
 
+
+  /*
+   * Settlement is already committed before post-match SEO work.
+   * A post-match failure must never roll back a valid settlement.
+   */
+  try {
+    const {
+      runPublishedSeoPostMatchForFixture,
+    } = await import(
+      "@/lib/post-match/lifecycle"
+    );
+
+    const postMatch =
+      await runPublishedSeoPostMatchForFixture(
+        stored.fixtureId
+      );
+
+    console.info(
+      "[PREDICTION_POST_MATCH_REFRESH]",
+      {
+        fixtureId:
+          stored.fixtureId,
+
+        scanned:
+          postMatch.scanned,
+
+        generated:
+          postMatch.generated,
+
+        upToDate:
+          postMatch.upToDate,
+
+        notFinished:
+          postMatch.notFinished,
+
+        failed:
+          postMatch.failed,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "[PREDICTION_POST_MATCH_REFRESH_ERROR]",
+      {
+        fixtureId:
+          stored.fixtureId,
+
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to refresh post-match SEO.",
+      }
+    );
+  }
   try {
     revalidateTag(
       "zerra-public-predictions",
