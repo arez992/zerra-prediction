@@ -1,4 +1,4 @@
-{
+﻿{
     "crons":  [
                   {
                       "path":  "/api/ai/validate-predictions",
@@ -23,6 +23,10 @@
                   {
                       "path":  "/api/cron/ai-ceo/autopilot",
                       "schedule":  "*/30 * * * *"
+                  },
+                  {
+                      "path":  "/api/cron/competitor-intelligence",
+                      "schedule":  "0 */3 * * *"
                   }
               ]
 }
