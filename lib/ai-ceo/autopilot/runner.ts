@@ -3,6 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { collectAICEOData } from "@/lib/ai-ceo/dataCollector";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { approveCEORecommendation, executeCEORecommendation } from "@/lib/ai-ceo/executionEngine";
 import { evaluateAutopilotCostGuard } from "./costGuard";
 import { runAutopilotDecisionCycle } from "./decisionCycle";
 import { createAutopilotSnapshotFingerprint } from "./fingerprint";
@@ -14,6 +16,68 @@ import {
   releaseAutopilotLease,
   updateAutopilotRuntimeState,
 } from "./repository";
+
+const COMPETITOR_AUTO_CONFIDENCE_MIN = 67;
+const COMPETITOR_AUTO_MAX_PER_CYCLE = 4;
+
+async function runCompetitorRecommendationAutopilot(enabled: boolean) {
+  if (!enabled) return { scanned: 0, eligible: 0, executed: 0, failed: 0, results: [] as Array<{ recommendationId: string; status: string; error?: string }> };
+
+  const snapshot = await adminDb
+    .collection("ceoRecommendations")
+    .where("status", "==", "pending")
+    .limit(50)
+    .get();
+
+  const candidates = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter((item: any) =>
+      typeof item.source === "string" &&
+      item.source.startsWith("Competitor Intelligence:")
+    );
+
+  const eligible = candidates
+    .filter((item: any) => {
+      const confidence = Number(item.confidence || 0);
+      const risk = String(item.risk || "").trim().toLowerCase();
+      const executionType = String(item.executionType || "").trim();
+      return (
+        confidence > COMPETITOR_AUTO_CONFIDENCE_MIN &&
+        (risk === "low" || risk === "medium") &&
+        executionType.length > 0
+      );
+    })
+    .slice(0, COMPETITOR_AUTO_MAX_PER_CYCLE);
+
+  const actor = {
+    uid: "ai-ceo-autopilot",
+    email: "ai-ceo-autopilot@system.local",
+  };
+
+  const results: Array<{ recommendationId: string; status: string; error?: string }> = [];
+  let executed = 0;
+  let failed = 0;
+
+  for (const item of eligible) {
+    try {
+      const approval = await approveCEORecommendation(item.id, actor);
+      const execution = await executeCEORecommendation(item.id, actor);
+      if (execution.success) executed += 1; else failed += 1;
+      results.push({ recommendationId: item.id, status: execution.success ? "executed" : "failed", error: execution.success ? undefined : execution.result.message });
+    } catch (error) {
+      failed += 1;
+      results.push({ recommendationId: item.id, status: "failed", error: error instanceof Error ? error.message : "Competitor recommendation autopilot failed." });
+    }
+  }
+
+  return {
+    scanned: candidates.length,
+    eligible: eligible.length,
+    executed,
+    failed,
+    results,
+  };
+}
 
 export async function runAICEOAutopilotCycle(
   triggerSource: "cron" | "manual" = "cron"
@@ -43,6 +107,8 @@ export async function runAICEOAutopilotCycle(
       collectAICEOData(),
     ]);
 
+    const competitorRecommendationAutopilot = await runCompetitorRecommendationAutopilot(config.auto_execute_low_risk);
+
     const fingerprint = createAutopilotSnapshotFingerprint(snapshot);
 
     if (config.skip_unchanged && config.last_snapshot_fingerprint === fingerprint) {
@@ -51,7 +117,7 @@ export async function runAICEOAutopilotCycle(
         fingerprint,
         skippedReason: "snapshot_unchanged",
         aiCallUsed: false,
-        result: { snapshotGeneratedAt: snapshot.generatedAt },
+        result: { snapshotGeneratedAt: snapshot.generatedAt, competitorRecommendationAutopilot },
       });
 
       await updateAutopilotRuntimeState({ fingerprint, aiCallUsed: false });
@@ -69,7 +135,7 @@ export async function runAICEOAutopilotCycle(
         fingerprint,
         skippedReason: "ai_call_cost_guard_active",
         aiCallUsed: false,
-        result: { snapshotGeneratedAt: snapshot.generatedAt },
+        result: { snapshotGeneratedAt: snapshot.generatedAt, competitorRecommendationAutopilot },
       });
 
       await updateAutopilotRuntimeState({ aiCallUsed: false });
@@ -103,6 +169,7 @@ export async function runAICEOAutopilotCycle(
         approvalMode: result.policy.mode,
         policyReasons: result.policy.reasons,
         executionStatus: result.execution?.status || null,
+        competitorRecommendationAutopilot,
       },
     });
 
@@ -122,6 +189,7 @@ export async function runAICEOAutopilotCycle(
       autoApproved: result.autoApproved,
       autoExecuted: result.autoExecuted,
       execution: result.execution,
+      competitorRecommendationAutopilot,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Autopilot cycle failed.";
