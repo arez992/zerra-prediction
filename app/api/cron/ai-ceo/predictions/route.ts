@@ -1220,7 +1220,77 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
+    
+
+    if (mode === "scan") {
+      const scanResult =
+        result as Awaited<
+          ReturnType<
+            typeof runScan
+          >
+        >;
+
+      console.info(
+        "[AI_CEO_PREDICTION_SCAN_SUMMARY]",
+        {
+          date,
+          sessionExpired:
+            scanResult.sessionExpired,
+          fixturesFound:
+            scanResult.fixturesFound,
+          preMatchFixtures:
+            scanResult.preMatchFixtures,
+          structuralCandidates:
+            scanResult.structuralCandidates,
+          scanCandidateLimit:
+            scanResult.scanCandidateLimit,
+          cheapScanned:
+            scanResult.cheapScanned,
+          cheapScanSelected:
+            scanResult.cheapScanSelected,
+          cheapScanRejected:
+            scanResult.cheapScanRejected,
+          cheapScanFailed:
+            scanResult.cheapScanFailed,
+          fixturesQueued:
+            scanResult.fixturesQueued,
+          queueResult:
+            scanResult.queueResult,
+          queueStats:
+            scanResult.queueStats,
+          cheapScanResults:
+            scanResult.cheapScanResults,
+        }
+      );
+    } else {
+      const processResult =
+        result as Awaited<
+          ReturnType<
+            typeof runProcess
+          >
+        >;
+
+      console.info(
+        "[AI_CEO_PREDICTION_PROCESS_SUMMARY]",
+        {
+          date,
+          batchSize:
+            processResult.batchSize,
+          pendingSelected:
+            processResult.pendingSelected,
+          completed:
+            processResult.completed,
+          failed:
+            processResult.failed,
+          skipped:
+            processResult.skipped,
+          queueStats:
+            processResult.queueStats,
+          results:
+            processResult.results,
+        }
+      );
+    }return NextResponse.json(
       {
         success:
           true,
