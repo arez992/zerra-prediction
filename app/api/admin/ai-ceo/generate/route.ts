@@ -702,9 +702,34 @@ export async function POST() {
         },
       });
 
+    const competitorDecisions = legacyDecisions.filter(
+      (decision) =>
+        decision.source?.startsWith("Competitor Intelligence:")
+    );
+
+    const mergedDecisionMap = new Map<string, CEODecision>();
+
+    for (const decision of [...canary.result, ...competitorDecisions]) {
+      const fixtureId =
+        decision.executionPayload &&
+        typeof decision.executionPayload.fixtureId === "string"
+          ? decision.executionPayload.fixtureId
+          : "";
+
+      const key = [
+        decision.executionType || "",
+        fixtureId,
+        decision.title,
+      ].join("|");
+
+      if (!mergedDecisionMap.has(key)) {
+        mergedDecisionMap.set(key, decision);
+      }
+    }
+
     const decisions =
       await enrichDecisionsWithHistory(
-        canary.result
+        Array.from(mergedDecisionMap.values())
       );
 
     const createdRecommendations:
