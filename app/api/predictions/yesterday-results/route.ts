@@ -438,43 +438,51 @@ function toYesterdayResult(
 const getCachedSettledPredictions =
   unstable_cache(
     async () => {
+      const { start, end } =
+        getYesterdayRange();
+
       const snapshot =
         await adminDb
-          .collection(
-            COLLECTION_NAME
-          )
-          .where(
-            "status",
-            "==",
-            "settled"
-          )
-          .limit(
-            MAX_SETTLED_READS
-          )
+          .collection(COLLECTION_NAME)
+          .where("status", "==", "settled")
+          .limit(MAX_SETTLED_READS)
           .get();
 
-      return snapshot.docs.map(
-        (
-          document
-        ) => ({
-          id:
+      return snapshot.docs
+        .map((document) =>
+          toYesterdayResult(
             document.id,
+            document.data()
+          )
+        )
+        .filter(
+          (item): item is NonNullable<typeof item> => {
+            if (!item?.fixtureDate) {
+              return false;
+            }
 
-          data:
-            document.data(),
-        })
-      );
+            const timestamp =
+              Date.parse(item.fixtureDate);
+
+            return (
+              Number.isFinite(timestamp) &&
+              timestamp >= start.getTime() &&
+              timestamp < end.getTime()
+            );
+          }
+        )
+        .sort(
+          (first, second) =>
+            Date.parse(second.fixtureDate || "") -
+            Date.parse(first.fixtureDate || "")
+        );
     },
-
     [
       "zerra-yesterday-primary-results",
-      "v2",
+      "v3",
     ],
-
     {
-      revalidate:
-        CACHE_SECONDS,
-
+      revalidate: CACHE_SECONDS,
       tags: [
         "zerra-yesterday-primary-results",
       ],
@@ -500,85 +508,7 @@ export async function GET(
     } =
       getYesterdayRange();
 
-    const cachedDocuments =
-      await getCachedSettledPredictions();
-
-    const yesterdayResults =
-      cachedDocuments
-        .filter(
-          (
-            document
-          ) => {
-            const fixtureDate =
-              serializeTimestamp(
-                document
-                  .data
-                  .fixtureDate
-              );
-
-            if (
-              !fixtureDate
-            ) {
-              return false;
-            }
-
-            const timestamp =
-              Date.parse(
-                fixtureDate
-              );
-
-            return (
-              Number.isFinite(
-                timestamp
-              ) &&
-              timestamp >=
-                start.getTime() &&
-              timestamp <
-                end.getTime()
-            );
-          }
-        )
-        .map(
-          (
-            document
-          ) =>
-            toYesterdayResult(
-              document.id,
-              document.data
-            )
-        )
-        .filter(
-          (
-            item
-          ): item is NonNullable<
-            typeof item
-          > =>
-            item !==
-            null
-        )
-        .sort(
-          (
-            first,
-            second
-          ) => {
-            const firstDate =
-              Date.parse(
-                first.fixtureDate ||
-                  ""
-              );
-
-            const secondDate =
-              Date.parse(
-                second.fixtureDate ||
-                  ""
-              );
-
-            return (
-              secondDate -
-              firstDate
-            );
-          }
-        );
+    const yesterdayResults = await getCachedSettledPredictions();
 
     const correct =
       yesterdayResults.filter(
