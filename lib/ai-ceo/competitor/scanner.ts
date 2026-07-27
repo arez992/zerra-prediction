@@ -104,6 +104,7 @@ export async function runCompetitorScanner(source = "cron") {
   if (runInsert.error) throw runInsert.error;
   const runId = runInsert.data.id;
   let observationsFound = 0; let gapsFound = 0; let competitorsScanned = 0; const errors: string[] = [];
+  let resolvedGapCount = 0;
   const sourceStatuses: Array<{ competitor: string; status: "ok" | "blocked" | "failed"; observations: number; message?: string }> = [];
   try {
     const [todayFixtures, tomorrowFixtures] = await Promise.all([getFixturesByDate(getZerraToday()), getFixturesByDate(getZerraTomorrow())]);
@@ -151,6 +152,21 @@ export async function runCompetitorScanner(source = "cron") {
             const observationId = upsert.data.id;
             if (!fixtureId) return;
             const coverage = await zerraCoverage(fixtureId);
+            const resolveCandidates: string[] = [];
+            if (coverage.prediction) resolveCandidates.push("prediction_missing");
+            if (coverage.seo) resolveCandidates.push("seo_missing");
+            if (resolveCandidates.length > 0) {
+              const resolved = await supabase
+                .from("competitor_gaps")
+                .update({ status: "resolved", metadata: { resolvedBy: "coverage-check", resolvedAt: new Date().toISOString() } })
+                .eq("competitor", observation.competitor)
+                .eq("fixture_id", fixtureId)
+                .eq("status", "open")
+                .in("gap_type", resolveCandidates)
+                .select("id");
+              if (resolved.error) errors.push(`${observation.competitor}: ${resolved.error.message}`);
+              else resolvedGapCount += resolved.data?.length || 0;
+            }
             const gaps = [];
             if (!coverage.prediction) gaps.push({ type: "prediction_missing", priority: 85, reason: `${observation.competitor} covers this fixture but ZERRA has no prediction.` });
             if (!coverage.seo) gaps.push({ type: "seo_missing", priority: coverage.prediction ? 80 : 70, reason: `${observation.competitor} covers this fixture but ZERRA has no SEO page.` });
@@ -165,7 +181,7 @@ export async function runCompetitorScanner(source = "cron") {
         }
       } catch (error) { const message = error instanceof Error ? error.message : "scan failed"; const blocked = /403|forbidden|just a moment/i.test(message); sourceStatuses.push({ competitor: sourceConfig.competitor, status: blocked ? "blocked" : "failed", observations: 0, message }); errors.push(`${sourceConfig.competitor}: ${message}`); }
     }
-    await supabase.from("competitor_scan_runs").update({ status: errors.length ? "partial" : "completed", competitors_scanned: competitorsScanned, observations_found: observationsFound, gaps_found: gapsFound, error: errors.length ? errors.slice(0,10).join(" | ") : null, metadata: { scannerVersion: "4D-4", maxObservationsPerSource: MAX_OBSERVATIONS_PER_SOURCE, concurrency: OBSERVATION_CONCURRENCY, countryBackfilled, sources: SOURCES.map((item) => item.competitor), sourceStatuses }, completed_at: new Date().toISOString() }).eq("id", runId);
+    await supabase.from("competitor_scan_runs").update({ status: errors.length ? "partial" : "completed", competitors_scanned: competitorsScanned, observations_found: observationsFound, gaps_found: gapsFound, error: errors.length ? errors.slice(0,10).join(" | ") : null, metadata: { scannerVersion: "4D-4", maxObservationsPerSource: MAX_OBSERVATIONS_PER_SOURCE, concurrency: OBSERVATION_CONCURRENCY, countryBackfilled, resolvedGapCount, sources: SOURCES.map((item) => item.competitor), sourceStatuses }, completed_at: new Date().toISOString() }).eq("id", runId);
     return { success: true, runId, competitorsScanned, observationsFound, gapsFound, errors };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Competitor scanner failed.";

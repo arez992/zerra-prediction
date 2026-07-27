@@ -22,6 +22,9 @@ export type CompetitorCEOContext = {
     language: string | null;
     priority: number;
     reason: string | null;
+    action: "generate_prediction" | "generate_seo" | "review";
+    urgency: "urgent" | "high" | "normal";
+    actionable: boolean;
   }>;
   lastScanAt: string | null;
 };
@@ -82,6 +85,9 @@ export async function getCompetitorCEOContext(): Promise<CompetitorCEOContext> {
         language: gap.language,
         priority: Number(gap.priority || 0),
         reason: gap.reason,
+        action: gap.gap_type === "prediction_missing" ? "generate_prediction" as const : gap.gap_type === "seo_missing" ? "generate_seo" as const : "review" as const,
+        urgency: Number(gap.priority || 0) >= 80 ? "urgent" as const : Number(gap.priority || 0) >= 70 ? "high" as const : "normal" as const,
+        actionable: Boolean(gap.fixture_id) && (gap.gap_type === "prediction_missing" || gap.gap_type === "seo_missing"),
       })),
       lastScanAt: scanResult.data?.started_at || null,
     };

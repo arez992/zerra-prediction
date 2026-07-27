@@ -389,6 +389,74 @@ export function generateCEODecisions(
     low: 1,
   };
 
+  /*
+   * Competitor Intelligence actionable gaps
+   *
+   * These decisions intentionally reuse the canonical
+   * prediction and SEO execution handlers. They still
+   * pass through the existing recommendation/history/
+   * approval workflow before execution.
+   */
+  for (const gap of snapshot.competitors.notableGaps.filter((item) => item.actionable).slice(0, 4)) {
+    const priority: CEOPriority = gap.urgency === "urgent" ? "high" : gap.urgency === "high" ? "medium" : "low";
+    const confidence = confidenceFromSignals(
+      Math.min(100, gap.priority),
+      gap.fixtureId ? 95 : 40,
+      snapshot.competitors.connected ? 90 : 40
+    );
+
+    if (gap.action === "generate_prediction" && gap.fixtureId) {
+      decisions.push({
+        title: `Close Competitor Prediction Gap: ${gap.topic || gap.fixtureId}`,
+        description: gap.reason || `${gap.competitor} covers this fixture while ZERRA has no prediction.`,
+        category: "Prediction",
+        country: gap.country,
+        priority,
+        confidence,
+        expectedImpact: "Close a validated competitor coverage gap with a canonical ZERRA prediction.",
+        source: `Competitor Intelligence: ${gap.competitor}`,
+        risk: getRisk(priority, confidence),
+        executionType: "generate-predictions",
+        executionPayload: {
+          fixtureId: gap.fixtureId,
+          competitor: gap.competitor,
+          competitorGapType: gap.gapType,
+          competitorPriority: gap.priority,
+          competitorTopic: gap.topic,
+          country: gap.country,
+          language: gap.language,
+          trigger: "competitor-gap",
+        },
+      });
+      continue;
+    }
+
+    if (gap.action === "generate_seo" && gap.fixtureId) {
+      decisions.push({
+        title: `Close Competitor SEO Gap: ${gap.topic || gap.fixtureId}`,
+        description: gap.reason || `${gap.competitor} covers this fixture while ZERRA has no SEO page.`,
+        category: "SEO",
+        country: gap.country,
+        priority,
+        confidence,
+        expectedImpact: "Close a validated competitor search-coverage gap for an existing football fixture.",
+        source: `Competitor Intelligence: ${gap.competitor}`,
+        risk: getRisk(priority, confidence),
+        executionType: "seo-metadata-optimization",
+        executionPayload: {
+          fixtureId: gap.fixtureId,
+          competitor: gap.competitor,
+          competitorGapType: gap.gapType,
+          competitorPriority: gap.priority,
+          competitorTopic: gap.topic,
+          country: gap.country,
+          language: gap.language,
+          trigger: "competitor-gap",
+        },
+      });
+    }
+  }
+
   return decisions
     .sort((first, second) => {
       const priorityDifference =
