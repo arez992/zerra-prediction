@@ -250,7 +250,36 @@ export async function GET(
         limit
       );
 
-    return NextResponse.json(
+    
+    console.info(
+      "[PREDICTION_SETTLEMENT_SUMMARY]",
+      {
+        scannedPredictions:
+          summary.scannedPredictions,
+
+        eligiblePredictions:
+          summary.eligiblePredictions,
+
+        settledPredictions:
+          summary.settledPredictions,
+
+        skippedPredictions:
+          summary.skippedPredictions,
+
+        missingFixtures:
+          summary.missingFixtures,
+
+        unfinishedFixtures:
+          summary.unfinishedFixtures,
+
+        uniqueFixtureDates:
+          summary.uniqueFixtureDates,
+
+        apiDateRequests:
+          summary.apiDateRequests,
+      }
+    );
+return NextResponse.json(
       {
         success:
           true,
@@ -391,7 +420,36 @@ export async function POST(
         limit
       );
 
-    return NextResponse.json(
+    
+    console.info(
+      "[PREDICTION_SETTLEMENT_SUMMARY]",
+      {
+        scannedPredictions:
+          summary.scannedPredictions,
+
+        eligiblePredictions:
+          summary.eligiblePredictions,
+
+        settledPredictions:
+          summary.settledPredictions,
+
+        skippedPredictions:
+          summary.skippedPredictions,
+
+        missingFixtures:
+          summary.missingFixtures,
+
+        unfinishedFixtures:
+          summary.unfinishedFixtures,
+
+        uniqueFixtureDates:
+          summary.uniqueFixtureDates,
+
+        apiDateRequests:
+          summary.apiDateRequests,
+      }
+    );
+return NextResponse.json(
       {
         success:
           true,
