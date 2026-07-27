@@ -104,14 +104,39 @@ export async function runCompetitorScanner(source = "cron") {
   if (runInsert.error) throw runInsert.error;
   const runId = runInsert.data.id;
   let observationsFound = 0; let gapsFound = 0; let competitorsScanned = 0; const errors: string[] = [];
+  const sourceStatuses: Array<{ competitor: string; status: "ok" | "blocked" | "failed"; observations: number; message?: string }> = [];
   try {
     const [todayFixtures, tomorrowFixtures] = await Promise.all([getFixturesByDate(getZerraToday()), getFixturesByDate(getZerraTomorrow())]);
     const fixtures = [...todayFixtures, ...tomorrowFixtures];
+    let countryBackfilled = 0;
+    const fixtureCountryById = new Map<string, string>();
+    for (const fixture of fixtures) {
+      const fixtureId = fixture?.fixture?.id ? String(fixture.fixture.id) : null;
+      const country = fixture?.league?.country ? String(fixture.league.country).trim() : null;
+      if (fixtureId && country) fixtureCountryById.set(fixtureId, country);
+    }
+    const openGapResult = await supabase.from("competitor_gaps").select("id,fixture_id,country").eq("status","open").not("fixture_id","is",null).limit(1000);
+    if (!openGapResult.error && openGapResult.data) {
+      const countryGroups = new Map<string, string[]>();
+      for (const gap of openGapResult.data) {
+        const fixtureId = gap.fixture_id ? String(gap.fixture_id) : null;
+        const country = fixtureId ? fixtureCountryById.get(fixtureId) : null;
+        if (!country || gap.country === country) continue;
+        const ids = countryGroups.get(country) || [];
+        ids.push(String(gap.id));
+        countryGroups.set(country, ids);
+      }
+      await Promise.all(Array.from(countryGroups.entries()).map(async ([country, ids]) => {
+        const result = await supabase.from("competitor_gaps").update({ country }).in("id", ids);
+        if (!result.error) countryBackfilled += ids.length; else errors.push(`Country backfill: ${result.error.message}`);
+      }));
+    }
     for (const sourceConfig of SOURCES) {
       try {
         const html = await fetchHtml(sourceConfig.url);
         const observations = discoverObservations(sourceConfig, html);
         competitorsScanned += 1;
+        sourceStatuses.push({ competitor: sourceConfig.competitor, status: "ok", observations: observations.length });
         for (let offset = 0; offset < observations.length; offset += OBSERVATION_CONCURRENCY) {
           const batch = observations.slice(offset, offset + OBSERVATION_CONCURRENCY);
           await Promise.all(batch.map(async (observation) => {
@@ -138,9 +163,9 @@ export async function runCompetitorScanner(source = "cron") {
 
           }));
         }
-      } catch (error) { errors.push(`${sourceConfig.competitor}: ${error instanceof Error ? error.message : "scan failed"}`); }
+      } catch (error) { const message = error instanceof Error ? error.message : "scan failed"; const blocked = /403|forbidden|just a moment/i.test(message); sourceStatuses.push({ competitor: sourceConfig.competitor, status: blocked ? "blocked" : "failed", observations: 0, message }); errors.push(`${sourceConfig.competitor}: ${message}`); }
     }
-    await supabase.from("competitor_scan_runs").update({ status: errors.length ? "partial" : "completed", competitors_scanned: competitorsScanned, observations_found: observationsFound, gaps_found: gapsFound, error: errors.length ? errors.slice(0,10).join(" | ") : null, metadata: { scannerVersion: "4D-3", maxObservationsPerSource: MAX_OBSERVATIONS_PER_SOURCE, concurrency: OBSERVATION_CONCURRENCY, sources: SOURCES.map((item) => item.competitor) }, completed_at: new Date().toISOString() }).eq("id", runId);
+    await supabase.from("competitor_scan_runs").update({ status: errors.length ? "partial" : "completed", competitors_scanned: competitorsScanned, observations_found: observationsFound, gaps_found: gapsFound, error: errors.length ? errors.slice(0,10).join(" | ") : null, metadata: { scannerVersion: "4D-4", maxObservationsPerSource: MAX_OBSERVATIONS_PER_SOURCE, concurrency: OBSERVATION_CONCURRENCY, countryBackfilled, sources: SOURCES.map((item) => item.competitor), sourceStatuses }, completed_at: new Date().toISOString() }).eq("id", runId);
     return { success: true, runId, competitorsScanned, observationsFound, gapsFound, errors };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Competitor scanner failed.";
