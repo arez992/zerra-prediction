@@ -17,7 +17,8 @@ const SOURCES: SourceConfig[] = [
 ];
 
 const USER_AGENT = "ZERRA-Competitor-Intelligence/1.0 (+https://zerraprediction.com)";
-const MAX_OBSERVATIONS_PER_SOURCE = 80;
+const MAX_OBSERVATIONS_PER_SOURCE = 40;
+const OBSERVATION_CONCURRENCY = 5;
 
 function clean(value: string) { return value.replace(/\s+/g, " ").trim(); }
 function normalizeTeam(value: string) { return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\b(fc|cf|sc|afc|club|fk|ac)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim(); }
@@ -89,6 +90,16 @@ async function zerraCoverage(fixtureId: string) {
 
 export async function runCompetitorScanner(source = "cron") {
   const supabase = getSupabaseAdmin();
+  const staleCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  await supabase
+    .from("competitor_scan_runs")
+    .update({
+      status: "failed",
+      error: "Scanner run exceeded the 15-minute stale-run limit.",
+      completed_at: new Date().toISOString(),
+    })
+    .eq("status", "running")
+    .lt("started_at", staleCutoff);
   const runInsert = await supabase.from("competitor_scan_runs").insert({ source, status: "running" }).select("id").single();
   if (runInsert.error) throw runInsert.error;
   const runId = runInsert.data.id;
@@ -101,23 +112,31 @@ export async function runCompetitorScanner(source = "cron") {
         const html = await fetchHtml(sourceConfig.url);
         const observations = discoverObservations(sourceConfig, html);
         competitorsScanned += 1;
-        for (const observation of observations) {
-          const fixture = fixtures.find((item) => fixtureMatchesTeams(item, observation));
-          const fixtureId = fixture?.fixture?.id ? String(fixture.fixture.id) : null;
-          const upsert = await supabase.from("competitor_observations").upsert({ competitor: observation.competitor, url: observation.url, content_type: "prediction", title: observation.title, fixture_id: fixtureId, home_team: observation.homeTeam, away_team: observation.awayTeam, topic: observation.title, country: observation.country, language: observation.language, source: "public-web", last_detected_at: new Date().toISOString(), raw_metadata: { discoveryUrl: sourceConfig.url }, updated_at: new Date().toISOString() }, { onConflict: "competitor,url" }).select("id").single();
-          if (upsert.error) { errors.push(`${observation.competitor}: ${upsert.error.message}`); continue; }
-          observationsFound += 1;
-          if (!fixtureId) continue;
-          const coverage = await zerraCoverage(fixtureId);
-          const gaps = [];
-          if (!coverage.prediction) gaps.push({ type: "prediction_missing", priority: 85, reason: `${observation.competitor} covers this fixture but ZERRA has no prediction.` });
-          if (!coverage.seo) gaps.push({ type: "seo_missing", priority: coverage.prediction ? 80 : 70, reason: `${observation.competitor} covers this fixture but ZERRA has no SEO page.` });
-          for (const gap of gaps) {
-            const existing = await supabase.from("competitor_gaps").select("id").eq("observation_id", upsert.data.id).eq("gap_type", gap.type).eq("status","open").limit(1).maybeSingle();
-            if (existing.error || existing.data) continue;
-            const inserted = await supabase.from("competitor_gaps").insert({ observation_id: upsert.data.id, competitor: observation.competitor, gap_type: gap.type, fixture_id: fixtureId, topic: observation.title, country: observation.country, language: observation.language, zerra_prediction_exists: coverage.prediction, zerra_seo_exists: coverage.seo, priority: gap.priority, status: "open", reason: gap.reason, metadata: { sourceUrl: observation.url } });
-            if (!inserted.error) gapsFound += 1;
-          }
+        for (let offset = 0; offset < observations.length; offset += OBSERVATION_CONCURRENCY) {
+          const batch = observations.slice(offset, offset + OBSERVATION_CONCURRENCY);
+          await Promise.all(batch.map(async (observation) => {
+            const fixture = fixtures.find((item) => fixtureMatchesTeams(item, observation));
+            const fixtureId = fixture?.fixture?.id ? String(fixture.fixture.id) : null;
+            const resolvedCountry = fixture?.league?.country
+              ? String(fixture.league.country).trim()
+              : observation.country;
+            const upsert = await supabase.from("competitor_observations").upsert({ competitor: observation.competitor, url: observation.url, content_type: "prediction", title: observation.title, fixture_id: fixtureId, home_team: observation.homeTeam, away_team: observation.awayTeam, topic: observation.title, country: resolvedCountry, language: observation.language, source: "public-web", last_detected_at: new Date().toISOString(), raw_metadata: { discoveryUrl: sourceConfig.url }, updated_at: new Date().toISOString() }, { onConflict: "competitor,url" }).select("id").single();
+            if (upsert.error || !upsert.data) { errors.push(`${observation.competitor}: ${upsert.error?.message || "Observation upsert returned no data."}`); return; }
+            observationsFound += 1;
+            const observationId = upsert.data.id;
+            if (!fixtureId) return;
+            const coverage = await zerraCoverage(fixtureId);
+            const gaps = [];
+            if (!coverage.prediction) gaps.push({ type: "prediction_missing", priority: 85, reason: `${observation.competitor} covers this fixture but ZERRA has no prediction.` });
+            if (!coverage.seo) gaps.push({ type: "seo_missing", priority: coverage.prediction ? 80 : 70, reason: `${observation.competitor} covers this fixture but ZERRA has no SEO page.` });
+            for (const gap of gaps) {
+              const existing = await supabase.from("competitor_gaps").select("id").eq("observation_id", observationId).eq("gap_type", gap.type).eq("status","open").limit(1).maybeSingle();
+              if (existing.error || existing.data) continue;
+              const inserted = await supabase.from("competitor_gaps").insert({ observation_id: observationId, competitor: observation.competitor, gap_type: gap.type, fixture_id: fixtureId, topic: observation.title, country: resolvedCountry, language: observation.language, zerra_prediction_exists: coverage.prediction, zerra_seo_exists: coverage.seo, priority: gap.priority, status: "open", reason: gap.reason, metadata: { sourceUrl: observation.url } });
+              if (!inserted.error) gapsFound += 1;
+            }
+
+          }));
         }
       } catch (error) { errors.push(`${sourceConfig.competitor}: ${error instanceof Error ? error.message : "scan failed"}`); }
     }
